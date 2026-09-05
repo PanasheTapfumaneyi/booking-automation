@@ -1,0 +1,476 @@
+import type { Booking, NewBookingInput } from "@/types/booking";
+import { getSupabase } from "@/lib/supabase/server";
+import { ApiError } from "@/lib/server/errors";
+import {
+  type ServiceRow,
+  type BookingRow,
+  BOOKING_SELECT,
+  fetchBusiness,
+  fetchService,
+  fetchBookingByToken,
+  fetchBlocks,
+  findOrCreateCustomer,
+  normalizePhone,
+} from "@/lib/server/database";
+import { requireAppointmentSlot } from "@/lib/server/strategies/appointment";
+import {
+  assertResourceFree,
+  validateResourceBooking,
+} from "@/lib/server/strategies/resource";
+import {
+  validateCapacityBooking,
+} from "@/lib/server/strategies/capacity";
+
+import { generateManageToken } from "@/lib/server/token";
+import {
+  assertNewTimeCalendarFree,
+  moveCalendarEvent,
+  syncAfterCancel,
+  syncAfterCreate,
+} from "@/lib/server/google-calendar/sync";
+
+export { generateManageToken } from "@/lib/server/token";
+
+const SLOT_UNAVAILABLE_MESSAGE =
+  "That time was just booked by someone else. Please choose another available time.";
+
+const CAPACITY_FULL_MESSAGE =
+  "That session just filled up. Please choose another departure.";
+
+// ---------------------------------------------------------------------------
+// Validation helpers
+// ---------------------------------------------------------------------------
+
+function parseInstant(raw: string): Date | null {
+  const date = new Date(raw);
+  if (!Number.isFinite(date.getTime())) return null;
+  return date;
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validateContact(input: NewBookingInput): {
+  name: string;
+  phone: string;
+  email: string | null;
+} {
+  const name = input.name?.trim() ?? "";
+  const phone = input.phone?.trim() ?? "";
+  const email = input.email?.trim() ?? "";
+
+  if (!name) {
+    throw new ApiError(400, "VALIDATION", "Please enter your name.");
+  }
+  if (normalizePhone(phone).length < 7) {
+    throw new ApiError(400, "VALIDATION", "Please enter a valid phone number.");
+  }
+  if (email && !isValidEmail(email)) {
+    throw new ApiError(400, "VALIDATION", "Please enter a valid email address.");
+  }
+  return { name, phone, email: email || null };
+}
+
+// ---------------------------------------------------------------------------
+// Booking mapping
+// ---------------------------------------------------------------------------
+
+function mapBooking(row: BookingRow): Booking {
+  return {
+    id: row.id,
+    businessId: row.business_id,
+    serviceId: row.service_id,
+    customerId: row.customer_id,
+    resourceId: row.resource_id,
+    sessionId: row.session_id,
+    quantity: row.quantity,
+    serviceName: row.service?.name ?? "",
+    servicePrice: Number(row.service?.price ?? 0),
+    serviceDurationMinutes: row.service?.duration_minutes ?? 0,
+    customerName: row.customer?.name ?? "",
+    customerPhone: row.customer?.phone ?? "",
+    customerEmail: row.customer?.email ?? null,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    status: row.status,
+    googleEventId: row.google_event_id,
+    manageToken: row.manage_token,
+    previousStartTime: row.previous_start_time,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function normalizeBookingRow(
+  row: BookingRow,
+  service: Pick<ServiceRow, "name" | "duration_minutes" | "price">,
+  customer: { name: string; phone: string; email: string | null },
+): Booking {
+  return mapBooking({ ...row, service, customer });
+}
+
+// ---------------------------------------------------------------------------
+// Shared RPC call (mode-agnostic)
+// ---------------------------------------------------------------------------
+
+function decodeRpcResult(result: {
+  ok: boolean;
+  code?: string;
+  booking?: BookingRow;
+}): BookingRow {
+  if (!result.ok) {
+    switch (result.code) {
+      case "SLOT_UNAVAILABLE":
+        throw new ApiError(409, "SLOT_UNAVAILABLE", SLOT_UNAVAILABLE_MESSAGE);
+      case "CAPACITY_FULL":
+        throw new ApiError(409, "CAPACITY_FULL", CAPACITY_FULL_MESSAGE);
+      case "SESSION_NOT_FOUND":
+        throw new ApiError(
+          400,
+          "SESSION_NOT_FOUND",
+          "That departure isn't available right now.",
+        );
+      case "VALIDATION":
+        throw new ApiError(400, "VALIDATION", "Please check your booking details.");
+      default:
+        throw new ApiError(
+          500,
+          "INTERNAL",
+          "We couldn't save your booking. Please try again.",
+        );
+    }
+  }
+  return result.booking as unknown as BookingRow;
+}
+
+async function insertBooking(rpcArgs: Record<string, unknown>): Promise<BookingRow> {
+  const db = getSupabase();
+  const { data, error } = await db.rpc("create_booking", rpcArgs);
+  if (error) {
+    throw new ApiError(500, "INTERNAL", "We couldn't save your booking.");
+  }
+  return decodeRpcResult(
+    data as { ok: boolean; code?: string; booking?: BookingRow },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Public operations
+// ---------------------------------------------------------------------------
+
+export type CreateBookingInput = NewBookingInput;
+
+export async function createBooking(input: CreateBookingInput): Promise<Booking> {
+  const contact = validateContact(input);
+
+  const service = await fetchService(input.serviceId);
+  if (!service || !service.active) {
+    throw new ApiError(
+      400,
+      "SERVICE_NOT_FOUND",
+      "That service isn't available right now.",
+    );
+  }
+  const business = await fetchBusiness(service.business_id);
+
+  const customerId = await findOrCreateCustomer(business.id, contact);
+  const token = generateManageToken();
+
+  switch (business.booking_mode) {
+    case "appointment": {
+      const start = parseInstant(input.startTime);
+      if (!start) {
+        throw new ApiError(400, "VALIDATION", "Please choose a valid time.");
+      }
+      await requireAppointmentSlot(business, service, start);
+
+      const end = new Date(start.getTime() + service.duration_minutes * 60000);
+      const startIso = start.toISOString();
+      const endIso = end.toISOString();
+
+      const blocks = await fetchBlocks({ businessId: business.id, startIso, endIso });
+      if (blocks.length > 0) {
+        throw new ApiError(409, "SLOT_UNAVAILABLE", SLOT_UNAVAILABLE_MESSAGE);
+      }
+
+      const row = await insertBooking({
+        p_business_id: business.id,
+        p_service_id: service.id,
+        p_customer_id: customerId,
+        p_start_time: startIso,
+        p_end_time: endIso,
+        p_manage_token: token,
+      });
+
+      const booking = normalizeBookingRow(row, service, contact);
+      await syncAfterCreate({
+        business,
+        service,
+        row,
+        customerName: contact.name,
+        customerPhone: contact.phone,
+        customerEmail: contact.email,
+      });
+      return booking;
+    }
+
+    case "resource": {
+      if (!input.resourceId) {
+        throw new ApiError(
+          400,
+          "VALIDATION",
+          "Please choose one of the available items.",
+        );
+      }
+      await validateResourceBooking({
+        businessId: business.id,
+        resourceId: input.resourceId,
+      });
+
+      const start = parseInstant(input.startTime);
+      const end = parseInstant(input.endTime);
+      if (!start || !end || start.getTime() >= end.getTime()) {
+        throw new ApiError(
+          400,
+          "VALIDATION",
+          "Please choose a valid start and end time.",
+        );
+      }
+      if (end.getTime() <= Date.now()) {
+        throw new ApiError(
+          400,
+          "VALIDATION",
+          "This time has already passed. Please choose another.",
+        );
+      }
+
+      const startIso = start.toISOString();
+      const endIso = end.toISOString();
+      await assertResourceFree({
+        businessId: business.id,
+        resourceId: input.resourceId,
+        startIso,
+        endIso,
+      });
+
+      const row = await insertBooking({
+        p_business_id: business.id,
+        p_service_id: service.id,
+        p_customer_id: customerId,
+        p_start_time: startIso,
+        p_end_time: endIso,
+        p_manage_token: token,
+        p_resource_id: input.resourceId,
+      });
+      return normalizeBookingRow(row, service, contact);
+    }
+
+    case "capacity": {
+      if (!input.sessionId) {
+        throw new ApiError(
+          400,
+          "VALIDATION",
+          "Please choose one of the available departures.",
+        );
+      }
+      const quantity =
+        Number.isFinite(input.quantity) && (input.quantity ?? 0) > 0
+          ? Math.floor(input.quantity ?? 1)
+          : 1;
+
+      const session = await validateCapacityBooking({
+        sessionId: input.sessionId,
+        quantity,
+      });
+
+      const row = await insertBooking({
+        p_business_id: business.id,
+        p_service_id: service.id,
+        p_customer_id: customerId,
+        p_start_time: session.start_time,
+        p_end_time: session.end_time ?? session.start_time,
+        p_manage_token: token,
+        p_session_id: session.id,
+        p_quantity: quantity,
+      });
+      return normalizeBookingRow(row, service, contact);
+    }
+  }
+}
+
+export async function getBookingByToken(token: string): Promise<Booking> {
+  const found = await fetchBookingByToken(token);
+  if (!found) {
+    throw new ApiError(
+      404,
+      "BOOKING_NOT_FOUND",
+      "We couldn't find this appointment. The link may be incorrect.",
+    );
+  }
+  return mapBooking(found.row);
+}
+
+export async function rescheduleBooking(
+  token: string,
+  startTimeRaw: string,
+): Promise<Booking> {
+  const db = getSupabase();
+  const found = await fetchBookingByToken(token);
+  if (!found) {
+    throw new ApiError(
+      404,
+      "BOOKING_NOT_FOUND",
+      "We couldn't find this appointment. The link may be incorrect.",
+    );
+  }
+  const { row } = found;
+
+  if (row.status === "cancelled") {
+    throw new ApiError(
+      409,
+      "BOOKING_CANCELLED",
+      "This appointment has already been cancelled.",
+    );
+  }
+
+  const service = await fetchService(row.service_id);
+  if (!service) {
+    throw new ApiError(500, "INTERNAL", "We couldn't load this service.");
+  }
+  const business = await fetchBusiness(row.business_id);
+
+  if (business.booking_mode !== "appointment") {
+    throw new ApiError(
+      400,
+      "VALIDATION",
+      "Rescheduling isn't available for this booking type yet.",
+    );
+  }
+
+  const start = parseInstant(startTimeRaw);
+  if (!start) {
+    throw new ApiError(400, "VALIDATION", "Please choose a valid time.");
+  }
+  await requireAppointmentSlot(business, service, start);
+
+  const end = new Date(start.getTime() + service.duration_minutes * 60000);
+  const startIso = start.toISOString();
+  const endIso = end.toISOString();
+
+  const blocks = await fetchBlocks({
+    businessId: business.id,
+    startIso,
+    endIso,
+    excludeBookingId: row.id,
+  });
+  if (blocks.length > 0) {
+    throw new ApiError(409, "SLOT_UNAVAILABLE", SLOT_UNAVAILABLE_MESSAGE);
+  }
+
+  // Final Calendar availability check (ignores this booking's own event).
+  await assertNewTimeCalendarFree({
+    business,
+    row,
+    newStartIso: startIso,
+    newEndIso: endIso,
+  });
+
+  const { data, error } = await db.rpc("update_booking_time", {
+    p_booking_id: row.id,
+    p_start_time: startIso,
+    p_end_time: endIso,
+  });
+
+  if (error) {
+    throw new ApiError(
+      500,
+      "INTERNAL",
+      "We couldn't reschedule your appointment. Please try again.",
+    );
+  }
+
+  const result = data as { ok: boolean; code?: string; booking?: BookingRow };
+
+  if (!result.ok) {
+    if (result.code === "SLOT_UNAVAILABLE") {
+      throw new ApiError(409, "SLOT_UNAVAILABLE", SLOT_UNAVAILABLE_MESSAGE);
+    }
+    // BOOKING_INVALID — the booking may have been cancelled concurrently.
+    const latest = await fetchBookingByToken(token);
+    if (latest && latest.row.status === "cancelled") {
+      throw new ApiError(
+        409,
+        "BOOKING_CANCELLED",
+        "This appointment has already been cancelled.",
+      );
+    }
+    throw new ApiError(409, "SLOT_UNAVAILABLE", SLOT_UNAVAILABLE_MESSAGE);
+  }
+
+  const movedRow = result.booking as unknown as BookingRow;
+
+  // Move the existing Google event; reverts the DB move on failure.
+  await moveCalendarEvent({
+    business,
+    row,
+    newStartIso: startIso,
+    newEndIso: endIso,
+    previousStartIso: row.start_time,
+    previousEndIso: row.end_time,
+  });
+
+  return normalizeBookingRow(
+    movedRow,
+    service,
+    row.customer ?? { name: "", phone: "", email: null },
+  );
+}
+
+export async function cancelBooking(token: string): Promise<Booking> {
+  const db = getSupabase();
+
+  const { data, error } = await db
+    .from("bookings")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("manage_token", token)
+    .neq("status", "cancelled")
+    .select(BOOKING_SELECT)
+    .maybeSingle();
+
+  if (error) {
+    throw new ApiError(
+      500,
+      "INTERNAL",
+      "We couldn't cancel your appointment. Please try again.",
+    );
+  }
+
+  if (!data) {
+    // Either the token doesn't exist or the booking was already cancelled.
+    const found = await fetchBookingByToken(token);
+    if (!found) {
+      throw new ApiError(
+        404,
+        "BOOKING_NOT_FOUND",
+        "We couldn't find this appointment. The link may be incorrect.",
+      );
+    }
+    throw new ApiError(
+      409,
+      "BOOKING_CANCELLED",
+      "This appointment has already been cancelled.",
+    );
+  }
+
+  const cancelled = data as unknown as BookingRow;
+
+  // Remove the calendar event (idempotent if it was already deleted). The DB
+  // cancellation is already committed, so availability is freed regardless.
+  await syncAfterCancel({
+    business: { id: cancelled.business_id },
+    row: cancelled,
+  });
+
+  return mapBooking(cancelled);
+}
