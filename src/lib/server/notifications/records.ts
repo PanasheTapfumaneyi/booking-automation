@@ -128,6 +128,44 @@ export interface NotificationStatusPatch {
   errorCode?: NotificationErrorCode | null;
   errorMessage?: string | null;
   sentAt?: string | null;
+  /** Replaces metadata wholesale when present (reminders refresh schedule context). */
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Concurrency-safe claim for scheduler-driven sends (Phase 5).
+ *
+ * Atomically transitions one row to `processing` — but only when it still
+ * carries one of the expected statuses AND the expected attempt count. Two
+ * overlapping runs racing the same row: exactly one UPDATE matches, the
+ * loser sees zero rows and must skip. The attempt count increments as part
+ * of the claim so retries are observable without extra rows.
+ */
+export async function claimNotificationRow(
+  id: string,
+  expected: { attemptCount: number; statuses: NotificationStatus[] },
+  db?: DbLike,
+): Promise<{ claimed: boolean; attemptCount: number }> {
+  const client = resolveDb(db);
+  const { data, error } = await client
+    .from("notifications")
+    .update({
+      status: "processing",
+      attempt_count: expected.attemptCount + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("attempt_count", expected.attemptCount)
+    .in("status", expected.statuses)
+    .select("id, attempt_count")
+    .maybeSingle();
+  if (error || !data) {
+    return { claimed: false, attemptCount: expected.attemptCount };
+  }
+  return {
+    claimed: true,
+    attemptCount: (data as { attempt_count: number }).attempt_count,
+  };
 }
 
 export async function updateNotificationRecord(
@@ -148,6 +186,7 @@ export async function updateNotificationRecord(
     fields.error_message = patch.errorMessage ?? null;
   }
   if (patch.sentAt !== undefined) fields.sent_at = patch.sentAt;
+  if (patch.metadata !== undefined) fields.metadata = patch.metadata;
   const { error } = await client.from("notifications").update(fields).eq("id", id);
   if (error) {
     throw error;

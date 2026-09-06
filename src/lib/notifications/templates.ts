@@ -13,6 +13,7 @@ import {
   formatLongDateInZone,
   formatTimeInZone,
 } from "@/lib/availability/time";
+import type { BookingReminderType } from "./types";
 
 export type NotificationTemplateType =
   | "booking.created"
@@ -78,6 +79,45 @@ export function customerCancelledMessage(ctx: TemplateContext): string {
     "",
     `Need to rebook? ${ctx.manageUrl ?? "Visit us again soon."}`,
   ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Customer-facing reminder messages (Phase 5 — customer only, timed).
+// Same rendering rules as confirmations: business timezone, manage URL.
+// ---------------------------------------------------------------------------
+
+export function customerReminder24hMessage(ctx: TemplateContext): string {
+  return [
+    `${ctx.businessName} — appointment reminder`,
+    "",
+    `Hi ${ctx.customerName},`,
+    `just a reminder: your ${ctx.serviceName} is tomorrow, ${dayTime(ctx.startIso, ctx.businessTimezone)}.`,
+    "",
+    `Manage this appointment: ${ctx.manageUrl ?? "—"}`,
+  ].join("\n");
+}
+
+export function customerReminder2hMessage(ctx: TemplateContext): string {
+  return [
+    `${ctx.businessName} — appointment reminder`,
+    "",
+    `Hi ${ctx.customerName},`,
+    `just a reminder: your ${ctx.serviceName} is in about 2 hours, ${dayTime(ctx.startIso, ctx.businessTimezone)}.`,
+    "",
+    `Manage this appointment: ${ctx.manageUrl ?? "—"}`,
+  ].join("\n");
+}
+
+export function buildReminderMessage(
+  type: BookingReminderType,
+  ctx: TemplateContext,
+): string {
+  switch (type) {
+    case "booking.reminder.24h":
+      return customerReminder24hMessage(ctx);
+    case "booking.reminder.2h":
+      return customerReminder2hMessage(ctx);
+  }
 }
 
 // ---------------------------------------------------------------------------

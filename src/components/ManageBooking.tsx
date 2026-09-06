@@ -55,6 +55,8 @@ export default function ManageBooking({ token }: ManageBookingProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // NOTE: the page renders this component with key={token}, so a new manage
+  // link always mounts fresh state — no reset-on-token-change is needed here.
   useEffect(() => {
     let cancelled = false;
 

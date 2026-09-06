@@ -7,12 +7,13 @@
  */
 import { isValidE164 } from "@/lib/notifications/phone";
 
-export type ConfiguredProvider = "none" | "mock" | "openwa";
+export type ConfiguredProvider = "none" | "mock" | "openwa" | "baileys";
 
 export function notificationProvider(): ConfiguredProvider {
   const raw = (process.env.NOTIFICATION_PROVIDER ?? "").trim().toLowerCase();
   if (raw === "mock") return "mock";
   if (raw === "openwa") return "openwa";
+  if (raw === "baileys") return "baileys";
   if (raw !== "") {
     console.warn(
       `[notifications] ignoring unknown NOTIFICATION_PROVIDER=${JSON.stringify(raw)}; using none`,
@@ -37,6 +38,20 @@ export function openwaSessionId(): string {
 
 export function openwaTimeoutMs(): number {
   const raw = Number(process.env.OPENWA_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : 10_000;
+}
+
+export function baileysBaseUrl(): string {
+  return (process.env.BAILEYS_BASE_URL ?? "http://localhost:8081").replace(/\/+$/, "");
+}
+
+export function baileysApiKey(): string | null {
+  const raw = (process.env.BAILEYS_API_KEY ?? "").trim();
+  return raw.length > 0 ? raw : null;
+}
+
+export function baileysTimeoutMs(): number {
+  const raw = Number(process.env.BAILEYS_TIMEOUT_MS);
   return Number.isFinite(raw) && raw > 0 ? raw : 10_000;
 }
 

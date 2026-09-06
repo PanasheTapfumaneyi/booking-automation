@@ -1,0 +1,6 @@
+# Runtime secrets + session material — never commit.
+.env
+auth/
+node_modules/
+dist/
+*.log

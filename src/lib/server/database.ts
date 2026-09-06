@@ -119,8 +119,11 @@ export const BOOKING_SELECT = [
 
 export const BLOCKING_STATUS_LIST = BLOCKING_BOOKING_STATUSES.join(",");
 
-export async function fetchBusiness(businessId: string): Promise<BusinessRow> {
-  const { data, error } = await getSupabase()
+export async function fetchBusiness(
+  businessId: string,
+  db?: SupabaseClient,
+): Promise<BusinessRow> {
+  const { data, error } = await (db ?? getSupabase())
     .from("businesses")
     .select("*")
     .eq("id", businessId)
@@ -169,8 +172,11 @@ export async function fetchBookingSession(
 
 export async function fetchBookingByToken(
   token: string,
+  db?: SupabaseClient,
 ): Promise<{ row: BookingRow } | null> {
-  const { data, error } = await getSupabase()
+  // Exact match on the unique manage_token — never a list, prefix, or
+  // fallback. Any error (or zero rows) is "not found", never another row.
+  const { data, error } = await (db ?? getSupabase())
     .from("bookings")
     .select(BOOKING_SELECT)
     .eq("manage_token", token)

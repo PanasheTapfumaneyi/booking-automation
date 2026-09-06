@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildCustomerMessage,
   buildBusinessMessage,
+  buildReminderMessage,
   type TemplateContext,
 } from "./templates";
 
@@ -106,5 +107,27 @@ describe("business messages", () => {
     const message = buildBusinessMessage("booking.cancelled", BASE);
     expect(message).toContain("Cancellation");
     expect(message).toContain("cancelled");
+  });
+});
+
+describe("reminder messages (Phase 5 — customer only)", () => {
+  it("24h reminder names the service, the business-local time, and the manage link", () => {
+    const message = buildReminderMessage("booking.reminder.24h", BASE);
+    expect(message).toContain("appointment reminder");
+    expect(message).toContain("Fade District");
+    expect(message).toContain("Haircut + Beard");
+    expect(message).toContain("tomorrow");
+    expect(message).toContain("Monday, 7 September at 14:00");
+    expect(message).toContain(BASE.manageUrl as string);
+    expect(message).toContain("Jean-Marc");
+  });
+
+  it("2h reminder carries the 2-hour intent with the same guarantees", () => {
+    const message = buildReminderMessage("booking.reminder.2h", BASE);
+    expect(message).toContain("appointment reminder");
+    expect(message).toContain("in about 2 hours");
+    expect(message).toContain("Monday, 7 September at 14:00");
+    expect(message).toContain(BASE.manageUrl as string);
+    expect(message).not.toContain("barbershop");
   });
 });

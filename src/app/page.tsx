@@ -39,12 +39,10 @@ export default function HomePage() {
               >
                 Book appointment
               </Link>
-              <Link
-                href="/manage/demo"
-                className="text-center text-sm font-medium text-paper/70 hover:text-paper"
-              >
-                Manage an existing appointment →
-              </Link>
+              <p className="text-center text-sm text-paper/70 sm:text-left">
+                Already booked? Use the manage link from your confirmation
+                message to reschedule or cancel.
+              </p>
             </div>
             <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-paper/60">
               <li>No account needed</li>

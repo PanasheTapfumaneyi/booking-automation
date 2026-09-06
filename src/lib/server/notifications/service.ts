@@ -18,7 +18,7 @@
 import { getSupabase } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
-  BookingNotificationEventType,
+  BookingEventType,
   BusinessNotificationSettings,
   NotificationMessage,
   NotificationRecord,
@@ -74,7 +74,7 @@ export interface BookingNotificationDispatchInput {
   serviceName: string;
   booking: Pick<BookingRowMinimal, "id" | "start_time" | "end_time" | "manage_token">;
   customer: { name: string; phone: string };
-  type: BookingNotificationEventType;
+  type: BookingEventType;
   /** Populated only for `booking.rescheduled`. */
   previous?: { startTime: string; endTime: string };
   /**
@@ -107,7 +107,7 @@ interface SendOneArgs {
   bookingId: string;
   businessId: string;
   customerId?: string | null;
-  eventType: BookingNotificationEventType;
+  eventType: BookingEventType;
   settings: BusinessNotificationSettings;
   metadata?: Record<string, unknown>;
 }

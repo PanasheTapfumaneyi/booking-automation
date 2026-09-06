@@ -5,7 +5,8 @@
  * delivery record per (event, recipient, channel) and hands canonical
  * E.164 destinations to a transport-agnostic provider. Providers are swappable
  * (OpenWA today, Meta Cloud API later) without booking logic knowing anything
- * about them.
+ * about them. Transports are additive: OpenWA stays available for rollback
+ * while Baileys is the current pilot transport.
  */
 import { randomUUID } from "node:crypto";
 
@@ -20,16 +21,26 @@ export type NotificationStatus =
   | "failed" // provider rejected / unreachable (booking outcome unaffected)
   | "skipped"; // recipient intentionally not notified (disabled / no destination)
 
-export type BookingNotificationEventType =
+/** Timed reminder events (Phase 5 — customer only, scheduler-driven). */
+export type BookingReminderType = "booking.reminder.24h" | "booking.reminder.2h";
+
+/** Event-driven booking events (Phase 4 confirmations). */
+export type BookingEventType =
   | "booking.created"
   | "booking.rescheduled"
   | "booking.cancelled";
+
+export type BookingNotificationEventType = BookingEventType | BookingReminderType;
 
 export type NotificationErrorCode =
   | "OPENWA_UNAVAILABLE"
   | "OPENWA_AUTH_FAILED"
   | "OPENWA_SESSION_NOT_READY"
   | "OPENWA_SEND_FAILED"
+  | "BAILEYS_UNAVAILABLE"
+  | "BAILEYS_AUTH_FAILED"
+  | "BAILEYS_SESSION_NOT_READY"
+  | "BAILEYS_SEND_FAILED"
   | "INVALID_PHONE";
 
 /** Normalized outcome of a single provider send attempt. */

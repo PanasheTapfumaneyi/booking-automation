@@ -20,7 +20,12 @@ export default async function ManagePage({ params }: ManagePageProps) {
     <>
       <Navbar />
       <main className="flex-1">
-        <ManageBooking token={token} />
+        {/*
+          Keyed by token so a new manage link always mounts a fresh view:
+          no previous booking, mode, or not-found state can leak across
+          tokens, including on client-side navigation between manage URLs.
+        */}
+        <ManageBooking key={token} token={token} />
       </main>
       <Footer />
     </>
