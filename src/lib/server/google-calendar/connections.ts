@@ -113,11 +113,11 @@ export async function completeConnection(
       connectedAt: "",
       updatedAt: "",
     }).api as CalendarApi;
-    const { data } = await api.about.get(
-      {},
+    const { data } = await api.calendarList.get(
+      { calendarId: "primary" },
       { timeout: googleApiTimeoutMs() },
     );
-    calendarId = data?.primaryCalendarId ?? "primary";
+    calendarId = data?.id ?? "primary";
   } catch (err) {
     console.warn(
       "[google-calendar] primary calendar lookup failed, defaulting to primary:",
@@ -176,7 +176,10 @@ export async function getConnectionStatus(
 
   try {
     const api = createCalendarApiClient(connection, undefined).api as CalendarApi;
-    await api.about.get({}, { timeout: Math.min(googleApiTimeoutMs(), 5000) });
+    await api.calendarList.get(
+      { calendarId: "primary" },
+      { timeout: Math.min(googleApiTimeoutMs(), 5000) },
+    );
     return {
       connected: true,
       calendarId: connection.calendarId,
@@ -185,6 +188,7 @@ export async function getConnectionStatus(
       checked: true,
     };
   } catch (err) {
+    console.error("[google-calendar] status check failed:", err);
     if (classifyCalendarError(err) === "CALENDAR_AUTH_REQUIRED") {
       return {
         connected: true,

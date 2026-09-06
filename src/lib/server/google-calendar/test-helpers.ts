@@ -189,8 +189,8 @@ export function createFakeCalendarApi(config: FakeCalendarApiConfig = {}) {
         };
       },
     },
-    about: {
-      get: async () => ({ data: { primaryCalendarId: "primary" } }),
+    calendarList: {
+      get: async () => ({ data: { id: "primary" } }),
     },
   };
 

@@ -1,10 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { getSlotsForDay } from "@/lib/availability";
+import { getSlotsForDay, getOpeningRange, isDateKeyAvailable } from "@/lib/availability";
+import { getLocalDayInfo } from "@/lib/availability";
 
-// 2026-09-15. NOTE: time.ts resolves the local weekday as the UTC weekday of
-// the local-midnight instant, which is off-by-one for UTC+4; this date is one
-// the current implementation treats as an open weekday (09:00–18:00 local,
-// 60-minute slots on a 30-minute grid).
+// 2026-09-15: still an open weekday (Tuesday) after the fix; keeps the
+// existing busy-block tests (which never depended on the weekday bug).
 const TIMEZONE = "Indian/Mauritius";
 const HOUR = { durationMinutes: 60 };
 
@@ -41,5 +40,52 @@ describe("appointment slot grid + calendar busy blocks", () => {
   it("slot availability is unchanged when no calendar blocks exist", () => {
     const baseline = getSlotsForDay("2026-09-15", HOUR, [], TIMEZONE);
     expect(baseline).toHaveLength(17); // 09:00 → 17:00 on the 30-min grid
+  });
+});
+
+describe("weekday business hours (getOpeningRange / getLocalDayInfo)", () => {
+  it("Monday through Friday are open 09:00–18:00 (17 slots for 60-min service)", () => {
+    const openDates = ["2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11"];
+    for (const d of openDates) {
+      const range = getOpeningRange(getLocalDayInfo(d, TIMEZONE).dayOfWeek);
+      expect(range).toEqual({ startMinutes: 9 * 60, endMinutes: 18 * 60 });
+      expect(getSlotsForDay(d, HOUR, [], TIMEZONE)).toHaveLength(17);
+    }
+  });
+
+  it("Saturday is open 09:00–16:00 (13 slots for 60-min service on 30-min grid)", () => {
+    const range = getOpeningRange(getLocalDayInfo("2026-09-12", TIMEZONE).dayOfWeek);
+    expect(range).toEqual({ startMinutes: 9 * 60, endMinutes: 16 * 60 });
+    expect(getSlotsForDay("2026-09-12", HOUR, [], TIMEZONE)).toHaveLength(13);
+  });
+
+  it("Sunday is closed (0 slots)", () => {
+    const range = getOpeningRange(getLocalDayInfo("2026-09-13", TIMEZONE).dayOfWeek);
+    expect(range).toEqual({ startMinutes: null, endMinutes: null });
+    expect(getSlotsForDay("2026-09-13", HOUR, [], TIMEZONE)).toHaveLength(0);
+  });
+});
+
+describe("appointment availability regression (weekday-aware slot timing)", () => {
+  it("Monday 2026-09-07 returns open slots (regression: previously closed)", () => {
+    const slots = getSlotsForDay("2026-09-07", HOUR, [], TIMEZONE);
+    expect(slots.length).toBeGreaterThan(0);
+    expect(slots[0].startTime).toBe("2026-09-07T05:00:00.000Z"); // 09:00 local
+    expect(slots[0].label).toBe("09:00");
+  });
+
+  it("first slot of the day lands at local 09:00 across a year boundary (east-zone)", () => {
+    // 2026-01-01 is a Thursday (open) — local midnight crosses into 2025-12-31 UTC.
+    const slots = getSlotsForDay("2026-01-01", HOUR, [], TIMEZONE);
+    expect(getLocalDayInfo("2026-01-01", TIMEZONE).dayOfWeek).toBe(4); // Thursday
+    expect(slots.length).toBeGreaterThan(0);
+    expect(slots[0].startTime).toBe("2026-01-01T05:00:00.000Z"); // 09:00 local
+    expect(slots[0].label).toBe("09:00");
+  });
+
+  it("isDateKeyAvailable uses the corrected weekday (Monday open, Sunday closed)", () => {
+    expect(isDateKeyAvailable("2026-09-07", TIMEZONE)).toBe(true);   // Monday — open, within window
+    expect(isDateKeyAvailable("2026-09-13", TIMEZONE)).toBe(false);  // Sunday — closed
+    expect(getSlotsForDay("2026-09-13", HOUR, [], TIMEZONE)).toHaveLength(0);
   });
 });

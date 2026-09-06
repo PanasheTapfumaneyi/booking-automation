@@ -31,8 +31,13 @@ function toCredentials(connection: ServerCalendarConnection): Credentials {
 
 /**
  * Wraps the googleapis calendar service into the injectable CalendarApi.
- * The googleapis methods are heavily overloaded; they are rebound through
- * `unknown` so consumers only ever see the stable CalendarApi surface.
+ *
+ * The generated googleapis methods are classes (not standalone functions):
+ * invoking one detached from its resource object fails with "Cannot read
+ * properties of undefined (reading 'context')". Every call therefore goes
+ * through a closure that invokes the method as a member of its resource so
+ * `this` stays bound, while the surface exposed to consumers remains the
+ * stable, typed CalendarApi.
  */
 function wrapCalendarService(
   service: unknown,
@@ -45,33 +50,37 @@ function wrapCalendarService(
       get: (params: unknown, options?: unknown) => Promise<unknown>;
     };
     freebusy: { query: (params: unknown, options?: unknown) => Promise<unknown> };
-    about: { get: (params: unknown, options?: unknown) => Promise<unknown> };
+    calendarList: { get: (params: unknown, options?: unknown) => Promise<unknown> };
   };
 
-  const request = async <T>(
-    fn: (params: unknown, options?: unknown) => Promise<unknown>,
-    params: unknown,
-    options?: { timeout?: number },
-  ): Promise<T> => {
-    const response = (await fn(params, { timeout: options?.timeout })) as T;
-    return response;
+  const request = async <T>(run: () => Promise<unknown>): Promise<T> => {
+    return (await run()) as T;
   };
+  const methodOptions = (options?: { timeout?: number }) => ({
+    timeout: options?.timeout,
+  });
 
   return {
     events: {
       insert: (input, options) =>
-        request<{ data: { id?: string } }>(svc.events.insert, input, options),
+        request<{ data: { id?: string } }>(() =>
+          svc.events.insert(input, methodOptions(options)),
+        ),
       patch: (input, options) =>
-        request<{ data: unknown }>(svc.events.patch, input, options),
+        request<{ data: unknown }>(() =>
+          svc.events.patch(input, methodOptions(options)),
+        ),
       delete: (input, options) =>
-        request<{ data: unknown }>(svc.events.delete, input, options),
+        request<{ data: unknown }>(() =>
+          svc.events.delete(input, methodOptions(options)),
+        ),
       get: (input, options) =>
         request<{
           data: {
             start?: { dateTime?: string; timeZone?: string };
             end?: { dateTime?: string; timeZone?: string };
           };
-        }>(svc.events.get, input, options),
+        }>(() => svc.events.get(input, methodOptions(options))),
     },
     freebusy: {
       query: (input, options) =>
@@ -82,14 +91,12 @@ function wrapCalendarService(
               { busy?: Array<{ start?: string; end?: string }>; errors?: unknown[] }
             >;
           };
-        }>(svc.freebusy.query, input, options),
+        }>(() => svc.freebusy.query(input, methodOptions(options))),
     },
-    about: {
-      get: (_input, options) =>
-        request<{ data: { primaryCalendarId?: string; user?: { email?: string } } }>(
-          svc.about.get,
-          {},
-          options,
+    calendarList: {
+      get: (input, options) =>
+        request<{ data: { id?: string } }>(() =>
+          svc.calendarList.get(input, methodOptions(options)),
         ),
     },
   };

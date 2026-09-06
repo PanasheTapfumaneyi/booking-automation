@@ -13,10 +13,12 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state");
   const denied = request.nextUrl.searchParams.get("error");
+  const resultUrl = (path: string) =>
+    new URL(path, request.nextUrl.origin).toString();
 
   if (denied) {
     return NextResponse.redirect(
-      "/integrations/google-calendar/result?status=error&reason=denied",
+      resultUrl("/integrations/google-calendar/result?status=error&reason=denied"),
       302,
     );
   }
@@ -25,12 +27,14 @@ export async function GET(request: NextRequest) {
     const outcome = await completeConnection({ code, state });
     if (outcome.status === "denied") {
       return NextResponse.redirect(
-        "/integrations/google-calendar/result?status=error&reason=denied",
+        resultUrl("/integrations/google-calendar/result?status=error&reason=denied"),
         302,
       );
     }
     return NextResponse.redirect(
-      `/integrations/google-calendar/result?status=success&business=${encodeURIComponent(outcome.businessId)}`,
+      resultUrl(
+        `/integrations/google-calendar/result?status=success&business=${encodeURIComponent(outcome.businessId)}`,
+      ),
       302,
     );
   } catch (error) {
@@ -39,7 +43,7 @@ export async function GET(request: NextRequest) {
       apiError.status === 400 ? "invalid-state" : "exchange-failed";
     console.error("[google-calendar] callback failed:", error);
     return NextResponse.redirect(
-      `/integrations/google-calendar/result?status=error&reason=${reason}`,
+      resultUrl(`/integrations/google-calendar/result?status=error&reason=${reason}`),
       302,
     );
   }

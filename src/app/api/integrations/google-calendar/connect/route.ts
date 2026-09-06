@@ -11,6 +11,8 @@ import { toApiErrorResponse } from "@/lib/server/route-helper";
  * verified in the callback (CSRF protection).
  */
 export async function GET(request: NextRequest) {
+  const resultUrl = (path: string) =>
+    new URL(path, request.nextUrl.origin).toString();
   try {
     const businessId = request.nextUrl.searchParams.get("business");
     if (!businessId) {
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest) {
     console.error("[google-calendar] connect failed:", error);
     if (error instanceof Error && error.message === "Missing business id.") {
       return NextResponse.redirect(
-        `/integrations/google-calendar/result?status=error&reason=missing-business`,
+        resultUrl("/integrations/google-calendar/result?status=error&reason=missing-business"),
         302,
       );
     }
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest) {
           ? "business-not-found"
           : "config";
     return NextResponse.redirect(
-      `/integrations/google-calendar/result?status=error&reason=${message}`,
+      resultUrl(`/integrations/google-calendar/result?status=error&reason=${message}`),
       302,
     );
   }

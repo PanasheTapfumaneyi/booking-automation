@@ -29,6 +29,7 @@ function toLocalDateString(date: Date, timezone: string): string {
 }
 
 function getUTCOffsetMinutes(dateStr: string, timezone: string): number {
+  const [inputYear, inputMonth, inputDay] = dateStr.split("-").map(Number);
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
     hour12: false,
@@ -42,14 +43,7 @@ function getUTCOffsetMinutes(dateStr: string, timezone: string): number {
   const get = (type: string) =>
     parts.find((part) => part.type === type)?.value ?? "0";
 
-  const utcMidnight = Date.UTC(
-    Number(get("year")),
-    Number(get("month")) - 1,
-    Number(get("day")),
-    0,
-    0,
-    0,
-  );
+  const utcMidnight = Date.UTC(inputYear, inputMonth - 1, inputDay, 0, 0, 0);
   const zonedAsUtc = Date.UTC(
     Number(get("year")),
     Number(get("month")) - 1,
@@ -87,7 +81,15 @@ export function getLocalDayInfo(
   const offsetMinutes = getUTCOffsetMinutes(dateStr, timezone);
   const dayStartMs = Date.UTC(year, month - 1, day) - offsetMinutes * 60000;
   return {
-    dayOfWeek: new Date(dayStartMs).getUTCDay(),
+    // The local weekday is the weekday of the local wall-clock date itself
+    // (YYYY-MM-DD), not the weekday of the UTC instant at local midnight.
+    // For east-of-UTC zones local midnight is still the *previous* day in
+    // UTC (Mauritius Monday starts 2026-09-06T20:00Z, whose UTC weekday is
+    // Sunday), so getUTCDay() on dayStartMs yields Sunday for a Monday.
+    // Date.UTC(year, month - 1, day).getUTCDay() is pure Gregorian arithmetic
+    // on the date components — identical in every timezone and never affected
+    // by the server/browser local timezone.
+    dayOfWeek: new Date(Date.UTC(year, month - 1, day)).getUTCDay(),
     dayStartUtc: new Date(dayStartMs).toISOString(),
   };
 }

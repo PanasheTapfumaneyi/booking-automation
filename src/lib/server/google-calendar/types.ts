@@ -5,9 +5,10 @@
 export const GOOGLE_CALENDAR_SCOPES = [
   // write access to events on the connected calendar (create/update/delete)
   "https://www.googleapis.com/auth/calendar.events",
-  // read-only access needed for free/busy queries and identifying the
-  // account's primary calendar
-  "https://www.googleapis.com/auth/calendar.calendars.readonly",
+  // read access needed for free/busy queries and reading calendar list
+  // metadata; `calendar.calendars.readonly` alone is insufficient for the
+  // freebusy and calendarList APIs, which require `calendar.readonly`.
+  "https://www.googleapis.com/auth/calendar.readonly",
 ] as const;
 
 export type GoogleCalendarScope = (typeof GOOGLE_CALENDAR_SCOPES)[number];
@@ -89,13 +90,11 @@ export interface CalendarApi {
       };
     }>;
   };
-  about: {
+  calendarList: {
     get(
-      input: Record<string, never>,
+      input: { calendarId: string },
       options?: { timeout?: number },
-    ): Promise<{
-      data: { primaryCalendarId?: string; user?: { email?: string } };
-    }>;
+    ): Promise<{ data: { id?: string } }>;
   };
 }
 
