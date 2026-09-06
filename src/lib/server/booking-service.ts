@@ -29,6 +29,8 @@ import {
   syncAfterCreate,
 } from "@/lib/server/google-calendar/sync";
 
+import { dispatchBookingEvent } from "@/lib/server/notifications/service";
+
 export { generateManageToken } from "@/lib/server/token";
 
 const SLOT_UNAVAILABLE_MESSAGE =
@@ -212,6 +214,17 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
         customerPhone: contact.phone,
         customerEmail: contact.email,
       });
+
+      // Fire-and-forget: WhatsApp failure never blocks the booking response
+      // (notification dispatch is fully non-throwing — §22 failure isolation).
+      await dispatchBookingEvent({
+        business,
+        serviceName: service.name,
+        booking: row,
+        customer: contact,
+        type: "booking.created",
+      });
+
       return booking;
     }
 
@@ -263,7 +276,15 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
         p_manage_token: token,
         p_resource_id: input.resourceId,
       });
-      return normalizeBookingRow(row, service, contact);
+      const bookingResource = normalizeBookingRow(row, service, contact);
+      await dispatchBookingEvent({
+        business,
+        serviceName: service.name,
+        booking: row,
+        customer: contact,
+        type: "booking.created",
+      });
+      return bookingResource;
     }
 
     case "capacity": {
@@ -294,7 +315,15 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
         p_session_id: session.id,
         p_quantity: quantity,
       });
-      return normalizeBookingRow(row, service, contact);
+      const bookingCapacity = normalizeBookingRow(row, service, contact);
+      await dispatchBookingEvent({
+        business,
+        serviceName: service.name,
+        booking: row,
+        customer: contact,
+        type: "booking.created",
+      });
+      return bookingCapacity;
     }
   }
 }
@@ -420,6 +449,15 @@ export async function rescheduleBooking(
     previousEndIso: row.end_time,
   });
 
+  await dispatchBookingEvent({
+    business,
+    serviceName: service.name,
+    booking: movedRow,
+    customer: row.customer ?? { name: "", phone: "" },
+    type: "booking.rescheduled",
+    previous: { startTime: row.start_time, endTime: row.end_time },
+  });
+
   return normalizeBookingRow(
     movedRow,
     service,
@@ -465,11 +503,33 @@ export async function cancelBooking(token: string): Promise<Booking> {
 
   const cancelled = data as unknown as BookingRow;
 
+  // Load the business so the cancellation message renders with its real name
+  // and timezone. This is notification bookkeeping — a failure here must never
+  // break the cancellation, which is already committed.
+  let cancelBusiness: { id: string; name: string; timezone: string } = {
+    id: cancelled.business_id,
+    name: "",
+    timezone: "",
+  };
+  try {
+    cancelBusiness = await fetchBusiness(cancelled.business_id);
+  } catch {
+    // Fall back to the placeholder above; the cancellation still succeeds.
+  }
+
   // Remove the calendar event (idempotent if it was already deleted). The DB
   // cancellation is already committed, so availability is freed regardless.
   await syncAfterCancel({
     business: { id: cancelled.business_id },
     row: cancelled,
+  });
+
+  await dispatchBookingEvent({
+    business: cancelBusiness,
+    serviceName: cancelled.service?.name ?? "",
+    booking: cancelled,
+    customer: cancelled.customer ?? { name: "", phone: "" },
+    type: "booking.cancelled",
   });
 
   return mapBooking(cancelled);
