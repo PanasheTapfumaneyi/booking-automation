@@ -188,6 +188,20 @@ export async function fetchBusinessBySlug(
   return data as unknown as BusinessRow;
 }
 
+/** Lookup by booking id (availability exclusion, admin reads). */
+export async function fetchBookingById(
+  id: string,
+  db?: SupabaseClient,
+): Promise<{ row: BookingRow } | null> {
+  const { data, error } = await (db ?? getSupabase())
+    .from("bookings")
+    .select(BOOKING_SELECT)
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) return null;
+  return { row: data as unknown as BookingRow };
+}
+
 export async function fetchBookingByToken(
   token: string,
   db?: SupabaseClient,

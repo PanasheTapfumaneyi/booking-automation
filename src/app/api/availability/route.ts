@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
     const businessId = searchParams.get("businessId") ?? undefined;
     const excludeBookingToken =
       searchParams.get("excludeBookingToken") ?? undefined;
+    const excludeBookingId =
+      searchParams.get("excludeBookingId") ?? undefined;
 
     if (!serviceId) {
       throw new ApiError(400, "VALIDATION", "A service is required.");
@@ -32,6 +34,7 @@ export async function GET(request: NextRequest) {
       serviceId,
       date,
       excludeBookingToken,
+      excludeBookingId,
     });
     return NextResponse.json(availability);
   } catch (error) {

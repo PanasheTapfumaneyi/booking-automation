@@ -1,0 +1,236 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import BookingSearchForm from "@/components/BookingSearchForm";
+import BusinessBookingForm from "@/components/BusinessBookingForm";
+import { formatTimeInZone, formatLongDateInZone } from "@/lib/availability";
+import { getRequestUser, getMyMemberships } from "@/lib/server/auth";
+import { fetchBusiness } from "@/lib/server/database";
+import { getSupabase } from "@/lib/supabase/server";
+import {
+  listBusinessBookings,
+  searchBusinessCustomers,
+  getBusinessDayBounds,
+  type BookingListFilters,
+} from "@/lib/server/business-bookings";
+import { StatusPill, EmptyState } from "@/app/dashboard/page";
+import type { Booking } from "@/types/booking";
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Bookings — Kivo",
+  description: "Search, review and manage bookings.",
+};
+
+type View = "today" | "upcoming" | "past" | "cancelled" | "all";
+
+const VIEWS: Array<{ key: View; label: string }> = [
+  { key: "today", label: "Today" },
+  { key: "upcoming", label: "Upcoming" },
+  { key: "past", label: "Past" },
+  { key: "cancelled", label: "Cancelled" },
+  { key: "all", label: "All" },
+];
+
+interface BookingsPageProps {
+  searchParams: Promise<{
+    business?: string;
+    view?: string;
+    search?: string;
+    serviceId?: string;
+    from?: string;
+    to?: string;
+    new?: string;
+  }>;
+}
+
+/** Business booking management: tabs, search, filters, manual creation. */
+export default async function BookingsPage({ searchParams }: BookingsPageProps) {
+  const user = await getRequestUser().catch(() => null);
+  if (!user) redirect("/login?next=/dashboard/bookings");
+  const memberships = await getMyMemberships(user.id).catch(() => []);
+  if (memberships.length === 0) redirect("/onboarding");
+
+  const params = await searchParams;
+  const selectedId =
+    (params.business && memberships.some((m) => m.business_id === params.business)
+      ? params.business
+      : memberships[0].business_id) as string;
+
+  const db = getSupabase();
+  const business = await fetchBusiness(selectedId, db).catch(() => null);
+  if (!business) redirect("/onboarding");
+
+  const view = (VIEWS.some((v) => v.key === params.view) ? params.view : "upcoming") as View;
+  const search = (params.search ?? "").trim();
+  const now = new Date();
+  const bounds = getBusinessDayBounds(business.timezone, now);
+
+  const filters: BookingListFilters = { limit: 50 };
+  const LIVE: Booking["status"][] = ["confirmed", "rescheduled"];
+  if (view === "today") {
+    filters.statuses = [...LIVE];
+    filters.fromIso = bounds.dayStartUtc;
+    filters.toIso = bounds.dayEndUtc;
+  } else if (view === "upcoming") {
+    filters.statuses = [...LIVE];
+    filters.fromIso = bounds.dayEndUtc;
+  } else if (view === "past") {
+    filters.toIso = now.toISOString();
+    filters.order = "desc";
+  } else if (view === "cancelled") {
+    filters.statuses = ["cancelled"];
+    filters.order = "desc";
+  }
+  if (params.serviceId) filters.serviceId = params.serviceId;
+  if (params.from) filters.fromIso = params.from;
+  if (params.to) filters.toIso = params.to;
+
+  let customerIds: string[] | undefined;
+  if (search.length > 0) {
+    const customers = await searchBusinessCustomers(business.id, search, db);
+    customerIds = customers.map((c) => c.id);
+  }
+  const bookings =
+    customerIds !== undefined && customerIds.length === 0
+      ? []
+      : await listBusinessBookings(business.id, { ...filters, customerIds }, db);
+
+  const withQuery = (extra: Record<string, string>) => {
+    const query = new URLSearchParams();
+    query.set("business", business.id);
+    if (view !== "upcoming") query.set("view", view);
+    if (search) query.set("search", search);
+    if (params.serviceId) query.set("serviceId", params.serviceId);
+    if (params.from) query.set("from", params.from);
+    if (params.to) query.set("to", params.to);
+    for (const [key, value] of Object.entries(extra)) {
+      if (value) query.set(key, value);
+      else query.delete(key);
+    }
+    return `/dashboard/bookings?${query.toString()}`;
+  };
+
+  return (
+    <>
+      <Navbar />
+      <main className="flex-1">
+        <div className="mx-auto w-full max-w-3xl px-5 py-10">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">Bookings</h1>
+              <p className="mt-1 text-sm text-ink-soft">
+                {business.name} · times in {business.timezone}
+              </p>
+            </div>
+            <Link
+              href={withQuery({ new: params.new ? "" : "1" })}
+              className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-paper hover:bg-black"
+            >
+              {params.new ? "Close" : "New booking"}
+            </Link>
+          </div>
+
+          {params.new && (
+            <div className="mt-6 rounded-2xl border border-gold/60 bg-card p-6">
+              <BusinessBookingForm
+                businessId={business.id}
+                bookingMode={business.booking_mode}
+                timezone={business.timezone}
+                hours={business.availability ?? null}
+              />
+            </div>
+          )}
+
+          <nav aria-label="Booking views" className="mt-6 flex flex-wrap gap-2">
+            {VIEWS.map((tab) => (
+              <Link
+                key={tab.key}
+                href={withQuery({ view: tab.key === "upcoming" ? "" : tab.key })}
+                aria-current={view === tab.key ? "page" : undefined}
+                className={[
+                  "rounded-full border px-4 py-1.5 text-sm",
+                  view === tab.key
+                    ? "border-gold bg-gold-soft font-semibold text-gold-strong"
+                    : "border-line bg-card text-ink-soft hover:text-ink",
+                ].join(" ")}
+              >
+                {tab.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="mt-4">
+            <BookingSearchForm
+              businessId={business.id}
+              timezone={business.timezone}
+              view={view}
+              initialSearch={search}
+              serviceId={params.serviceId ?? ""}
+              from={params.from ?? ""}
+              to={params.to ?? ""}
+            />
+          </div>
+
+          {bookings.length === 0 ? (
+            <EmptyState
+              title={
+                search
+                  ? "No bookings match that search"
+                  : view === "today"
+                    ? "No bookings today"
+                    : view === "cancelled"
+                      ? "No cancelled bookings"
+                      : view === "past"
+                        ? "No past bookings"
+                        : "No upcoming bookings"
+              }
+              body={
+                search
+                  ? "Try a different name or phone number."
+                  : "New bookings appear here as customers book."
+              }
+            />
+          ) : (
+            <ul className="mt-4 flex flex-col gap-2.5">
+              {bookings.map((booking) => (
+                <li key={booking.id}>
+                  <Link
+                    href={`/dashboard/bookings/${booking.id}?business=${business.id}`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 hover:border-gold/60"
+                  >
+                    <span>
+                      <span className="font-semibold">
+                        {formatLongDateInZone(booking.startTime, business.timezone)} ·{" "}
+                        <span className="tabular-nums">
+                          {formatTimeInZone(booking.startTime, business.timezone)}
+                        </span>
+                      </span>
+                      <span className="block text-sm text-ink-soft">
+                        {booking.serviceName}
+                        {booking.resourceName ? ` · ${booking.resourceName}` : ""}
+                        {booking.sessionId ? ` · ${booking.quantity} guest${booking.quantity === 1 ? "" : "s"}` : ""}{" "}
+                        · {booking.customerName} · {booking.customerPhone}
+                      </span>
+                    </span>
+                    <StatusPill status={booking.status} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="mt-8">
+            <Link href={`/dashboard?business=${business.id}`} className="text-sm font-medium text-ink-soft hover:text-ink">
+              ‹ Back to dashboard
+            </Link>
+          </div>
+        </div>
+      </main>
+      <Footer />
+    </>
+  );
+}

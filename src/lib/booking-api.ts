@@ -100,6 +100,7 @@ export interface ApiAvailabilityParams {
   serviceId: string;
   date: string;
   excludeBookingToken?: string;
+  excludeBookingId?: string;
   businessId?: string;
 }
 
@@ -125,6 +126,9 @@ export function apiGetAvailability(
   });
   if (params.excludeBookingToken) {
     query.set("excludeBookingToken", params.excludeBookingToken);
+  }
+  if (params.excludeBookingId) {
+    query.set("excludeBookingId", params.excludeBookingId);
   }
   if (params.businessId) {
     query.set("businessId", params.businessId);

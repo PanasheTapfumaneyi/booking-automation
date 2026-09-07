@@ -17,10 +17,10 @@ function isProtected(pathname: string): boolean {
  * never only in the browser.
  *
  * Public customer flows (/book, /manage/*, /api/bookings/*, cron) are
- * untouched. When auth is unconfigured the middleware degrades to
+ * untouched. When auth is unconfigured the proxy degrades to
  * anonymous and protected pages redirect to /login.
  */
-export async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

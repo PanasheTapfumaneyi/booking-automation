@@ -2,6 +2,7 @@ import { ApiError } from "@/lib/server/errors";
 import {
   fetchBusiness,
   fetchService,
+  fetchBookingById,
   fetchBookingByToken,
 } from "@/lib/server/database";
 import { appointmentAvailability } from "@/lib/server/strategies/appointment";
@@ -13,6 +14,13 @@ export interface GetAvailabilityArgs {
   serviceId: string;
   date: string;
   excludeBookingToken?: string;
+  /**
+   * Business-dashboard alternative to excludeBookingToken: a booking id to
+   * exclude from conflict checks (the dashboard never holds manage tokens).
+   * Like the token, it only loosens the caller's own availability view;
+   * booking ids are unguessable UUIDs.
+   */
+  excludeBookingId?: string;
 }
 
 export type AvailabilityResponse =
@@ -46,6 +54,10 @@ export async function getAvailability(
   let ignoredGoogleEventId: string | undefined;
   if (args.excludeBookingToken) {
     const found = await fetchBookingByToken(args.excludeBookingToken);
+    excludeBookingId = found?.row.id;
+    ignoredGoogleEventId = found?.row.google_event_id ?? undefined;
+  } else if (args.excludeBookingId) {
+    const found = await fetchBookingById(args.excludeBookingId);
     excludeBookingId = found?.row.id;
     ignoredGoogleEventId = found?.row.google_event_id ?? undefined;
   }
