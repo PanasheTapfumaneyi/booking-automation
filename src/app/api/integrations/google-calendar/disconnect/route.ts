@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { disconnectBusiness } from "@/lib/server/google-calendar/connections";
+import {
+  disconnectBusiness,
+  assertCalendarRouteAccess,
+} from "@/lib/server/google-calendar/connections";
 import { toApiErrorResponse } from "@/lib/server/route-helper";
 
 /**
@@ -25,7 +28,8 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const result = await disconnectBusiness(businessId);
+    const memberBusinessIds = await assertCalendarRouteAccess(businessId);
+    const result = await disconnectBusiness(businessId, memberBusinessIds);
     return NextResponse.json(result);
   } catch (error) {
     return toApiErrorResponse(error);

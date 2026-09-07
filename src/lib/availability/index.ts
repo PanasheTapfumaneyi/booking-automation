@@ -31,6 +31,15 @@ export {
   isDateKeyAvailable,
 } from "./appointment";
 
+export {
+  type BusinessHours,
+  type DayHours,
+  type WeekdayKey,
+  WEEKDAY_KEYS,
+  weekdayKeyFromJsDay,
+  parseBusinessHours,
+} from "./hours";
+
 export { isResourceBlocked } from "./resource";
 
 export { hasRemainingCapacity, remainingCapacity } from "./capacity";

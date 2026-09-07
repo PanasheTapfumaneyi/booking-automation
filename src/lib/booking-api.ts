@@ -100,10 +100,16 @@ export interface ApiAvailabilityParams {
   serviceId: string;
   date: string;
   excludeBookingToken?: string;
+  businessId?: string;
 }
 
 export interface ApiAvailability {
-  business: { id: string; name: string; timezone: string };
+  business: {
+    id: string;
+    name: string;
+    timezone: string;
+    hours?: import("@/lib/availability/hours").BusinessHours | null;
+  };
   service: { id: string; name: string; durationMinutes: number; price: number };
   date: string;
   timezone: string;
@@ -119,6 +125,9 @@ export function apiGetAvailability(
   });
   if (params.excludeBookingToken) {
     query.set("excludeBookingToken", params.excludeBookingToken);
+  }
+  if (params.businessId) {
+    query.set("businessId", params.businessId);
   }
   return request<ApiAvailability>(`/api/availability?${query.toString()}`);
 }

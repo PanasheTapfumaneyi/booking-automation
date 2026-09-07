@@ -13,6 +13,8 @@ export type ApiErrorCode =
   | "CALENDAR_SYNC_FAILED"
   | "CALENDAR_UNAVAILABLE"
   | "CONFIG"
+  | "UNAUTHENTICATED"
+  | "FORBIDDEN"
   | "INTERNAL";
 
 /**

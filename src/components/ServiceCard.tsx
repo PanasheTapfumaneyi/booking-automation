@@ -6,12 +6,14 @@ interface ServiceCardProps {
   service: Service;
   selected: boolean;
   onSelect: (service: Service) => void;
+  businessName?: string;
 }
 
 export default function ServiceCard({
   service,
   selected,
   onSelect,
+  businessName = DEMO_BUSINESS.name,
 }: ServiceCardProps) {
   return (
     <button
@@ -42,9 +44,11 @@ export default function ServiceCard({
           {formatPrice(service.price)}
         </span>
       </div>
-      <p className="mt-2 pl-8 text-sm text-ink-soft">{service.description}</p>
+      {service.description.length > 0 && (
+        <p className="mt-2 pl-8 text-sm text-ink-soft">{service.description}</p>
+      )}
       <p className="mt-3 pl-8 text-xs font-medium uppercase tracking-wide text-ink-soft">
-        {minutesToLabel(service.durationMinutes)} · {DEMO_BUSINESS.name}
+        {minutesToLabel(service.durationMinutes)} · {businessName}
       </p>
     </button>
   );

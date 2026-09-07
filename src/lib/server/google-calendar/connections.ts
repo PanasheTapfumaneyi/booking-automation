@@ -8,6 +8,7 @@ import {
   verifyOAuthState,
 } from "./oauth";
 import { createCalendarApiClient } from "./client";
+import { businessHasMembers, getMyBusinessIds } from "@/lib/server/auth";
 import {
   deactivateConnection,
   getActiveConnection,
@@ -16,9 +17,9 @@ import {
 import { classifyCalendarError } from "./errors";
 import type { CalendarApi } from "./types";
 
-function assertBusinessAllowed(businessId: string): void {
+function assertBusinessAllowed(businessId: string, memberBusinessIds: string[] = []): void {
   const allowed = allowedBusinessIds();
-  if (!allowed.includes(businessId)) {
+  if (!allowed.includes(businessId) && !memberBusinessIds.includes(businessId)) {
     throw new ApiError(
       403,
       "VALIDATION",
@@ -33,6 +34,8 @@ function assertBusinessAllowed(businessId: string): void {
 
 export interface ConnectRequest {
   businessId: string;
+  /** Businesses of the current session user (from getMyBusinessIds). */
+  memberBusinessIds?: string[];
 }
 
 /** Validates the business and returns the Google authorization URL (GET). */
@@ -45,7 +48,7 @@ export async function startConnect(
   if (!businessExists) {
     throw new ApiError(404, "BOOKING_NOT_FOUND", "Business not found.");
   }
-  assertBusinessAllowed(request.businessId);
+  assertBusinessAllowed(request.businessId, request.memberBusinessIds ?? []);
   return buildAuthorizationUrl(request.businessId);
 }
 
@@ -78,7 +81,11 @@ export async function completeConnection(
       "This connection link is invalid or has expired. Please start over.",
     );
   }
-  assertBusinessAllowed(businessId);
+  // The OAuth state token (signed, expiring, created only via an authorized
+  // startConnect) authorizes this business; member-owned businesses are
+  // admitted even when no session cookie accompanies the Google redirect.
+  const owned = await businessHasMembers(businessId).catch(() => false);
+  assertBusinessAllowed(businessId, owned ? [businessId] : []);
   await fetchBusiness(businessId);
 
   if (!args.code) {
@@ -222,11 +229,30 @@ export interface DisconnectResult {
  * Historical bookings are never touched; future availability stops querying
  * the calendar and the platform keeps booking through Supabase alone.
  */
+/**
+ * Route-level gate for calendar self-service. The allowlisted demo flow
+ * stays open (backward compatible); every other business requires a
+ * membership of the current session user. Throws 403 otherwise.
+ */
+export async function assertCalendarRouteAccess(businessId: string): Promise<string[]> {
+  if (allowedBusinessIds().includes(businessId)) return [];
+  const memberIds = await getMyBusinessIds().catch(() => [] as string[]);
+  if (!memberIds.includes(businessId)) {
+    throw new ApiError(
+      403,
+      "FORBIDDEN",
+      "You don't have access to this business.",
+    );
+  }
+  return memberIds;
+}
+
 export async function disconnectBusiness(
   businessId: string,
+  memberBusinessIds: string[] = [],
 ): Promise<DisconnectResult> {
   await fetchBusiness(businessId);
-  assertBusinessAllowed(businessId);
+  assertBusinessAllowed(businessId, memberBusinessIds);
 
   const connection = await getActiveConnection(businessId);
   if (!connection?.refreshToken) {

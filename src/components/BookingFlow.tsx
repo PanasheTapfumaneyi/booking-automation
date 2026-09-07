@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Booking, Service, TimeSlot as SlotOption } from "@/types/booking";
+import type { BusinessHours } from "@/lib/availability";
 import { DEMO_SERVICES, DEMO_BUSINESS } from "@/lib/demo";
 import {
   apiCreateBooking,
@@ -32,9 +33,33 @@ interface SlotQuery {
   dateKey: string;
 }
 
-export default function BookingFlow() {
+interface BookingFlowProps {
+  /** Public business slug for /book/[slug]; omitted → demo business flow. */
+  businessSlug?: string;
+}
+
+interface Catalog {
+  business: { id: string; name: string; timezone: string; hours: BusinessHours | null };
+  services: Service[];
+}
+
+export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
   const [step, setStep] = useState<Step>("service");
   const [service, setService] = useState<Service | null>(null);
+  const [catalog, setCatalog] = useState<Catalog | null>(
+    businessSlug
+      ? null
+      : {
+          business: {
+            id: DEMO_BUSINESS.id,
+            name: DEMO_BUSINESS.name,
+            timezone: DEMO_BUSINESS.timezone,
+            hours: null,
+          },
+          services: DEMO_SERVICES,
+        },
+  );
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<SlotOption | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -51,12 +76,59 @@ export default function BookingFlow() {
   }, [step]);
 
   useEffect(() => {
+    if (!businessSlug) return;
+    let cancelled = false;
+    fetch(`/api/public/businesses/${encodeURIComponent(businessSlug)}`)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(
+            response.status === 404 ? "not-found" : "unavailable",
+          );
+        }
+        return response.json() as Promise<{
+          business: Catalog["business"];
+          services: Array<{
+            id: string;
+            businessId: string;
+            name: string;
+            durationMinutes: number;
+            price: number;
+          }>;
+        }>;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setCatalog({
+          business: data.business,
+          services: data.services.map((item) => ({
+            ...item,
+            description: "",
+            active: true,
+          })),
+        });
+        setCatalogError(null);
+      })
+      .catch((fetchError: unknown) => {
+        if (cancelled) return;
+        setCatalogError(
+          fetchError instanceof Error && fetchError.message === "not-found"
+            ? "We couldn't find this business. The link may be incorrect."
+            : "We couldn't load this business right now. Please try again.",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [businessSlug]);
+
+  useEffect(() => {
     if (!slotQuery) return;
 
     let cancelled = false;
     apiGetAvailability({
       serviceId: slotQuery.serviceId,
       date: slotQuery.dateKey,
+      businessId: catalog?.business.id,
     })
       .then((availability) => {
         if (cancelled) return;
@@ -76,7 +148,7 @@ export default function BookingFlow() {
     return () => {
       cancelled = true;
     };
-  }, [slotQuery, retryCount]);
+  }, [slotQuery, retryCount, catalog?.business.id]);
 
   function selectStep(next: Step) {
     setError(null);
@@ -207,19 +279,28 @@ export default function BookingFlow() {
           <h1 className="text-2xl font-semibold tracking-tight">
             What would you like to book?
           </h1>
-          <p className="mt-1.5 text-ink-soft">
-            Choose a service to see available times at {DEMO_BUSINESS.name}.
-          </p>
-          <div className="mt-6 flex flex-col gap-3">
-            {DEMO_SERVICES.map((item) => (
-              <ServiceCard
-                key={item.id}
-                service={item}
-                selected={service?.id === item.id}
-                onSelect={handleSelectService}
-              />
-            ))}
-          </div>
+          {catalogError ? (
+            <p className="mt-6 text-red-700">{catalogError}</p>
+          ) : !catalog ? (
+            <p className="mt-6 text-ink-soft">Loading services…</p>
+          ) : (
+            <>
+              <p className="mt-1.5 text-ink-soft">
+                Choose a service to see available times at {catalog.business.name}.
+              </p>
+              <div className="mt-6 flex flex-col gap-3">
+                {catalog.services.map((item) => (
+                  <ServiceCard
+                    key={item.id}
+                    service={item}
+                    selected={service?.id === item.id}
+                    onSelect={handleSelectService}
+                    businessName={catalog.business.name}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </section>
       )}
 
@@ -240,6 +321,7 @@ export default function BookingFlow() {
             <BookingCalendar
               selectedDateKey={selectedDateKey}
               onSelectDateKey={handleSelectDate}
+              hours={catalog?.business.hours ?? null}
             />
           </div>
         </section>

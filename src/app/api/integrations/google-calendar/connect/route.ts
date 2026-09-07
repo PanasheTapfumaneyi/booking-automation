@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { startConnect } from "@/lib/server/google-calendar/connections";
+import {
+  startConnect,
+  assertCalendarRouteAccess,
+} from "@/lib/server/google-calendar/connections";
 import { toApiErrorResponse } from "@/lib/server/route-helper";
 
 /**
@@ -18,7 +21,8 @@ export async function GET(request: NextRequest) {
     if (!businessId) {
       throw new Error("Missing business id.");
     }
-    const url = await startConnect({ businessId });
+    const memberBusinessIds = await assertCalendarRouteAccess(businessId);
+    const url = await startConnect({ businessId, memberBusinessIds });
     return NextResponse.redirect(url, 302);
   } catch (error) {
     console.error("[google-calendar] connect failed:", error);

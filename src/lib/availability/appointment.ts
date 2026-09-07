@@ -6,6 +6,7 @@
  * (Fade District) — behaviour is unchanged from Phase 2.
  */
 import type { Service, TimeSlot } from "@/types/booking";
+import { type BusinessHours, dayWindowMinutes } from "./hours";
 import {
   SLOT_INTERVAL_MINUTES,
   DEFAULT_TIMEZONE,
@@ -34,12 +35,21 @@ const WEEKDAY_OPENING: Record<number, DayRange> = {
   6: { startMinutes: 9 * 60, endMinutes: 16 * 60 }, // Saturday
 };
 
-export function getOpeningRange(dayOfWeek: number): DayRange {
+export function getOpeningRange(
+  dayOfWeek: number,
+  hours?: BusinessHours | null,
+): DayRange {
+  if (hours) {
+    const custom = dayWindowMinutes(hours, dayOfWeek);
+    // Explicit per-day window (or closed) wins; a null return means the
+    // stored document is unusable → fall back to platform defaults.
+    if (custom) return custom;
+  }
   return WEEKDAY_OPENING[dayOfWeek] ?? { startMinutes: null, endMinutes: null };
 }
 
-function isOpenOn(dayOfWeek: number): boolean {
-  return WEEKDAY_OPENING[dayOfWeek].startMinutes !== null;
+function isOpenOn(dayOfWeek: number, hours?: BusinessHours | null): boolean {
+  return getOpeningRange(dayOfWeek, hours).startMinutes !== null;
 }
 
 /**
@@ -54,9 +64,10 @@ export function getSlotsForDay(
   blocks: TimeBlock[] = [],
   timezone: string = DEFAULT_TIMEZONE,
   slotIntervalMinutes: number = SLOT_INTERVAL_MINUTES,
+  hours?: BusinessHours | null,
 ): TimeSlot[] {
   const { dayOfWeek, dayStartUtc } = getLocalDayInfo(dateStr, timezone);
-  const range = getOpeningRange(dayOfWeek);
+  const range = getOpeningRange(dayOfWeek, hours);
   if (range.startMinutes === null || range.endMinutes === null) return [];
 
   const durationMinutes = service.durationMinutes;
@@ -96,9 +107,10 @@ export function getSlotsForDay(
 export function isDateKeyAvailable(
   dateKey: string,
   timezone: string = DEFAULT_TIMEZONE,
+  hours?: BusinessHours | null,
 ): boolean {
   const { dayOfWeek } = getLocalDayInfo(dateKey, timezone);
-  if (!isOpenOn(dayOfWeek)) return false;
+  if (!isOpenOn(dayOfWeek, hours)) return false;
 
   const todayKey = isoToDateKey(new Date().toISOString(), timezone);
   if (dateKey < todayKey) return false;

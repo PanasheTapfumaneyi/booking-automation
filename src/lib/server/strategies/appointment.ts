@@ -10,10 +10,12 @@ import type { TimeSlot } from "@/types/booking";
 import {
   BOOKING_WINDOW_DAYS,
   DEFAULT_TIMEZONE,
+  SLOT_INTERVAL_MINUTES,
   getSlotsForDay,
   getLocalDayInfo,
   isoToDateKey,
   addDaysKey,
+  type BusinessHours,
 } from "@/lib/availability";
 import {
   type BusinessRow,
@@ -28,7 +30,12 @@ import type { ExternalBlocksStatus } from "@/lib/server/google-calendar/availabi
 
 export interface AppointmentAvailabilityResult {
   kind: "appointment";
-  business: { id: string; name: string; timezone: string };
+  business: {
+    id: string;
+    name: string;
+    timezone: string;
+    hours: BusinessHours | null;
+  };
   service: { id: string; name: string; durationMinutes: number; price: number };
   date: string;
   timezone: string;
@@ -119,16 +126,19 @@ export async function appointmentAvailability(params: {
     ...external.blocks,
   ]).map((block) => ({ startTime: block.start, endTime: block.end }));
 
+  const hours = business.availability ?? null;
   const slots = getSlotsForDay(
     date,
     { durationMinutes: service.duration_minutes },
     allBlocks,
     timezone,
+    SLOT_INTERVAL_MINUTES,
+    hours,
   );
 
   return {
     kind: "appointment",
-    business: { id: business.id, name: business.name, timezone },
+    business: { id: business.id, name: business.name, timezone, hours },
     service: {
       id: service.id,
       name: service.name,

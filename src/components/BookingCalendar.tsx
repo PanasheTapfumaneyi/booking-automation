@@ -5,6 +5,7 @@ import {
   BOOKING_WINDOW_DAYS,
   isDateKeyAvailable,
   isoToDateKey,
+  type BusinessHours,
 } from "@/lib/availability";
 
 const WEEKDAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -12,6 +13,8 @@ const WEEKDAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 interface BookingCalendarProps {
   selectedDateKey: string | null;
   onSelectDateKey: (dateKey: string) => void;
+  /** Per-business hours; omitted → platform defaults. */
+  hours?: BusinessHours | null;
 }
 
 function daysInMonth(year: number, month: number): number {
@@ -29,6 +32,7 @@ function addMonthKey(monthKey: string, delta: number): string {
 export default function BookingCalendar({
   selectedDateKey,
   onSelectDateKey,
+  hours,
 }: BookingCalendarProps) {
   const todayKey = useMemo(() => isoToDateKey(new Date().toISOString()), []);
   const [monthKey, setMonthKey] = useState(() => todayKey.slice(0, 7));
@@ -103,7 +107,7 @@ export default function BookingCalendar({
             return <div key={`empty-${index}`} className="aspect-square" />;
           }
 
-          const available = isDateKeyAvailable(dateKey);
+          const available = isDateKeyAvailable(dateKey, undefined, hours);
           const selected = dateKey === selectedDateKey;
           const current = dateKey === todayKey;
 

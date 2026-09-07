@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getConnectionStatus } from "@/lib/server/google-calendar/connections";
+import {
+  getConnectionStatus,
+  assertCalendarRouteAccess,
+} from "@/lib/server/google-calendar/connections";
 import { toApiErrorResponse } from "@/lib/server/route-helper";
 
 /**
@@ -15,6 +18,7 @@ export async function GET(request: NextRequest) {
     if (!businessId) {
       return NextResponse.json({ error: "Missing business id." }, { status: 400 });
     }
+    await assertCalendarRouteAccess(businessId);
     const status = await getConnectionStatus(businessId);
     return NextResponse.json(status);
   } catch (error) {

@@ -2,6 +2,7 @@ import { getSupabase } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApiError } from "@/lib/server/errors";
 import type { Booking, BookingMode } from "@/types/booking";
+import type { BusinessHours } from "@/lib/availability/hours";
 
 // ---------------------------------------------------------------------------
 // Row shapes (PostgREST) — avoid implicit `any`.
@@ -15,6 +16,9 @@ export interface BusinessRow {
   timezone: string;
   booking_mode: BookingMode;
   calendar_id: string | null;
+  slug: string | null;
+  /** Per-business weekly hours (JSONB); null/absent days use platform defaults. */
+  availability: BusinessHours | null;
   created_at: string;
   updated_at: string;
 }
@@ -168,6 +172,20 @@ export async function fetchBookingSession(
 
   if (error) return null;
   return data as unknown as BookingSessionRow;
+}
+
+/** Public lookup by booking slug — returns null (never throws) when unknown. */
+export async function fetchBusinessBySlug(
+  slug: string,
+  db?: SupabaseClient,
+): Promise<BusinessRow | null> {
+  const { data, error } = await (db ?? getSupabase())
+    .from("businesses")
+    .select("*")
+    .eq("slug", slug.trim().toLowerCase())
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as unknown as BusinessRow;
 }
 
 export async function fetchBookingByToken(

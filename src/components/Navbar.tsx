@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DEMO_BUSINESS } from "@/lib/demo";
+import AuthLinks from "@/components/AuthLinks";
 
 export default function Navbar() {
   return (
@@ -13,12 +14,15 @@ export default function Navbar() {
             {DEMO_BUSINESS.tagline.toLowerCase()}
           </span>
         </Link>
-        <Link
-          href="/book"
-          className="rounded-full bg-ink px-4 py-2 text-sm font-medium text-paper transition-colors hover:bg-black"
-        >
-          Book Now
-        </Link>
+        <span className="flex items-center gap-2">
+          <AuthLinks />
+          <Link
+            href="/book"
+            className="rounded-full bg-ink px-4 py-2 text-sm font-medium text-paper transition-colors hover:bg-black"
+          >
+            Book Now
+          </Link>
+        </span>
       </div>
     </header>
   );
