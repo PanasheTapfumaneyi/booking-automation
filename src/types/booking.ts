@@ -51,6 +51,10 @@ export interface BookingSession {
   endTime: string | null;
   capacity: number;
   active: boolean;
+  /** Active booked quantity across all non-cancelled bookings. */
+  booked: number;
+  /** capacity - booked (never negative; clamped at display). */
+  remaining: number;
 }
 
 export type BookingStatus =

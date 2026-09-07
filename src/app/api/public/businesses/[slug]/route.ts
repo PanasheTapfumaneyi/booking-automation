@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase/server";
 import { fetchBusinessBySlug } from "@/lib/server/database";
 import { toApiErrorResponse } from "@/lib/server/route-helper";
+import { fetchSessionBookedQuantity } from "@/lib/server/strategies/capacity";
 
 /**
  * GET /api/public/businesses/[slug]
@@ -31,13 +32,41 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
         .eq("active", true),
       db
         .from("booking_sessions")
-        .select("id, service_id, start_time, end_time, capacity, service:services(name)")
+        .select("id, service_id, start_time, end_time, capacity, active, service:services(name)")
         .eq("business_id", business.id)
         .eq("active", true),
     ]);
     if (services.error || resources.error || sessions.error) {
       throw services.error ?? resources.error ?? sessions.error;
     }
+
+    // Compute booked counts for capacity sessions (only for future sessions)
+    const now = new Date().toISOString();
+    const sessionsWithBooked = await Promise.all(
+      (sessions.data ?? []).map(async (s) => {
+        const row = s as Record<string, unknown>;
+        const sessionId = row.id as string;
+        const startTime = row.start_time as string;
+        // Only compute booked for future sessions
+        const isFuture = startTime >= now;
+        const booked = isFuture
+          ? await fetchSessionBookedQuantity({ sessionId })
+          : 0;
+        const capacity = row.capacity as number;
+        return {
+          id: sessionId,
+          service_id: row.service_id as string,
+          start_time: startTime,
+          end_time: (row.end_time as string | null) ?? null,
+          capacity,
+          booked,
+          remaining: Math.max(0, capacity - booked),
+          active: row.active as boolean,
+          service_name: ((row.service ?? {}) as Record<string, unknown>).name as string | null ?? null,
+        };
+      }),
+    );
+
     return NextResponse.json({
       business: {
         id: business.id,
@@ -57,7 +86,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
         active: true,
       })),
       resources: resources.data ?? [],
-      sessions: sessions.data ?? [],
+      sessions: sessionsWithBooked,
     });
   } catch (error) {
     return toApiErrorResponse(error);

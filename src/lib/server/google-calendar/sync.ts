@@ -19,6 +19,7 @@ import {
   hasIntervalOverlap,
 } from "./availability";
 import { classifyCalendarError } from "./errors";
+import { isDemoBusiness } from "@/lib/server/demo";
 import { googleApiTimeoutMs, type CalendarSyncStatus } from "./types";
 import type { CalendarErrorCode } from "./types";
 
@@ -84,6 +85,12 @@ export interface SyncAfterCreateArgs {
 export async function syncAfterCreate(
   args: SyncAfterCreateArgs,
 ): Promise<CalendarSyncOutcome> {
+  // Demo safety: skip Google Calendar operations for demo businesses,
+  // resolved server-side from businesses.is_demo (never from client input).
+  if (isDemoBusiness(args.business)) {
+    return { status: "not_connected" };
+  }
+
   const connection = await getActiveConnection(args.business.id, args.db);
   if (!connection?.refreshToken || !connection.calendarId) {
     return { status: "not_connected" };

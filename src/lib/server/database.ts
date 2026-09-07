@@ -17,8 +17,18 @@ export interface BusinessRow {
   booking_mode: BookingMode;
   calendar_id: string | null;
   slug: string | null;
+  /** Explicit demo-business flag (migration 0010). Server-side only. */
+  is_demo: boolean;
   /** Per-business weekly hours (JSONB); null/absent days use platform defaults. */
   availability: BusinessHours | null;
+  /** Custom tagline shown on the public business page (overrides mode default). */
+  tagline: string | null;
+  /** "About" paragraph shown on the public business page. Plain text. */
+  description: string | null;
+  /** Hero background image URL for the public business page. */
+  cover_image_url: string | null;
+  /** Business logo URL shown in the public page hero. */
+  logo_url: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -9,6 +9,7 @@ interface RouteContext {
 
 interface RescheduleRequestBody {
   startTime?: string;
+  endTime?: string;
 }
 
 export async function POST(request: Request, { params }: RouteContext) {
@@ -28,6 +29,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     const booking = await rescheduleBooking(
       decodeURIComponent(token),
       body.startTime,
+      typeof body.endTime === "string" ? body.endTime : undefined,
     );
     return NextResponse.json({ booking });
   } catch (error) {

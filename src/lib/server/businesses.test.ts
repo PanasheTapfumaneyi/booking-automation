@@ -8,6 +8,15 @@
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+const bookedQuantityMock = vi.hoisted(() => ({
+  fn: vi.fn().mockResolvedValue(0),
+}));
+
+vi.mock("@/lib/server/strategies/capacity", () => ({
+  fetchSessionBookedQuantity: bookedQuantityMock.fn,
+}));
+
 import {
   slugify,
   ensureUniqueSlug,
@@ -25,8 +34,10 @@ import {
   createResource,
   updateResource,
   createSession,
+  updateSession,
   setSessionActive,
   listServices,
+  listSessions,
 } from "./businesses";
 import { ApiError } from "./errors";
 
@@ -315,7 +326,7 @@ describe("settings mutations", () => {
   function seeded(): FakeDb {
     const db = createFakeDb();
     db.tables.businesses = [
-      { id: "biz-1", name: "Alpha", phone: null, timezone: "Indian/Mauritius", booking_mode: "appointment", slug: "alpha", availability: null },
+      { id: "biz-1", name: "Alpha", phone: null, timezone: "Indian/Mauritius", booking_mode: "appointment", slug: "alpha", availability: null, tagline: null, description: null, cover_image_url: null, logo_url: null },
     ];
     return db;
   }
@@ -331,6 +342,10 @@ describe("settings mutations", () => {
       booking_mode: "appointment",
       slug: "alpha",
       availability: null,
+      tagline: null,
+      description: null,
+      cover_image_url: null,
+      logo_url: null,
     });
   });
 
@@ -427,5 +442,126 @@ describe("settings mutations", () => {
     expect(await listServices("biz-1", asDb(db))).toEqual([
       { id: "svc-1", name: "Cut", duration_minutes: 45, price: 500, active: true },
     ]);
+  });
+
+  it("lists sessions with booked and remaining counts", async () => {
+    const db = seeded();
+    db.tables.services = [{ id: "svc-1", business_id: "biz-1", name: "Trip", duration_minutes: 60, price: 1, active: true }];
+    db.tables.booking_sessions = [
+      { id: "sess-1", business_id: "biz-1", service_id: "svc-1", start_time: "2026-09-10T08:00:00.000Z", end_time: "2026-09-10T10:00:00.000Z", capacity: 10, active: true },
+      { id: "sess-2", business_id: "biz-1", service_id: "svc-1", start_time: "2026-09-11T08:00:00.000Z", end_time: "2026-09-11T10:00:00.000Z", capacity: 5, active: true },
+    ];
+    bookedQuantityMock.fn.mockImplementation(async ({ sessionId }) => {
+      if (sessionId === "sess-1") return 3;
+      return 0;
+    });
+
+    const sessions = await listSessions("biz-1", asDb(db));
+    expect(sessions).toHaveLength(2);
+    expect(sessions[0]).toMatchObject({ id: "sess-1", capacity: 10, booked: 3, remaining: 7 });
+    expect(sessions[1]).toMatchObject({ id: "sess-2", capacity: 5, booked: 0, remaining: 5 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateSession (Phase 6C)
+// ---------------------------------------------------------------------------
+
+describe("updateSession", () => {
+  function seeded(): FakeDb {
+    const db = createFakeDb();
+    db.tables.businesses = [
+      { id: "biz-1", name: "Alpha", phone: null, timezone: "Indian/Mauritius", booking_mode: "capacity", slug: "alpha", availability: null },
+    ];
+    db.tables.services = [
+      { id: "svc-1", business_id: "biz-1", name: "Trip", duration_minutes: 60, price: 1, active: true },
+    ];
+    db.tables.booking_sessions = [
+      { id: "sess-1", business_id: "biz-1", service_id: "svc-1", start_time: "2026-09-10T08:00:00.000Z", end_time: "2026-09-10T10:00:00.000Z", capacity: 10, active: true },
+    ];
+    return db;
+  }
+
+  it("updates capacity when above booked quantity", async () => {
+    const db = seeded();
+    bookedQuantityMock.fn.mockResolvedValue(3);
+    await updateSession("biz-1", "sess-1", { capacity: 8 }, asDb(db));
+    expect(db.tables.booking_sessions[0].capacity).toBe(8);
+  });
+
+  it("allows setting capacity equal to booked quantity", async () => {
+    const db = seeded();
+    bookedQuantityMock.fn.mockResolvedValue(5);
+    await updateSession("biz-1", "sess-1", { capacity: 5 }, asDb(db));
+    expect(db.tables.booking_sessions[0].capacity).toBe(5);
+  });
+
+  it("rejects capacity below booked quantity", async () => {
+    const db = seeded();
+    bookedQuantityMock.fn.mockResolvedValue(5);
+    await expect(
+      updateSession("biz-1", "sess-1", { capacity: 3 }, asDb(db)),
+    ).rejects.toMatchObject({ status: 409, code: "CAPACITY_FULL" });
+  });
+
+  it("rejects non-positive capacity", async () => {
+    const db = seeded();
+    await expect(
+      updateSession("biz-1", "sess-1", { capacity: 0 }, asDb(db)),
+    ).rejects.toMatchObject({ status: 400, code: "VALIDATION" });
+    await expect(
+      updateSession("biz-1", "sess-1", { capacity: -1 }, asDb(db)),
+    ).rejects.toMatchObject({ status: 400, code: "VALIDATION" });
+  });
+
+  it("updates start and end time", async () => {
+    const db = seeded();
+    await updateSession(
+      "biz-1",
+      "sess-1",
+      {
+        start_time: "2026-09-11T12:00:00.000Z",
+        end_time: "2026-09-11T14:00:00.000Z",
+      },
+      asDb(db),
+    );
+    expect(db.tables.booking_sessions[0].start_time).toBe("2026-09-11T12:00:00.000Z");
+    expect(db.tables.booking_sessions[0].end_time).toBe("2026-09-11T14:00:00.000Z");
+  });
+
+  it("rejects invalid start time", async () => {
+    const db = seeded();
+    await expect(
+      updateSession("biz-1", "sess-1", { start_time: "not-a-date" }, asDb(db)),
+    ).rejects.toMatchObject({ status: 400, code: "VALIDATION" });
+  });
+
+  it("rejects end before start", async () => {
+    const db = seeded();
+    await expect(
+      updateSession(
+        "biz-1",
+        "sess-1",
+        {
+          start_time: "2026-09-11T14:00:00.000Z",
+          end_time: "2026-09-11T12:00:00.000Z",
+        },
+        asDb(db),
+      ),
+    ).rejects.toMatchObject({ status: 400, code: "VALIDATION" });
+  });
+
+  it("scopes to owning business (404 for other business)", async () => {
+    const db = seeded();
+    await expect(
+      updateSession("biz-other", "sess-1", { capacity: 20 }, asDb(db)),
+    ).rejects.toMatchObject({ status: 404, code: "SESSION_NOT_FOUND" });
+  });
+
+  it("404 for missing session", async () => {
+    const db = seeded();
+    await expect(
+      updateSession("biz-1", "missing", { capacity: 20 }, asDb(db)),
+    ).rejects.toMatchObject({ status: 404, code: "SESSION_NOT_FOUND" });
   });
 });

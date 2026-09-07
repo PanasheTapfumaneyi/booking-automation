@@ -362,3 +362,184 @@ describe("manage token stability", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Resource-mode reschedule (Phase 6C)
+// ---------------------------------------------------------------------------
+
+describe("resource-mode reschedule", () => {
+  const RESOURCE_BIZ = {
+    ...BIZ,
+    id: "biz-res",
+    booking_mode: "resource",
+  };
+
+  const RESOURCE = {
+    id: "res-1",
+    business_id: "biz-res",
+    name: "Corolla",
+    resource_type: "vehicle",
+    active: true,
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+  };
+
+  beforeEach(() => {
+    holder.db = createFakeDb();
+    holder.db.tables.businesses = [{ ...RESOURCE_BIZ }];
+    holder.db.tables.services = [{ ...SERVICE, business_id: "biz-res" }];
+    holder.db.tables.resources = [{ ...RESOURCE }];
+  });
+
+  function resourceBooking(overrides: Row = {}): Row {
+    return bookingRow({
+      id: "b-res-1",
+      business_id: "biz-res",
+      service_id: "svc-1",
+      resource_id: "res-1",
+      manage_token: "tok-res-1",
+      status: "confirmed",
+      start_time: "2026-09-10T08:00:00.000Z",
+      end_time: "2026-09-10T12:00:00.000Z",
+      ...overrides,
+    });
+  }
+
+  it("moves the booking to a new interval on the same resource", async () => {
+    fake().tables.bookings = [resourceBooking()];
+
+    // assertResourceFree queries bookings for overlap — no other rows = free.
+    fake().rpcImpl = (fn, args) => {
+      expect(fn).toBe("update_booking_time");
+      const row = { ...(fake().tables.bookings[0] as Row) };
+      row.start_time = args.p_start_time;
+      row.end_time = args.p_end_time;
+      row.previous_start_time = "2026-09-10T08:00:00.000Z";
+      return { ok: true, booking: row };
+    };
+
+    const moved = await rescheduleBooking(
+      "tok-res-1",
+      "2026-09-11T14:00:00.000Z",
+      "2026-09-11T18:00:00.000Z",
+    );
+    expect(moved.startTime).toBe("2026-09-11T14:00:00.000Z");
+    expect(moved.endTime).toBe("2026-09-11T18:00:00.000Z");
+    expect(moved.previousStartTime).toBe("2026-09-10T08:00:00.000Z");
+    expect(moved.manageToken).toBe("tok-res-1");
+  });
+
+  it("rejects when the new interval overlaps another active booking on the same resource", async () => {
+    fake().tables.bookings = [
+      resourceBooking({ id: "b-res-1", start_time: "2026-09-10T08:00:00.000Z", end_time: "2026-09-10T12:00:00.000Z" }),
+      resourceBooking({ id: "b-res-2", manage_token: "tok-res-2", start_time: "2026-09-11T10:00:00.000Z", end_time: "2026-09-11T14:00:00.000Z" }),
+    ];
+
+    await expect(
+      rescheduleBooking(
+        "tok-res-1",
+        "2026-09-11T12:00:00.000Z",
+        "2026-09-11T16:00:00.000Z",
+      ),
+    ).rejects.toMatchObject({ status: 409, code: "SLOT_UNAVAILABLE" });
+  });
+
+  it("self-excludes: rescheduling to the same time is not rejected", async () => {
+    fake().tables.bookings = [
+      resourceBooking({ start_time: "2026-09-10T08:00:00.000Z", end_time: "2026-09-10T12:00:00.000Z" }),
+    ];
+
+    fake().rpcImpl = (fn, args) => {
+      const row = { ...(fake().tables.bookings[0] as Row) };
+      row.start_time = args.p_start_time;
+      row.end_time = args.p_end_time;
+      row.previous_start_time = "2026-09-10T08:00:00.000Z";
+      return { ok: true, booking: row };
+    };
+
+    const moved = await rescheduleBooking(
+      "tok-res-1",
+      "2026-09-10T08:00:00.000Z",
+      "2026-09-10T12:00:00.000Z",
+    );
+    expect(moved.startTime).toBe("2026-09-10T08:00:00.000Z");
+  });
+
+  it("rejects when the resource belongs to another business", async () => {
+    fake().tables.resources = [
+      { ...RESOURCE, id: "res-other", business_id: "biz-other" },
+    ];
+    fake().tables.bookings = [
+      resourceBooking({ resource_id: "res-other" }),
+    ];
+
+    await expect(
+      rescheduleBooking(
+        "tok-res-1",
+        "2026-09-11T14:00:00.000Z",
+        "2026-09-11T18:00:00.000Z",
+      ),
+    ).rejects.toMatchObject({ status: 400, code: "RESOURCE_NOT_FOUND" });
+  });
+
+  it("rejects when the booking has no resource_id", async () => {
+    fake().tables.bookings = [
+      resourceBooking({ resource_id: null }),
+    ];
+
+    await expect(
+      rescheduleBooking(
+        "tok-res-1",
+        "2026-09-11T14:00:00.000Z",
+        "2026-09-11T18:00:00.000Z",
+      ),
+    ).rejects.toMatchObject({ status: 400, code: "VALIDATION" });
+  });
+
+  it("rejects when endTime is missing", async () => {
+    fake().tables.bookings = [resourceBooking()];
+
+    await expect(
+      rescheduleBooking("tok-res-1", "2026-09-11T14:00:00.000Z"),
+    ).rejects.toMatchObject({ status: 400, code: "VALIDATION" });
+  });
+
+  it("rejects when end is before start", async () => {
+    fake().tables.bookings = [resourceBooking()];
+
+    await expect(
+      rescheduleBooking(
+        "tok-res-1",
+        "2026-09-11T18:00:00.000Z",
+        "2026-09-11T14:00:00.000Z",
+      ),
+    ).rejects.toMatchObject({ status: 400, code: "VALIDATION" });
+  });
+
+  it("rejects when the new time is in the past", async () => {
+    fake().tables.bookings = [resourceBooking()];
+
+    await expect(
+      rescheduleBooking(
+        "tok-res-1",
+        "2020-01-01T00:00:00.000Z",
+        "2020-01-01T04:00:00.000Z",
+      ),
+    ).rejects.toMatchObject({ status: 400, code: "VALIDATION" });
+  });
+
+  it("rejects when the resource is deactivated", async () => {
+    fake().tables.resources = [
+      { ...RESOURCE, active: false },
+    ];
+    fake().tables.bookings = [resourceBooking()];
+
+    await expect(
+      rescheduleBooking(
+        "tok-res-1",
+        "2026-09-11T14:00:00.000Z",
+        "2026-09-11T18:00:00.000Z",
+      ),
+    ).rejects.toMatchObject({ status: 400, code: "RESOURCE_NOT_FOUND" });
+  });
+});

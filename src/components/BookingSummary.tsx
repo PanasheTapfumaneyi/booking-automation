@@ -19,7 +19,9 @@ export default function BookingSummary({
   showPrice = true,
 }: BookingSummaryProps) {
   const date = formatLongDate(booking.startTime);
-  const time = formatTime(booking.startTime);
+  const start = formatTime(booking.startTime);
+  const end = formatTime(booking.endTime);
+  const hasDuration = booking.serviceDurationMinutes > 0;
 
   return (
     <div className="w-full rounded-xl border border-line bg-card p-5">
@@ -32,7 +34,9 @@ export default function BookingSummary({
           <p className="mt-1.5 text-base text-ink-soft">
             {date}
             <br />
-            {time} · {minutesToLabel(booking.serviceDurationMinutes)}
+            {hasDuration
+              ? `${start} · ${minutesToLabel(booking.serviceDurationMinutes)}`
+              : `${start} – ${end}`}
           </p>
         </div>
         {showPrice && (

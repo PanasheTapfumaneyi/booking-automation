@@ -13,6 +13,7 @@ import {
   fetchBusinessBookingCounts,
   getBusinessDayBounds,
 } from "@/lib/server/business-bookings";
+import { listResources, listSessions } from "@/lib/server/businesses";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     ),
     fetchBusinessBookingCounts(business, now, db),
   ]);
+
+  // Mode-specific overview panels (only the current mode's section renders).
+  const modeResources =
+    business.booking_mode === "resource" ? await listResources(business.id, db) : [];
+  const modeSessions =
+    business.booking_mode === "capacity" ? await listSessions(business.id, db) : [];
 
   const bookingHref = (bookingId: string) =>
     `/dashboard/bookings/${bookingId}?business=${business.id}`;
@@ -206,6 +213,86 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                 </li>
               ))}
             </ul>
+          )}
+
+          {business.booking_mode === "resource" && (
+            <>
+              <div className="mt-8 flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Items</h2>
+                <Link
+                  href={`/settings?business=${business.id}`}
+                  className="text-sm font-medium text-ink-soft hover:text-ink"
+                >
+                  Manage items →
+                </Link>
+              </div>
+              {modeResources.filter((r) => r.active).length === 0 ? (
+                <EmptyState
+                  title="No rental items yet"
+                  body="Add your first item in settings to start taking bookings."
+                />
+              ) : (
+                <ul className="mt-4 flex flex-col gap-2.5">
+                  {modeResources
+                    .filter((r) => r.active)
+                    .map((resource) => (
+                      <li key={resource.id}>
+                        <Link
+                          href={`/dashboard/bookings?business=${business.id}&resourceId=${resource.id}`}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 hover:border-gold/60"
+                        >
+                          <span className="font-medium">{resource.name}</span>
+                          <span className="text-sm text-ink-soft">ViewBookings →</span>
+                        </Link>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </>
+          )}
+
+          {business.booking_mode === "capacity" && (
+            <>
+              <div className="mt-8 flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Departures</h2>
+                <Link
+                  href={`/settings?business=${business.id}`}
+                  className="text-sm font-medium text-ink-soft hover:text-ink"
+                >
+                  Manage sessions →
+                </Link>
+              </div>
+              {modeSessions.filter((s) => s.active).length === 0 ? (
+                <EmptyState
+                  title="No upcoming departures"
+                  body="Add a session in settings to start taking bookings."
+                />
+              ) : (
+                <ul className="mt-4 flex flex-col gap-2.5">
+                  {modeSessions
+                    .filter((s) => s.active)
+                    .map((session) => (
+                      <li key={session.id}>
+                        <Link
+                          href={`/dashboard/bookings?business=${business.id}&sessionId=${session.id}`}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 hover:border-gold/60"
+                        >
+                          <span>
+                            <span className="font-medium">
+                              {session.service_name ?? "Session"}
+                            </span>
+                            <span className="block text-sm text-ink-soft tabular-nums">
+                              {formatTimeInZone(session.start_time, business.timezone)} ·{" "}
+                              {session.booked}/{session.capacity} booked
+                            </span>
+                          </span>
+                          <span className="text-sm text-ink-soft">View bookings →</span>
+                        </Link>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </>
           )}
 
           <div className="mt-8 flex flex-wrap gap-3 text-sm">

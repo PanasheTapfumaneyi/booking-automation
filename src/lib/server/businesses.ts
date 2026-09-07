@@ -17,6 +17,8 @@ import {
 } from "@/lib/availability/hours";
 import { isNotifiablePhone } from "@/lib/notifications/phone";
 import { upsertBusinessNotificationSettings } from "@/lib/server/notifications/records";
+import { fetchSessionBookedQuantity } from "@/lib/server/strategies/capacity";
+import { remainingCapacity } from "@/lib/availability/capacity";
 
 type DbLike = Pick<SupabaseClient, "from" | "rpc">;
 
@@ -147,6 +149,47 @@ export function parseNotificationPhone(input: unknown): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Public page field sanitizers
+// ---------------------------------------------------------------------------
+
+/** Trim and enforce max length. Empty string → null. */
+function sanitizeText(input: unknown, maxLen: number): string | null {
+  if (input === null || input === undefined) return null;
+  if (typeof input !== "string") {
+    throw new ApiError(400, "VALIDATION", "Invalid text value.");
+  }
+  const trimmed = input.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > maxLen) {
+    throw new ApiError(400, "VALIDATION", `Text is too long (max ${maxLen} characters).`);
+  }
+  return trimmed;
+}
+
+/** Accept http/https URL or null/empty to clear. Reject everything else. */
+function sanitizeImageUrl(input: unknown): string | null {
+  if (input === null || input === undefined) return null;
+  if (typeof input !== "string") {
+    throw new ApiError(400, "VALIDATION", "Invalid image URL.");
+  }
+  const trimmed = input.trim();
+  if (trimmed.length === 0) return null;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      throw new ApiError(400, "VALIDATION", "Image URL must start with http:// or https://.");
+    }
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    throw new ApiError(400, "VALIDATION", "Please enter a valid image URL.");
+  }
+  if (trimmed.length > 2000) {
+    throw new ApiError(400, "VALIDATION", "Image URL is too long.");
+  }
+  return trimmed;
+}
+
+// ---------------------------------------------------------------------------
 // Onboarding: business + owner membership + default settings (with cleanup)
 // ---------------------------------------------------------------------------
 
@@ -233,6 +276,10 @@ export interface BusinessSettingsBundle {
     booking_mode: BookingMode;
     slug: string | null;
     availability: BusinessHours | null;
+    tagline: string | null;
+    description: string | null;
+    cover_image_url: string | null;
+    logo_url: string | null;
   };
 }
 
@@ -244,7 +291,7 @@ export async function getBusinessSettings(
   const client = db as SupabaseClient;
   const { data, error } = await client
     .from("businesses")
-    .select("id, name, phone, timezone, booking_mode, slug, availability")
+    .select("id, name, phone, timezone, booking_mode, slug, availability, tagline, description, cover_image_url, logo_url")
     .eq("id", businessId)
     .maybeSingle();
   if (error || !data) {
@@ -266,12 +313,20 @@ export async function getBusinessSettings(
       booking_mode: row.booking_mode as BookingMode,
       slug: (row.slug as string | null) ?? null,
       availability,
+      tagline: (row.tagline as string | null) ?? null,
+      description: (row.description as string | null) ?? null,
+      cover_image_url: (row.cover_image_url as string | null) ?? null,
+      logo_url: (row.logo_url as string | null) ?? null,
     },
   };
 }
 
 export interface UpdateBusinessProfileInput extends BusinessProfileInput {
   availability?: unknown;
+  tagline?: unknown;
+  description?: unknown;
+  cover_image_url?: unknown;
+  logo_url?: unknown;
 }
 
 /**
@@ -294,6 +349,21 @@ export async function updateBusinessProfile(
     updated_at: new Date().toISOString(),
   };
   if (availability !== undefined) patch.availability = availability;
+
+  // Public page customization fields — nullable, accept null to clear.
+  if (input.tagline !== undefined) {
+    patch.tagline = sanitizeText(input.tagline, 200);
+  }
+  if (input.description !== undefined) {
+    patch.description = sanitizeText(input.description, 2000);
+  }
+  if (input.cover_image_url !== undefined) {
+    patch.cover_image_url = sanitizeImageUrl(input.cover_image_url);
+  }
+  if (input.logo_url !== undefined) {
+    patch.logo_url = sanitizeImageUrl(input.logo_url);
+  }
+
   const { error } = await client.from("businesses").update(patch).eq("id", businessId);
   if (error) {
     throw new ApiError(500, "INTERNAL", "We couldn't save your changes. Please try again.");
@@ -358,6 +428,10 @@ export interface SessionSummary {
   end_time: string | null;
   capacity: number;
   active: boolean;
+  /** Active booked quantity across all non-cancelled bookings. */
+  booked: number;
+  /** capacity - booked (never negative in practice; clamped at display). */
+  remaining: number;
 }
 
 export async function listSessions(businessId: string, db: DbLike): Promise<SessionSummary[]> {
@@ -367,15 +441,24 @@ export async function listSessions(businessId: string, db: DbLike): Promise<Sess
     .select("id, service_id, start_time, end_time, capacity, active, service:services(name)")
     .eq("business_id", businessId);
   if (error) throw error;
-  return ((data ?? []) as Array<Record<string, unknown>>).map((s) => ({
-    id: s.id as string,
-    service_id: s.service_id as string,
-    service_name: ((s.service ?? {}) as Record<string, unknown>).name as string | null ?? null,
-    start_time: s.start_time as string,
-    end_time: (s.end_time as string | null) ?? null,
-    capacity: s.capacity as number,
-    active: Boolean(s.active),
-  }));
+  const rows = (data ?? []) as Array<Record<string, unknown>>;
+  return Promise.all(
+    rows.map(async (s) => {
+      const booked = await fetchSessionBookedQuantity({ sessionId: s.id as string });
+      const capacity = s.capacity as number;
+      return {
+        id: s.id as string,
+        service_id: s.service_id as string,
+        service_name: ((s.service ?? {}) as Record<string, unknown>).name as string | null ?? null,
+        start_time: s.start_time as string,
+        end_time: (s.end_time as string | null) ?? null,
+        capacity,
+        active: Boolean(s.active),
+        booked,
+        remaining: remainingCapacity(capacity, booked),
+      };
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -568,6 +651,78 @@ export async function createSession(
     throw new ApiError(500, "INTERNAL", "We couldn't add that session. Please try again.");
   }
   return { id: (data as { id: string }).id };
+}
+
+export interface UpdateSessionInput {
+  start_time?: string;
+  end_time?: string | null;
+  capacity?: number;
+}
+
+/**
+ * Edits a session's schedule and/or capacity. Scoped to the owning business
+ * (unknown ids and other businesses' sessions share one safe 404).
+ * Capacity can never drop below the already-booked active quantity — the
+ * atomic RPC guard stays final authority, this is the friendly pre-check.
+ * Existing customer bookings are never mutated.
+ */
+export async function updateSession(
+  businessId: string,
+  sessionId: string,
+  input: UpdateSessionInput,
+  db: DbLike,
+): Promise<void> {
+  const client = db as SupabaseClient;
+  const { data: row, error: fetchError } = await client
+    .from("booking_sessions")
+    .select("id, start_time, end_time, capacity")
+    .eq("id", sessionId)
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (fetchError || !row) {
+    throw new ApiError(404, "SESSION_NOT_FOUND", "That session wasn't found.");
+  }
+  const current = row as { start_time: string; end_time: string | null; capacity: number };
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  if (input.start_time !== undefined || input.end_time !== undefined) {
+    const start = input.start_time !== undefined ? new Date(input.start_time) : new Date(current.start_time);
+    const endRaw = input.end_time !== undefined ? input.end_time : current.end_time;
+    const end = endRaw ? new Date(endRaw) : null;
+    if (!Number.isFinite(start.getTime())) {
+      throw new ApiError(400, "VALIDATION", "Please choose a valid session start time.");
+    }
+    if (endRaw && (!end || !Number.isFinite(end.getTime()) || end.getTime() <= start.getTime())) {
+      throw new ApiError(400, "VALIDATION", "The session end must be after its start.");
+    }
+    patch.start_time = start.toISOString();
+    patch.end_time = end ? end.toISOString() : null;
+  }
+
+  if (input.capacity !== undefined) {
+    const capacity = Math.floor(Number(input.capacity));
+    if (!Number.isFinite(capacity) || capacity <= 0) {
+      throw new ApiError(400, "VALIDATION", "Capacity must be at least 1 guest.");
+    }
+    const booked = await fetchSessionBookedQuantity({ sessionId });
+    if (capacity < booked) {
+      throw new ApiError(
+        409,
+        "CAPACITY_FULL",
+        `Cannot reduce capacity below the ${booked} already booked guest${booked === 1 ? "" : "s"}.`,
+      );
+    }
+    patch.capacity = capacity;
+  }
+
+  const { error } = await client
+    .from("booking_sessions")
+    .update(patch)
+    .eq("id", sessionId)
+    .eq("business_id", businessId);
+  if (error) {
+    throw new ApiError(500, "INTERNAL", "We couldn't save that session. Please try again.");
+  }
 }
 
 export async function setSessionActive(

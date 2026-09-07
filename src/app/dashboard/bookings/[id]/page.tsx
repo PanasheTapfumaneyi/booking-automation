@@ -164,6 +164,7 @@ export default async function BookingDetailPage({ params, searchParams }: Detail
               status={booking.status}
               hours={ctx.business.availability ?? null}
               bookingMode={ctx.business.booking_mode}
+              timezone={ctx.business.timezone}
             />
           </div>
         </div>

@@ -3,34 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import BookingCalendar from "@/components/BookingCalendar";
-import type { BusinessHours } from "@/lib/availability";
+import { zonedInstant, type BusinessHours } from "@/lib/availability";
 import { apiGetAvailability, BookingApiError } from "@/lib/booking-api";
 import type { TimeSlot as SlotOption } from "@/types/booking";
 import type { BookingMode } from "@/types/booking";
-
-/**
- * Builds a UTC instant from a business-local date key + wall-clock time.
- * Never uses the browser timezone (same rule as the server slot engine).
- */
-function zonedInstant(dateKey: string, time: string, timezone: string): string {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const [hour, minute] = time.split(":").map(Number);
-  const probe = new Date(Date.UTC(year, month - 1, day, hour, minute));
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(probe);
-  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
-  const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"), get("second"));
-  const offsetMinutes = Math.round((asUtc - probe.getTime()) / 60000);
-  return new Date(Date.UTC(year, month - 1, day, hour, minute) - offsetMinutes * 60000).toISOString();
-}
 
 interface CatalogService {
   id: string;
@@ -146,7 +122,7 @@ export default function BusinessBookingForm({
         date: nextDateKey,
         businessId,
       });
-      setSlots(availability.slots);
+      setSlots(availability.kind === "appointment" ? availability.slots : []);
     } catch (loadError: unknown) {
       setSlots([]);
       setError(

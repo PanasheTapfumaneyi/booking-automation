@@ -15,6 +15,10 @@ export interface SettingsBundle {
     booking_mode: BookingMode;
     slug: string | null;
     availability: BusinessHours | null;
+    tagline: string | null;
+    description: string | null;
+    cover_image_url: string | null;
+    logo_url: string | null;
   };
   services: Array<{ id: string; name: string; duration_minutes: number; price: number; active: boolean }>;
   resources: Array<{ id: string; name: string; resource_type: string; active: boolean }>;
@@ -26,6 +30,8 @@ export interface SettingsBundle {
     end_time: string | null;
     capacity: number;
     active: boolean;
+    booked: number;
+    remaining: number;
   }>;
   notifications: {
     business_notification_phone: string | null;
@@ -85,6 +91,11 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
   const [timezone, setTimezone] = useState(business.timezone);
   const [hours, setHours] = useState<BusinessHours | null>(business.availability);
 
+  const [tagline, setTagline] = useState(business.tagline ?? "");
+  const [description, setDescription] = useState(business.description ?? "");
+  const [coverImageUrl, setCoverImageUrl] = useState(business.cover_image_url ?? "");
+  const [logoUrl, setLogoUrl] = useState(business.logo_url ?? "");
+
   const [notifyPhone, setNotifyPhone] = useState(bundle.notifications.business_notification_phone ?? "");
   const [customerAlerts, setCustomerAlerts] = useState(bundle.notifications.customer_notifications_enabled);
   const [businessAlerts, setBusinessAlerts] = useState(bundle.notifications.business_notifications_enabled);
@@ -103,6 +114,10 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
   const [newSessionDate, setNewSessionDate] = useState("");
   const [newSessionTime, setNewSessionTime] = useState("09:00");
   const [newCapacity, setNewCapacity] = useState("10");
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editSessionCapacity, setEditSessionCapacity] = useState("");
+  const [editSessionDate, setEditSessionDate] = useState("");
+  const [editSessionTime, setEditSessionTime] = useState("");
 
   const [whatsapp, setWhatsapp] = useState<{ ok: boolean } | null>(null);
 
@@ -120,6 +135,10 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
     setPhone(data.business.phone ?? "");
     setTimezone(data.business.timezone);
     setHours(data.business.availability);
+    setTagline(data.business.tagline ?? "");
+    setDescription(data.business.description ?? "");
+    setCoverImageUrl(data.business.cover_image_url ?? "");
+    setLogoUrl(data.business.logo_url ?? "");
     setNotifyPhone(data.notifications.business_notification_phone ?? "");
     setCustomerAlerts(data.notifications.customer_notifications_enabled);
     setBusinessAlerts(data.notifications.business_notifications_enabled);
@@ -142,7 +161,15 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
 
   const saveProfile = () =>
     run("profile", () =>
-      requestJson(`/api/businesses/${business.id}`, { name, phone, timezone }, "PATCH"),
+      requestJson(`/api/businesses/${business.id}`, {
+        name,
+        phone,
+        timezone,
+        tagline,
+        description,
+        cover_image_url: coverImageUrl,
+        logo_url: logoUrl,
+      }, "PATCH"),
       "Profile saved.",
     );
 
@@ -217,6 +244,26 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
     run(`session-${sessionId}`, () =>
       requestJson(`/api/businesses/${business.id}/sessions/${sessionId}`, { active }, "PATCH"),
     );
+
+  const saveSessionEdit = (sessionId: string) =>
+    run(`session-${sessionId}`, () => {
+      const body: Record<string, unknown> = {};
+      if (editSessionCapacity.trim().length > 0) body.capacity = Number(editSessionCapacity);
+      if (editSessionDate && editSessionTime) {
+        body.start_time = new Date(`${editSessionDate}T${editSessionTime}:00`).toISOString();
+      } else if (editSessionDate || editSessionTime) {
+        throw new Error("Please provide both a date and a start time, or neither.");
+      }
+      if (Object.keys(body).length === 0) {
+        throw new Error("Nothing to save — change capacity or time first.");
+      }
+      return requestJson(`/api/businesses/${business.id}/sessions/${sessionId}`, body, "PATCH").then(() => {
+        setEditingSessionId(null);
+        setEditSessionCapacity("");
+        setEditSessionDate("");
+        setEditSessionTime("");
+      });
+    });
 
   const saveNotifications = () =>
     run("notifications", () =>
@@ -317,6 +364,82 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
             <button type="button" disabled={busy !== null} onClick={saveHours} className={buttonClass}>
               {busy === "hours" ? "Saving…" : "Save hours"}
             </button>
+          </div>
+        </Section>
+
+        <Section title="Public page">
+          <p className="mb-4 text-sm text-ink-soft">
+            Customize how your business appears on <span className="font-medium text-ink">/business/{business.slug ?? "..."}</span>. All fields are optional.
+          </p>
+          <div className="flex flex-col gap-3">
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Tagline
+              <input
+                value={tagline}
+                onChange={(e) => setTagline(e.target.value)}
+                placeholder="Simple booking, without the back-and-forth."
+                disabled={busy !== null}
+                className={inputClass}
+              />
+              <span className="text-xs text-ink-soft">Shown under your business name. Max 200 characters.</span>
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              About / Description
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Tell customers what makes your business special..."
+                rows={4}
+                disabled={busy !== null}
+                className={`${inputClass} resize-y`}
+              />
+              <span className="text-xs text-ink-soft">Plain text. Shown below the hero section. Max 2,000 characters.</span>
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 text-sm font-medium">
+                Cover image URL
+                <input
+                  value={coverImageUrl}
+                  onChange={(e) => setCoverImageUrl(e.target.value)}
+                  placeholder="https://example.com/hero.jpg"
+                  disabled={busy !== null}
+                  className={inputClass}
+                />
+                <span className="text-xs text-ink-soft">Background image for the hero. Must be http(s) URL.</span>
+                {coverImageUrl && (
+                  <img
+                    src={coverImageUrl}
+                    alt="Cover preview"
+                    className="mt-1 h-16 w-full rounded-lg object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                )}
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-medium">
+                Logo URL
+                <input
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  placeholder="https://example.com/logo.png"
+                  disabled={busy !== null}
+                  className={inputClass}
+                />
+                <span className="text-xs text-ink-soft">Shown above your business name. Must be http(s) URL.</span>
+                {logoUrl && (
+                  <img
+                    src={logoUrl}
+                    alt="Logo preview"
+                    className="mt-1 h-12 w-12 rounded-lg object-contain"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                )}
+              </label>
+            </div>
+            <div>
+              <button type="button" disabled={busy !== null} onClick={saveProfile} className={buttonClass}>
+                {busy === "profile" ? "Saving…" : "Save public page"}
+              </button>
+            </div>
           </div>
         </Section>
 
@@ -458,18 +581,47 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
             <>
               <div className="mt-5 flex flex-col gap-2">
                 {live.sessions.map((session) => (
-                  <div key={session.id} className="flex items-center justify-between gap-3 rounded-xl border border-line px-4 py-2.5 text-sm">
-                    <span className={session.active ? "" : "text-ink-soft line-through"}>
-                      {session.service_name ?? "Session"} · {new Date(session.start_time).toLocaleString()} · {session.capacity} guests
-                    </span>
-                    <button
-                      type="button"
-                      disabled={busy !== null}
-                      onClick={() => toggleSession(session.id, !session.active)}
-                      className="font-medium text-ink-soft hover:text-ink"
-                    >
-                      {busy === `session-${session.id}` ? "…" : session.active ? "Deactivate" : "Activate"}
-                    </button>
+                  <div key={session.id} className="rounded-xl border border-line px-4 py-2.5 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={session.active ? "" : "text-ink-soft line-through"}>
+                        {session.service_name ?? "Session"} · {new Date(session.start_time).toLocaleString()} · {session.booked}/{session.capacity} booked
+                      </span>
+                      <span className="flex gap-3">
+                        <button
+                          type="button"
+                          disabled={busy !== null}
+                          onClick={() => {
+                            setEditingSessionId(session.id);
+                            setEditSessionCapacity(String(session.capacity));
+                            setEditSessionDate("");
+                            setEditSessionTime("");
+                          }}
+                          className="font-medium text-ink-soft hover:text-ink"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy !== null}
+                          onClick={() => toggleSession(session.id, !session.active)}
+                          className="font-medium text-ink-soft hover:text-ink"
+                        >
+                          {busy === `session-${session.id}` ? "…" : session.active ? "Deactivate" : "Activate"}
+                        </button>
+                      </span>
+                    </div>
+                    {editingSessionId === session.id && (
+                      <div className="mt-2.5 grid grid-cols-2 gap-2">
+                        <input aria-label="Session capacity" value={editSessionCapacity} onChange={(e) => setEditSessionCapacity(e.target.value)} disabled={busy !== null} inputMode="numeric" className={inputClass} placeholder="Guests" />
+                        <input aria-label="Session date" type="date" value={editSessionDate} onChange={(e) => setEditSessionDate(e.target.value)} disabled={busy !== null} className={inputClass} />
+                        <input aria-label="Session start time" type="time" value={editSessionTime} onChange={(e) => setEditSessionTime(e.target.value)} disabled={busy !== null} className={inputClass} />
+                        <div>
+                          <button type="button" disabled={busy !== null} onClick={() => saveSessionEdit(session.id)} className={buttonClass}>
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

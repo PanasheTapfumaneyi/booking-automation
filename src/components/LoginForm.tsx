@@ -64,7 +64,7 @@ export default function LoginForm({ mode }: { mode: "login" | "signup" }) {
         </p>
         <Link
           href="/login"
-          className="mt-6 inline-block rounded-full bg-ink px-6 py-3 text-base font-semibold text-paper hover:bg-black"
+          className="mt-6 inline-block rounded-lg bg-brand px-6 py-3 text-base font-semibold text-white hover:bg-brand-hover"
         >
           Go to login
         </Link>
@@ -101,7 +101,7 @@ export default function LoginForm({ mode }: { mode: "login" | "signup" }) {
             autoComplete="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="rounded-xl border border-line bg-card px-4 py-3 text-base font-normal outline-none focus:border-gold"
+            className="rounded-xl border border-line bg-card px-4 py-3 text-base font-normal outline-none focus:border-brand"
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-medium">
@@ -118,13 +118,13 @@ export default function LoginForm({ mode }: { mode: "login" | "signup" }) {
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="rounded-xl border border-line bg-card px-4 py-3 text-base font-normal outline-none focus:border-gold"
+            className="rounded-xl border border-line bg-card px-4 py-3 text-base font-normal outline-none focus:border-brand"
           />
         </label>
         <button
           type="submit"
           disabled={busy}
-          className="mt-2 rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+          className="mt-2 rounded-lg bg-brand px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy
             ? mode === "signup"

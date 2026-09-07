@@ -23,6 +23,7 @@ export {
   minutesToLabel,
   addDaysKey,
   doIntervalsOverlap,
+  zonedInstant,
 } from "./time";
 
 export {

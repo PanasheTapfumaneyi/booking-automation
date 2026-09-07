@@ -41,6 +41,8 @@ interface BookingsPageProps {
     view?: string;
     search?: string;
     serviceId?: string;
+    resourceId?: string;
+    sessionId?: string;
     from?: string;
     to?: string;
     new?: string;
@@ -86,6 +88,8 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
     filters.order = "desc";
   }
   if (params.serviceId) filters.serviceId = params.serviceId;
+  if (params.resourceId) filters.resourceId = params.resourceId;
+  if (params.sessionId) filters.sessionId = params.sessionId;
   if (params.from) filters.fromIso = params.from;
   if (params.to) filters.toIso = params.to;
 
@@ -105,6 +109,8 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
     if (view !== "upcoming") query.set("view", view);
     if (search) query.set("search", search);
     if (params.serviceId) query.set("serviceId", params.serviceId);
+    if (params.resourceId) query.set("resourceId", params.resourceId);
+    if (params.sessionId) query.set("sessionId", params.sessionId);
     if (params.from) query.set("from", params.from);
     if (params.to) query.set("to", params.to);
     for (const [key, value] of Object.entries(extra)) {
@@ -163,6 +169,18 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
             ))}
           </nav>
 
+          {(params.resourceId || params.sessionId) && (
+            <p className="mt-4 text-sm text-ink-soft">
+              Showing bookings for this {params.resourceId ? "item" : "departure"} ·{" "}
+              <Link
+                href={withQuery({ resourceId: "", sessionId: "" })}
+                className="font-medium text-ink hover:underline"
+              >
+                Show all
+              </Link>
+            </p>
+          )}
+
           <div className="mt-4">
             <BookingSearchForm
               businessId={business.id}
@@ -170,6 +188,8 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
               view={view}
               initialSearch={search}
               serviceId={params.serviceId ?? ""}
+              resourceId={params.resourceId ?? ""}
+              sessionId={params.sessionId ?? ""}
               from={params.from ?? ""}
               to={params.to ?? ""}
             />

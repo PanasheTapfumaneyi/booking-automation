@@ -84,8 +84,17 @@ describe("appointment availability regression (weekday-aware slot timing)", () =
   });
 
   it("isDateKeyAvailable uses the corrected weekday (Monday open, Sunday closed)", () => {
-    expect(isDateKeyAvailable("2026-09-07", TIMEZONE)).toBe(true);   // Monday — open, within window
-    expect(isDateKeyAvailable("2026-09-13", TIMEZONE)).toBe(false);  // Sunday — closed
-    expect(getSlotsForDay("2026-09-13", HOUR, [], TIMEZONE)).toHaveLength(0);
+    // Compute a future Monday and the following Sunday so the test never goes stale.
+    const now = new Date();
+    const dayOfWeek = now.getUTCDay(); // 0=Sun … 6=Sat
+    const daysToMonday = dayOfWeek <= 1 ? 1 - dayOfWeek + 7 : 1 - dayOfWeek + 7;
+    const futureMonday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysToMonday));
+    const futureSunday = new Date(futureMonday.getTime() + 6 * 86400000);
+    const mondayKey = futureMonday.toISOString().slice(0, 10);
+    const sundayKey = futureSunday.toISOString().slice(0, 10);
+
+    expect(isDateKeyAvailable(mondayKey, TIMEZONE)).toBe(true);   // Monday — open
+    expect(isDateKeyAvailable(sundayKey, TIMEZONE)).toBe(false);  // Sunday — closed
+    expect(getSlotsForDay(sundayKey, HOUR, [], TIMEZONE)).toHaveLength(0);
   });
 });

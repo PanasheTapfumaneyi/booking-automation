@@ -18,6 +18,10 @@ export class BookingApiError extends Error {
     return this.code === "SLOT_UNAVAILABLE";
   }
 
+  get isCapacityFull(): boolean {
+    return this.code === "CAPACITY_FULL";
+  }
+
   get isNotfound(): boolean {
     return this.code === "BOOKING_NOT_FOUND";
   }
@@ -79,12 +83,13 @@ export function apiCreateBooking(input: NewBookingInput): Promise<Booking> {
 export function apiRescheduleBooking(
   token: string,
   startTime: string,
+  endTime?: string,
 ): Promise<Booking> {
   return request<{ booking: Booking }>(
     `/api/bookings/${encodeURIComponent(token)}/reschedule`,
     {
       method: "POST",
-      body: JSON.stringify({ startTime }),
+      body: JSON.stringify({ startTime, endTime }),
     },
   ).then((body) => body.booking);
 }
@@ -103,7 +108,7 @@ export interface ApiAvailabilityParams {
   businessId?: string;
 }
 
-export interface ApiAvailability {
+interface AvailabilityBase {
   business: {
     id: string;
     name: string;
@@ -113,8 +118,32 @@ export interface ApiAvailability {
   service: { id: string; name: string; durationMinutes: number; price: number };
   date: string;
   timezone: string;
+}
+
+export interface AppointmentAvailability extends AvailabilityBase {
+  kind: "appointment";
   slots: TimeSlot[];
 }
+
+export interface ResourceAvailability extends AvailabilityBase {
+  kind: "resource";
+  resources: Array<{ id: string; name: string; resourceType: string; active: boolean }>;
+}
+
+export interface CapacityAvailability extends AvailabilityBase {
+  kind: "capacity";
+  sessions: Array<{
+    id: string;
+    startTime: string;
+    endTime: string | null;
+    capacity: number;
+    booked: number;
+    remaining: number;
+    active: boolean;
+  }>;
+}
+
+export type ApiAvailability = AppointmentAvailability | ResourceAvailability | CapacityAvailability;
 
 export function apiGetAvailability(
   params: ApiAvailabilityParams,

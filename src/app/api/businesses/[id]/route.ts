@@ -76,6 +76,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       phone?: unknown;
       timezone?: unknown;
       availability?: unknown;
+      tagline?: unknown;
+      description?: unknown;
+      cover_image_url?: unknown;
+      logo_url?: unknown;
     } | null;
     if (!body) {
       return NextResponse.json({ error: "Missing request body." }, { status: 400 });
@@ -88,6 +92,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         timezone:
           typeof body.timezone === "string" ? body.timezone : ctx.business.timezone,
         availability: body.availability,
+        tagline: body.tagline,
+        description: body.description,
+        cover_image_url: body.cover_image_url,
+        logo_url: body.logo_url,
       },
       getSupabase(),
     );

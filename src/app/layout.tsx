@@ -13,9 +13,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fade District — Book your appointment",
+  title: {
+    default: "Kivo — Simple digital booking for businesses",
+    template: "%s — Kivo",
+  },
   description:
-    "Book, reschedule or cancel your haircut at Fade District in under a minute.",
+    "Kivo gives your customers a simple way to book online while giving you one place to manage your availability, services and reservations.",
 };
 
 export default function RootLayout({

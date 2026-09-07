@@ -45,6 +45,7 @@ import {
   updateNotificationRecord,
 } from "./records";
 import type { NotificationStatusPatch } from "./records";
+import { isDemoBusiness } from "@/lib/server/demo";
 
 // ---------------------------------------------------------------------------
 // Public summary (returned to the booking service / optional API response)
@@ -70,7 +71,14 @@ export interface NotificationDispatchResult {
 // ---------------------------------------------------------------------------
 
 export interface BookingNotificationDispatchInput {
-  business: Pick<BusinessRowMinimal, "id" | "name" | "timezone">;
+  business: Pick<BusinessRowMinimal, "id" | "name" | "timezone"> & {
+    /**
+     * Explicit demo flag, forwarded from the server-fetched business row
+     * (booking-service passes the full row). Absent = production.
+     * Never populated from client input.
+     */
+    is_demo?: boolean | null;
+  };
   serviceName: string;
   booking: Pick<BookingRowMinimal, "id" | "start_time" | "end_time" | "manage_token">;
   customer: { name: string; phone: string };
@@ -247,6 +255,12 @@ export async function dispatchBookingEvent(
   // fully off — no records, no network, no provider resolution.
   if (notificationProvider() === "none") {
     return noopResult;
+  }
+
+  // Demo safety: suppress external sends for demo businesses, resolved
+  // server-side from businesses.is_demo (never from client input).
+  if (isDemoBusiness(input.business)) {
+    return { ...noopResult, dispatched: false };
   }
 
   const provider = resolveNotificationProvider();

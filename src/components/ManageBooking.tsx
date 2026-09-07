@@ -15,7 +15,7 @@ import BookingSummary from "@/components/BookingSummary";
 import BookingCalendar from "@/components/BookingCalendar";
 import TimeSlot from "@/components/TimeSlot";
 
-type Mode = "view" | "reschedule" | "cancel" | "cancelled" | "rescheduled";
+type Mode = "view" | "reschedule" | "cancel" | "cancelled" | "rescheduled" | "rebook";
 
 interface ManageBookingProps {
   token: string;
@@ -38,6 +38,13 @@ function statusLabel(status: Booking["status"]): string {
   }
 }
 
+/** Detect booking mode from the booking data. */
+function detectMode(booking: Booking): "appointment" | "resource" | "capacity" {
+  if (booking.sessionId) return "capacity";
+  if (booking.resourceId) return "resource";
+  return "appointment";
+}
+
 export default function ManageBooking({ token }: ManageBookingProps) {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -51,6 +58,11 @@ export default function ManageBooking({ token }: ManageBookingProps) {
   const [slots, setSlots] = useState<SlotOption[] | null>(null);
   const [slotsError, setSlotsError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+
+  // Resource reschedule state
+  const [resourceNewDate, setResourceNewDate] = useState<string | null>(null);
+  const [resourceNewStart, setResourceNewStart] = useState("");
+  const [resourceNewEnd, setResourceNewEnd] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -74,7 +86,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
           setBookingError(
             fetchError instanceof BookingApiError
               ? fetchError.message
-              : "We couldn't load this appointment. Please try again.",
+              : "We couldn't load this booking. Please try again.",
           );
         }
       });
@@ -84,10 +96,12 @@ export default function ManageBooking({ token }: ManageBookingProps) {
     };
   }, [token]);
 
+  const bookingMode = booking ? detectMode(booking) : "appointment";
+  const canReschedule = bookingMode === "appointment" || bookingMode === "resource";
   const slotsLoading = !slotsError && slotQuery !== null && slots === null;
 
   useEffect(() => {
-    if (!slotQuery || !booking) return;
+    if (!slotQuery || !booking || bookingMode !== "appointment") return;
 
     let cancelled = false;
     apiGetAvailability({
@@ -97,7 +111,11 @@ export default function ManageBooking({ token }: ManageBookingProps) {
     })
       .then((availability) => {
         if (cancelled) return;
-        setSlots(availability.slots);
+        if (availability.kind === "appointment") {
+          setSlots(availability.slots);
+        } else {
+          setSlots([]);
+        }
         setSlotsError(null);
       })
       .catch((fetchError: unknown) => {
@@ -113,7 +131,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
     return () => {
       cancelled = true;
     };
-  }, [slotQuery, booking, retryCount]);
+  }, [slotQuery, booking, retryCount, bookingMode]);
 
   function startReschedule() {
     setMode("reschedule");
@@ -123,6 +141,9 @@ export default function ManageBooking({ token }: ManageBookingProps) {
     setSlotQuery(null);
     setSlots(null);
     setSlotsError(null);
+    setResourceNewDate(null);
+    setResourceNewStart("");
+    setResourceNewEnd("");
     setError(null);
   }
 
@@ -141,11 +162,35 @@ export default function ManageBooking({ token }: ManageBookingProps) {
   }
 
   function handleConfirmReschedule() {
-    if (!booking || !newSlot) return;
+    if (!booking) return;
 
+    if (bookingMode === "resource") {
+      if (!resourceNewDate || !resourceNewStart || !resourceNewEnd) return;
+      setBusy(true);
+      setError(null);
+      const startIso = buildIsoFromDateTime(resourceNewDate, resourceNewStart);
+      const endIso = buildIsoFromDateTime(resourceNewDate, resourceNewEnd);
+      apiRescheduleBooking(token, startIso, endIso)
+        .then((updated) => {
+          setBooking(updated);
+          setMode("rescheduled");
+        })
+        .catch((rescheduleError: unknown) => {
+          setMode("view");
+          setError(
+            rescheduleError instanceof BookingApiError
+              ? rescheduleError.message
+              : "We couldn't reschedule your booking. Please try again.",
+          );
+        })
+        .finally(() => setBusy(false));
+      return;
+    }
+
+    // appointment
+    if (!newSlot) return;
     setBusy(true);
     setError(null);
-
     apiRescheduleBooking(token, newSlot.startTime)
       .then((updated) => {
         setBooking(updated);
@@ -161,9 +206,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
             : "We couldn't reschedule your appointment. Please try again.",
         );
       })
-      .finally(() => {
-        setBusy(false);
-      });
+      .finally(() => setBusy(false));
   }
 
   function handleConfirmCancel() {
@@ -181,7 +224,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
         setError(
           cancelError instanceof BookingApiError
             ? cancelError.message
-            : "We couldn't cancel your appointment. Please try again.",
+            : "We couldn't cancel your booking. Please try again.",
         );
         if (cancelError instanceof BookingApiError && cancelError.isCancelled) {
           setBooking((current) =>
@@ -199,17 +242,17 @@ export default function ManageBooking({ token }: ManageBookingProps) {
     return (
       <div className="mx-auto w-full max-w-lg px-5 py-24 text-center">
         <h1 className="text-2xl font-semibold tracking-tight">
-          Appointment not found
+          Booking not found
         </h1>
         <p className="mt-2 text-ink-soft">
-          We couldn&apos;t find this appointment. The link may be incorrect or
-          the appointment may have been removed.
+          We couldn&apos;t find this booking. The link may be incorrect or
+          the booking may have been removed.
         </p>
         <Link
           href="/book"
           className="mt-6 inline-block rounded-full bg-ink px-6 py-3 text-base font-semibold text-paper hover:bg-black"
         >
-          Book an appointment
+          Book again
         </Link>
       </div>
     );
@@ -221,7 +264,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
         {bookingError ? (
           <p className="text-red-700">{bookingError}</p>
         ) : (
-          <p className="text-ink-soft">Loading your appointment…</p>
+          <p className="text-ink-soft">Loading your booking…</p>
         )}
       </div>
     );
@@ -246,10 +289,10 @@ export default function ManageBooking({ token }: ManageBookingProps) {
             <span className="text-2xl font-bold">✓</span>
           </div>
           <h1 className="mt-5 text-2xl font-semibold tracking-tight">
-            Appointment rescheduled
+            Booking rescheduled
           </h1>
           <p className="mt-1.5 text-ink-soft">
-            Your appointment has moved to the new time below. A confirmation has
+            Your booking has moved to the new time below. A confirmation has
             been sent.
           </p>
           <div className="mt-8 text-left">
@@ -269,13 +312,13 @@ export default function ManageBooking({ token }: ManageBookingProps) {
               href={`/manage/${token}`}
               className="rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper hover:bg-black"
             >
-              View appointment
+              View booking
             </Link>
             <Link
               href="/"
               className="text-sm font-medium text-ink-soft hover:text-ink"
             >
-              Back to Fade District
+              Back to home
             </Link>
           </div>
         </section>
@@ -287,29 +330,32 @@ export default function ManageBooking({ token }: ManageBookingProps) {
             <span className="text-2xl">✕</span>
           </div>
           <h1 className="mt-5 text-2xl font-semibold tracking-tight">
-            Appointment cancelled
+            Booking cancelled
           </h1>
           <p className="mt-1.5 text-ink-soft">
-            Your appointment has been cancelled. We hope to see you again soon.
+            Your booking has been cancelled. We hope to see you again soon.
           </p>
           <div className="mt-8 flex flex-col gap-3">
             <Link
               href="/book"
               className="rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper hover:bg-black"
             >
-              Book a new appointment
+              Book again
             </Link>
             <Link
               href="/"
               className="text-sm font-medium text-ink-soft hover:text-ink"
             >
-              Back to Fade District
+              Back to home
             </Link>
           </div>
         </section>
       )}
 
-      {mode === "reschedule" && (
+      {/* ================================================================ */}
+      {/* RESCHEDULE — appointment mode (slot picker)                     */}
+      {/* ================================================================ */}
+      {mode === "reschedule" && bookingMode === "appointment" && (
         <section>
           <button
             type="button"
@@ -319,7 +365,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
             }}
             className="mb-5 text-sm font-medium text-ink-soft hover:text-ink"
           >
-            ‹ Back to appointment
+            ‹ Back to booking
           </button>
           <h1 className="text-2xl font-semibold tracking-tight">
             Choose a new time
@@ -397,6 +443,136 @@ export default function ManageBooking({ token }: ManageBookingProps) {
         </section>
       )}
 
+      {/* ================================================================ */}
+      {/* RESCHEDULE — resource mode (date + time picker)                 */}
+      {/* ================================================================ */}
+      {mode === "reschedule" && bookingMode === "resource" && (
+        <section>
+          <button
+            type="button"
+            onClick={() => {
+              setMode("view");
+              setError(null);
+            }}
+            className="mb-5 text-sm font-medium text-ink-soft hover:text-ink"
+          >
+            ‹ Back to booking
+          </button>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Choose a new time
+          </h1>
+          <p className="mt-1.5 text-ink-soft">
+            {booking.serviceName} · move from {formatLongDate(booking.startTime)}{" "}
+            at {formatTime(booking.startTime)} – {formatTime(booking.endTime)}.
+          </p>
+
+          {rescheduleStep === "date" ? (
+            <div className="mt-6">
+              <BookingCalendar
+                selectedDateKey={resourceNewDate}
+                onSelectDateKey={(dateKey) => {
+                  setResourceNewDate(dateKey);
+                  setResourceNewStart("");
+                  setResourceNewEnd("");
+                  setRescheduleStep("slot");
+                }}
+              />
+            </div>
+          ) : (
+            <div className="mt-6">
+              <div className="flex flex-col gap-4">
+                <div>
+                  <label htmlFor="res-start" className="mb-1.5 block text-sm font-medium text-ink">
+                    Start time
+                  </label>
+                  <input
+                    id="res-start"
+                    type="time"
+                    value={resourceNewStart}
+                    onChange={(e) => setResourceNewStart(e.target.value)}
+                    className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-gold"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="res-end" className="mb-1.5 block text-sm font-medium text-ink">
+                    End time
+                  </label>
+                  <input
+                    id="res-end"
+                    type="time"
+                    value={resourceNewEnd}
+                    onChange={(e) => setResourceNewEnd(e.target.value)}
+                    className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-gold"
+                  />
+                </div>
+              </div>
+              {resourceNewStart && resourceNewEnd && resourceNewStart >= resourceNewEnd && (
+                <p className="mt-2 text-sm text-red-700">End time must be after start time.</p>
+              )}
+              <button
+                type="button"
+                onClick={handleConfirmReschedule}
+                disabled={
+                  !resourceNewStart ||
+                  !resourceNewEnd ||
+                  resourceNewStart >= resourceNewEnd ||
+                  busy
+                }
+                className="mt-6 w-full rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {busy ? "Rescheduling…" : "Confirm new time"}
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ================================================================ */}
+      {/* RESCHEDULE — capacity mode (not supported: cancel + rebook)      */}
+      {/* ================================================================ */}
+      {mode === "reschedule" && bookingMode === "capacity" && (
+        <section>
+          <button
+            type="button"
+            onClick={() => {
+              setMode("view");
+              setError(null);
+            }}
+            className="mb-5 text-sm font-medium text-ink-soft hover:text-ink"
+          >
+            ‹ Back to booking
+          </button>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Reschedule not available
+          </h1>
+          <p className="mt-1.5 text-ink-soft">
+            Session bookings can&apos;t be rescheduled directly. Cancel this
+            booking and book a new session.
+          </p>
+          <div className="mt-6">
+            <BookingSummary booking={booking} />
+          </div>
+          <div className="mt-8 flex flex-col gap-3">
+            <Link
+              href="/book"
+              className="rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper hover:bg-black"
+            >
+              Book a new session
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("view");
+                setError(null);
+              }}
+              className="rounded-full border border-line bg-card px-6 py-3.5 text-base font-medium text-ink-soft hover:text-ink"
+            >
+              Go back
+            </button>
+          </div>
+        </section>
+      )}
+
       {mode === "cancel" && (
         <section>
           <button
@@ -407,13 +583,13 @@ export default function ManageBooking({ token }: ManageBookingProps) {
             }}
             className="mb-5 text-sm font-medium text-ink-soft hover:text-ink"
           >
-            ‹ Back to appointment
+            ‹ Back to booking
           </button>
           <h1 className="text-2xl font-semibold tracking-tight">
             Are you sure you want to cancel?
           </h1>
           <p className="mt-1.5 text-ink-soft">
-            This will free up your time slot for other customers.
+            This will free up your spot for other customers.
           </p>
           <div className="mt-6">
             <BookingSummary booking={booking} />
@@ -425,7 +601,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
               disabled={busy}
               className="rounded-full bg-red-600 px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {busy ? "Cancelling…" : "Cancel appointment"}
+              {busy ? "Cancelling…" : "Cancel booking"}
             </button>
             <button
               type="button"
@@ -435,7 +611,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
               }}
               className="rounded-full border border-line bg-card px-6 py-3.5 text-base font-medium text-ink-soft hover:text-ink"
             >
-              Keep appointment
+              Keep booking
             </button>
           </div>
         </section>
@@ -444,10 +620,15 @@ export default function ManageBooking({ token }: ManageBookingProps) {
       {mode === "view" && (
         <section>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Your appointment
+            Your booking
           </h1>
           <div className="mt-6">
             <BookingSummary booking={booking} />
+            {bookingMode === "capacity" && booking.quantity > 1 && (
+              <p className="mt-2 text-sm text-ink-soft">
+                × {booking.quantity} guest{booking.quantity === 1 ? "" : "s"}
+              </p>
+            )}
           </div>
 
           <div className="mt-3 flex items-center gap-2 text-sm">
@@ -471,32 +652,42 @@ export default function ManageBooking({ token }: ManageBookingProps) {
 
           {isCancelled ? (
             <div className="mt-8 rounded-xl border border-line bg-card p-5 text-center">
-              <p className="font-medium">This appointment has been cancelled.</p>
+              <p className="font-medium">This booking has been cancelled.</p>
               <p className="mt-1 text-sm text-ink-soft">
-                Need a new time? Book again in under a minute.
+                Need to book again? It only takes a moment.
               </p>
               <Link
                 href="/book"
                 className="mt-5 inline-block rounded-full bg-ink px-6 py-3 text-base font-semibold text-paper hover:bg-black"
               >
-                Book a new appointment
+                Book again
               </Link>
             </div>
           ) : (
             <div className="mt-8 flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={startReschedule}
-                className="rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper transition-colors hover:bg-black"
-              >
-                Reschedule
-              </button>
+              {canReschedule && (
+                <button
+                  type="button"
+                  onClick={startReschedule}
+                  className="rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper transition-colors hover:bg-black"
+                >
+                  Reschedule
+                </button>
+              )}
+              {bookingMode === "capacity" && !isCancelled && (
+                <Link
+                  href="/book"
+                  className="rounded-full bg-ink px-6 py-3.5 text-center text-base font-semibold text-paper transition-colors hover:bg-black"
+                >
+                  Book a different session
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={startCancel}
                 className="rounded-full border border-line bg-card px-6 py-3.5 text-base font-medium text-ink-soft transition-colors hover:border-red-300 hover:text-red-600"
               >
-                Cancel appointment
+                Cancel booking
               </button>
             </div>
           )}
@@ -504,4 +695,19 @@ export default function ManageBooking({ token }: ManageBookingProps) {
       )}
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Build an ISO timestamp from a YYYY-MM-DD date key and HH:MM time string
+ * in UTC (manage page doesn't have business timezone context; the server
+ * validates and normalizes).
+ */
+function buildIsoFromDateTime(dateKey: string, time: string): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const [hours, minutes] = time.split(":").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0)).toISOString();
 }

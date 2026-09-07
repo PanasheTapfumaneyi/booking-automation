@@ -175,6 +175,8 @@ export interface BookingListFilters {
   fromIso?: string;
   toIso?: string;
   serviceId?: string;
+  resourceId?: string;
+  sessionId?: string;
   customerIds?: string[];
   limit?: number;
   offset?: number;
@@ -210,6 +212,12 @@ export async function listBusinessBookings(
   }
   if (filters.serviceId) {
     query = query.eq("service_id", filters.serviceId);
+  }
+  if (filters.resourceId) {
+    query = query.eq("resource_id", filters.resourceId);
+  }
+  if (filters.sessionId) {
+    query = query.eq("session_id", filters.sessionId);
   }
   if (filters.customerIds && filters.customerIds.length > 0) {
     query = query.in("customer_id", filters.customerIds);
@@ -495,10 +503,11 @@ export async function rescheduleBusinessBooking(
   businessId: string,
   bookingId: string,
   startTime: string,
+  endTime?: string,
   db?: DbLike,
 ): Promise<BusinessBooking> {
   const token = await tokenOr404(businessId, bookingId, db);
-  const moved = await rescheduleBooking(token, startTime);
+  const moved = await rescheduleBooking(token, startTime, endTime);
   return (await fetchBusinessBookingById(businessId, moved.id, db)) ?? sanitizeBooking(moved);
 }
 

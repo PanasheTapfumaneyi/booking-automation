@@ -343,6 +343,7 @@ export async function getBookingByToken(token: string): Promise<Booking> {
 export async function rescheduleBooking(
   token: string,
   startTimeRaw: string,
+  endTimeRaw?: string,
 ): Promise<Booking> {
   const db = getSupabase();
   const found = await fetchBookingByToken(token);
@@ -369,7 +370,7 @@ export async function rescheduleBooking(
   }
   const business = await fetchBusiness(row.business_id);
 
-  if (business.booking_mode !== "appointment") {
+  if (business.booking_mode !== "appointment" && business.booking_mode !== "resource") {
     throw new ApiError(
       400,
       "VALIDATION",
@@ -377,24 +378,67 @@ export async function rescheduleBooking(
     );
   }
 
-  const start = parseInstant(startTimeRaw);
-  if (!start) {
-    throw new ApiError(400, "VALIDATION", "Please choose a valid time.");
-  }
-  await requireAppointmentSlot(business, service, start);
+  let startIso: string;
+  let endIso: string;
+  if (business.booking_mode === "appointment") {
+    const start = parseInstant(startTimeRaw);
+    if (!start) {
+      throw new ApiError(400, "VALIDATION", "Please choose a valid time.");
+    }
+    await requireAppointmentSlot(business, service, start);
 
-  const end = new Date(start.getTime() + service.duration_minutes * 60000);
-  const startIso = start.toISOString();
-  const endIso = end.toISOString();
+    const end = new Date(start.getTime() + service.duration_minutes * 60000);
+    startIso = start.toISOString();
+    endIso = end.toISOString();
 
-  const blocks = await fetchBlocks({
-    businessId: business.id,
-    startIso,
-    endIso,
-    excludeBookingId: row.id,
-  });
-  if (blocks.length > 0) {
-    throw new ApiError(409, "SLOT_UNAVAILABLE", SLOT_UNAVAILABLE_MESSAGE);
+    const blocks = await fetchBlocks({
+      businessId: business.id,
+      startIso,
+      endIso,
+      excludeBookingId: row.id,
+    });
+    if (blocks.length > 0) {
+      throw new ApiError(409, "SLOT_UNAVAILABLE", SLOT_UNAVAILABLE_MESSAGE);
+    }
+  } else {
+    // Resource mode: the booking keeps its item; only the interval moves.
+    // Self-exclusion is derived server-side from the looked-up row.
+    if (!row.resource_id) {
+      throw new ApiError(
+        400,
+        "VALIDATION",
+        "This booking has no item attached and can't be moved.",
+      );
+    }
+    await validateResourceBooking({
+      businessId: business.id,
+      resourceId: row.resource_id,
+    });
+    const start = parseInstant(startTimeRaw);
+    const end = endTimeRaw ? parseInstant(endTimeRaw) : null;
+    if (!start || !end || start.getTime() >= end.getTime()) {
+      throw new ApiError(
+        400,
+        "VALIDATION",
+        "Please choose a valid start and end time.",
+      );
+    }
+    if (end.getTime() <= Date.now()) {
+      throw new ApiError(
+        400,
+        "VALIDATION",
+        "This time has already passed. Please choose another.",
+      );
+    }
+    startIso = start.toISOString();
+    endIso = end.toISOString();
+    await assertResourceFree({
+      businessId: business.id,
+      resourceId: row.resource_id,
+      startIso,
+      endIso,
+      excludeBookingId: row.id,
+    });
   }
 
   // Final Calendar availability check (ignores this booking's own event).

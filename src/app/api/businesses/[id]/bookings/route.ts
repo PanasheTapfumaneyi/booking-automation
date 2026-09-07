@@ -18,8 +18,9 @@ const LIVE_STATUSES: Booking["status"][] = ["confirmed", "rescheduled"];
 
 /**
  * GET /api/businesses/[id]/bookings
- * Query: view=today|upcoming|past|cancelled|all, status, serviceId, search,
- * from, to, limit, offset. Day bounds use the business timezone.
+ * Query: view=today|upcoming|past|cancelled|all, status, serviceId,
+ * resourceId, sessionId, search, from, to, limit, offset. Day bounds use
+ * the business timezone.
  */
 export async function GET(request: Request, { params }: RouteContext) {
   try {
@@ -42,6 +43,10 @@ export async function GET(request: Request, { params }: RouteContext) {
     }
     const serviceId = searchParams.get("serviceId");
     if (serviceId) filters.serviceId = serviceId;
+    const resourceId = searchParams.get("resourceId");
+    if (resourceId) filters.resourceId = resourceId;
+    const sessionId = searchParams.get("sessionId");
+    if (sessionId) filters.sessionId = sessionId;
     if (searchParams.get("from")) filters.fromIso = searchParams.get("from") as string;
     if (searchParams.get("to")) filters.toIso = searchParams.get("to") as string;
 

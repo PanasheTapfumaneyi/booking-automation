@@ -11,6 +11,8 @@ export default function BookingSearchForm({
   view,
   initialSearch,
   serviceId,
+  resourceId,
+  sessionId,
   from,
   to,
 }: {
@@ -19,6 +21,8 @@ export default function BookingSearchForm({
   view: string;
   initialSearch: string;
   serviceId: string;
+  resourceId: string;
+  sessionId: string;
   from: string;
   to: string;
 }) {
@@ -35,6 +39,8 @@ export default function BookingSearchForm({
     if (view && view !== "upcoming") query.set("view", view);
     if (search.trim()) query.set("search", search.trim());
     if (service.trim()) query.set("serviceId", service.trim());
+    if (resourceId) query.set("resourceId", resourceId);
+    if (sessionId) query.set("sessionId", sessionId);
     // Day bounds in the business timezone (never browser UTC).
     if (fromDate) query.set("from", getLocalDayInfo(fromDate, timezone).dayStartUtc);
     if (toDate) {
@@ -93,7 +99,7 @@ export default function BookingSearchForm({
           onChange={(e) => setToDate(e.target.value)}
           className={inputClass}
         />
-        {(initialSearch || serviceId || from || to) && (
+        {(initialSearch || serviceId || resourceId || sessionId || from || to) && (
           <button
             type="button"
             onClick={clear}

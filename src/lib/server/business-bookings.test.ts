@@ -620,14 +620,14 @@ describe("business mutations reuse the shared core", () => {
       };
     };
     const slot = nextBookableSlot();
-    const moved = await rescheduleBusinessBooking("biz-1", "b-1", slot.startIso, db as never);
+    const moved = await rescheduleBusinessBooking("biz-1", "b-1", slot.startIso, undefined, db as never);
     expect(moved.startTime).toBe(slot.startIso);
     expect(moved.status).toBe("rescheduled");
     expect(moved).not.toHaveProperty("manageToken");
     expect(JSON.stringify(moved)).not.toContain("tok-keep");
     // Cross-business reschedule is a safe 404 (token never involved).
     await expect(
-      rescheduleBusinessBooking("biz-9", "b-1", slot.startIso, db as never),
+      rescheduleBusinessBooking("biz-9", "b-1", slot.startIso, undefined, db as never),
     ).rejects.toMatchObject({ status: 404 });
   });
 
@@ -648,5 +648,130 @@ describe("business mutations reuse the shared core", () => {
     await expect(cancelBusinessBooking("biz-9", "b-1", db as never)).rejects.toMatchObject({
       status: 404,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Resource-mode reschedule (Phase 6C)
+// ---------------------------------------------------------------------------
+
+describe("resource-mode reschedule (business-bookings)", () => {
+  const RESOURCE_BIZ = {
+    ...BUSINESS,
+    id: "biz-res",
+    booking_mode: "resource",
+  };
+
+  const RESOURCE_SVC = {
+    ...SERVICE,
+    id: "svc-res",
+    business_id: "biz-res",
+    name: "Car Rental",
+  };
+
+  const RESOURCE = {
+    id: "res-1",
+    business_id: "biz-res",
+    name: "Corolla",
+    resource_type: "vehicle",
+    active: true,
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+  };
+
+  function seedResourceCore(db: FakeDb): void {
+    db.tables.businesses = [{ ...RESOURCE_BIZ }];
+    db.tables.services = [{ ...RESOURCE_SVC }];
+    db.tables.resources = [{ ...RESOURCE }];
+    db.tables.customers = [
+      { id: "cust-1", business_id: "biz-res", name: "Jean-Marc", phone: "+23057123456", email: null },
+    ];
+    db.tables.bookings = [];
+    db.tables.notifications = [];
+    db.tables.calendar_connections = [];
+  }
+
+  it("reschedules a resource booking with endTime", async () => {
+    const db = holder.db as FakeDb;
+    seedResourceCore(db);
+    db.tables.bookings = [
+      bookingRow({
+        id: "b-res-1",
+        business_id: "biz-res",
+        service_id: "svc-res",
+        resource_id: "res-1",
+        manage_token: "tok-res-1",
+        status: "confirmed",
+        start_time: "2026-09-10T08:00:00.000Z",
+        end_time: "2026-09-10T12:00:00.000Z",
+        customer_id: "cust-1",
+      }),
+    ];
+
+    // assertResourceFree: no other bookings → free
+    // moveCalendarEvent: no google_event_id → not_connected
+    // dispatchBookingEvent: non-throwing
+    db.rpcImpl = (_fn, args) => {
+      Object.assign(db.tables.bookings[0], {
+        start_time: args.p_start_time,
+        end_time: args.p_end_time,
+        previous_start_time: "2026-09-10T08:00:00.000Z",
+      });
+      return {
+        ok: true,
+        booking: bookingRow({
+          id: "b-res-1",
+          business_id: "biz-res",
+          service_id: "svc-res",
+          resource_id: "res-1",
+          manage_token: "tok-res-1",
+          status: "confirmed",
+          start_time: args.p_start_time,
+          end_time: args.p_end_time,
+          previous_start_time: "2026-09-10T08:00:00.000Z",
+          customer_id: "cust-1",
+        }),
+      };
+    };
+
+    const moved = await rescheduleBusinessBooking(
+      "biz-res",
+      "b-res-1",
+      "2026-09-11T14:00:00.000Z",
+      "2026-09-11T18:00:00.000Z",
+      db as never,
+    );
+    expect(moved.startTime).toBe("2026-09-11T14:00:00.000Z");
+    expect(moved.endTime).toBe("2026-09-11T18:00:00.000Z");
+    expect(moved).not.toHaveProperty("manageToken");
+    expect(JSON.stringify(moved)).not.toContain("tok-res-1");
+  });
+
+  it("rejects resource reschedule without endTime", async () => {
+    const db = holder.db as FakeDb;
+    seedResourceCore(db);
+    db.tables.bookings = [
+      bookingRow({
+        id: "b-res-1",
+        business_id: "biz-res",
+        service_id: "svc-res",
+        resource_id: "res-1",
+        manage_token: "tok-res-1",
+        status: "confirmed",
+        start_time: "2026-09-10T08:00:00.000Z",
+        end_time: "2026-09-10T12:00:00.000Z",
+        customer_id: "cust-1",
+      }),
+    ];
+
+    await expect(
+      rescheduleBusinessBooking(
+        "biz-res",
+        "b-res-1",
+        "2026-09-11T14:00:00.000Z",
+        undefined,
+        db as never,
+      ),
+    ).rejects.toMatchObject({ status: 400, code: "VALIDATION" });
   });
 });
