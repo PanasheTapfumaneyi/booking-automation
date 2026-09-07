@@ -100,7 +100,6 @@ export interface ApiAvailabilityParams {
   serviceId: string;
   date: string;
   excludeBookingToken?: string;
-  excludeBookingId?: string;
   businessId?: string;
 }
 
@@ -127,11 +126,33 @@ export function apiGetAvailability(
   if (params.excludeBookingToken) {
     query.set("excludeBookingToken", params.excludeBookingToken);
   }
-  if (params.excludeBookingId) {
-    query.set("excludeBookingId", params.excludeBookingId);
-  }
   if (params.businessId) {
     query.set("businessId", params.businessId);
   }
   return request<ApiAvailability>(`/api/availability?${query.toString()}`);
+}
+
+export interface BusinessAvailabilityParams {
+  serviceId: string;
+  date: string;
+  bookingId: string;
+}
+
+/**
+ * Membership-checked availability for business-side rescheduling. The
+ * bookingId is an identifier only — the server re-resolves it scoped to
+ * the owner's business and derives the exclusion internally.
+ */
+export function apiGetBusinessAvailability(
+  businessId: string,
+  params: BusinessAvailabilityParams,
+): Promise<ApiAvailability> {
+  const query = new URLSearchParams({
+    serviceId: params.serviceId,
+    date: params.date,
+    bookingId: params.bookingId,
+  });
+  return request<ApiAvailability>(
+    `/api/businesses/${encodeURIComponent(businessId)}/availability?${query.toString()}`,
+  );
 }

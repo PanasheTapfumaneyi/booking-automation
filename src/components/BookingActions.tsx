@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import BookingCalendar from "@/components/BookingCalendar";
 import type { BusinessHours } from "@/lib/availability";
-import { apiGetAvailability, BookingApiError } from "@/lib/booking-api";
+import { apiGetBusinessAvailability, BookingApiError } from "@/lib/booking-api";
 import type { TimeSlot as SlotOption } from "@/types/booking";
 
 /** Owner actions on one booking: reschedule (same engine) or cancel. */
@@ -40,11 +40,10 @@ export default function BookingActions({
     setSlots(null);
     setError(null);
     try {
-      const availability = await apiGetAvailability({
+      const availability = await apiGetBusinessAvailability(businessId, {
         serviceId,
         date: nextDateKey,
-        businessId,
-        excludeBookingId: bookingId,
+        bookingId,
       });
       setSlots(availability.slots);
     } catch (loadError: unknown) {

@@ -14,11 +14,12 @@ export interface GetAvailabilityArgs {
   serviceId: string;
   date: string;
   excludeBookingToken?: string;
+
   /**
-   * Business-dashboard alternative to excludeBookingToken: a booking id to
-   * exclude from conflict checks (the dashboard never holds manage tokens).
-   * Like the token, it only loosens the caller's own availability view;
-   * booking ids are unguessable UUIDs.
+   * TRUSTED INTERNAL ONLY. A booking id to exclude from conflict checks,
+   * derived server-side from an authorized context (manage token resolved
+   * above, or a membership-verified business route) — never from raw
+   * client input. A booking UUID is not an authorization capability.
    */
   excludeBookingId?: string;
 }

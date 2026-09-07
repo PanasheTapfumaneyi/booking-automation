@@ -16,8 +16,16 @@ export async function GET(request: NextRequest) {
     const businessId = searchParams.get("businessId") ?? undefined;
     const excludeBookingToken =
       searchParams.get("excludeBookingToken") ?? undefined;
-    const excludeBookingId =
-      searchParams.get("excludeBookingId") ?? undefined;
+    // Booking-UUID exclusion is never accepted here: a UUID is not an
+    // authorization capability. Reschedule flows use authorized paths
+    // (manage token for customers, membership-checked business routes).
+    if (searchParams.get("excludeBookingId")) {
+      throw new ApiError(
+        400,
+        "VALIDATION",
+        "This parameter isn't supported on public availability.",
+      );
+    }
 
     if (!serviceId) {
       throw new ApiError(400, "VALIDATION", "A service is required.");
@@ -34,7 +42,6 @@ export async function GET(request: NextRequest) {
       serviceId,
       date,
       excludeBookingToken,
-      excludeBookingId,
     });
     return NextResponse.json(availability);
   } catch (error) {
