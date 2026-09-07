@@ -231,6 +231,58 @@ export interface SyncRescheduleMoveArgs {
   db?: SupabaseClient;
   /** Test seam: a prebuilt CalendarApi (fake). */
   api?: ReturnType<typeof createCalendarApiClient>["api"];
+  /**
+   * When the stored Google event no longer exists (manually deleted on the
+   * calendar), recreate it at the new time instead of failing the
+   * reschedule. Omitted → legacy behavior (revert the DB move and throw).
+   */
+  recreate?: {
+    service: Pick<ServiceRow, "name" | "price">;
+    customerName: string;
+    customerPhone: string;
+    customerEmail?: string | null;
+  };
+}
+
+/**
+ * Recreates a manually-deleted Google event at the rescheduled time and
+ * records the new event id on the booking. Returns null when recreation
+ * itself fails so the caller falls back to reverting the database move.
+ */
+async function recreateMovedEvent(
+  api: ReturnType<typeof createCalendarApiClient>["api"],
+  calendarId: string,
+  args: Pick<
+    SyncRescheduleMoveArgs,
+    "business" | "row" | "newStartIso" | "newEndIso" | "db"
+  > & {
+    recreate: NonNullable<SyncRescheduleMoveArgs["recreate"]>;
+  },
+): Promise<CalendarSyncOutcome | null> {
+  try {
+    const eventId = await createCalendarEvent(api, {
+      calendarId,
+      requestBody: buildEventPayload({
+        business: args.business,
+        service: args.recreate.service,
+        bookingId: args.row.id,
+        customerName: args.recreate.customerName,
+        customerPhone: args.recreate.customerPhone,
+        customerEmail: args.recreate.customerEmail,
+        startIso: args.newStartIso,
+        endIso: args.newEndIso,
+      }),
+      timeoutMs: googleApiTimeoutMs(),
+    });
+    await updateBookingCalendarSync(
+      args.row.id,
+      { status: "synced", eventId, syncedAt: nowIso(), error: null },
+      args.db,
+    );
+    return { status: "synced", eventId, code: "CALENDAR_EVENT_NOT_FOUND" };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -273,6 +325,21 @@ export async function moveCalendarEvent(
     return { status: "synced" };
   } catch (err) {
     const code = classifyCalendarError(err);
+    const recreate = args.recreate;
+    if (code === "CALENDAR_EVENT_NOT_FOUND" && recreate) {
+      // The event was manually deleted on the calendar. Recreate it at the
+      // new time so the reschedule still succeeds and the booking and the
+      // calendar do not diverge.
+      const recreated = await recreateMovedEvent(api, connection.calendarId, {
+        business: args.business,
+        row: args.row,
+        newStartIso: args.newStartIso,
+        newEndIso: args.newEndIso,
+        db: args.db,
+        recreate,
+      }).catch(() => null);
+      if (recreated) return recreated;
+    }
     const reverted = await revertBookingTime(
       args.row.id,
       args.previousStartIso,

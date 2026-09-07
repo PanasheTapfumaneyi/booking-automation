@@ -318,6 +318,95 @@ describe("moveCalendarEvent (reschedule)", () => {
     expect(db.rpcCalls).toHaveLength(0);
   });
 
+  it("recreates the event at the new time when it was manually deleted", async () => {
+    const db = dbWithConnection();
+    db.tables.bookings.push(bookingRow());
+    const { api, calls } = createFakeCalendarApi({
+      patchThrows: { code: 404, message: "not found" },
+    });
+    const outcome = await moveCalendarEvent({
+      business,
+      row: { id: "booking-1", google_event_id: "event-1" },
+      newStartIso: "2026-09-18T05:00:00.000Z",
+      newEndIso: "2026-09-18T06:00:00.000Z",
+      previousStartIso: "2026-09-16T05:00:00.000Z",
+      previousEndIso: "2026-09-16T06:00:00.000Z",
+      recreate: {
+        service,
+        customerName: "John Doe",
+        customerPhone: "+230",
+        customerEmail: null,
+      },
+      db: asDb(db),
+      api,
+    });
+    expect(outcome.status).toBe("synced");
+    expect(outcome.code).toBe("CALENDAR_EVENT_NOT_FOUND");
+    expect(outcome.eventId).toBe("event-1");
+    expect(calls.patch).toHaveLength(1);
+    expect(calls.insert).toHaveLength(1);
+    const inserted = calls.insert[0] as {
+      requestBody: { start: { dateTime: string }; end: { dateTime: string } };
+    };
+    expect(inserted.requestBody.start.dateTime).toBe("2026-09-18T05:00:00.000Z");
+    expect(inserted.requestBody.end.dateTime).toBe("2026-09-18T06:00:00.000Z");
+    // New event id recorded; the database move is NOT reverted.
+    expect(bookingInDb(db).google_event_id).toBe("event-1");
+    expect(bookingInDb(db).calendar_sync_status).toBe("synced");
+    expect(db.rpcCalls).toHaveLength(0);
+  });
+
+  it("reverts when recreation also fails after a 404", async () => {
+    const db = dbWithConnection();
+    db.tables.bookings.push(bookingRow());
+    const { api, calls } = createFakeCalendarApi({
+      patchThrows: { code: 404, message: "not found" },
+      insertThrows: new Error("calendar down"),
+    });
+    const thrown = await moveCalendarEvent({
+      business,
+      row: { id: "booking-1", google_event_id: "event-1" },
+      newStartIso: "2026-09-18T05:00:00.000Z",
+      newEndIso: "2026-09-18T06:00:00.000Z",
+      previousStartIso: "2026-09-16T05:00:00.000Z",
+      previousEndIso: "2026-09-16T06:00:00.000Z",
+      recreate: {
+        service,
+        customerName: "John Doe",
+        customerPhone: "+230",
+        customerEmail: null,
+      },
+      db: asDb(db),
+      api,
+    }).catch((e) => e);
+    expect(thrown.code).toBe("CALENDAR_SYNC_FAILED");
+    expect(calls.insert).toHaveLength(1);
+    const revertCall = db.rpcCalls.find((c) => c.fn === "update_booking_time");
+    expect(revertCall).toBeDefined();
+  });
+
+  it("keeps legacy revert behavior on 404 without recreate info", async () => {
+    const db = dbWithConnection();
+    db.tables.bookings.push(bookingRow());
+    const { api, calls } = createFakeCalendarApi({
+      patchThrows: { code: 404, message: "not found" },
+    });
+    const thrown = await moveCalendarEvent({
+      business,
+      row: { id: "booking-1", google_event_id: "event-1" },
+      newStartIso: "2026-09-18T05:00:00.000Z",
+      newEndIso: "2026-09-18T06:00:00.000Z",
+      previousStartIso: "2026-09-16T05:00:00.000Z",
+      previousEndIso: "2026-09-16T06:00:00.000Z",
+      db: asDb(db),
+      api,
+    }).catch((e) => e);
+    expect(thrown.code).toBe("CALENDAR_SYNC_FAILED");
+    expect(calls.insert).toHaveLength(0);
+    const revertCall = db.rpcCalls.find((c) => c.fn === "update_booking_time");
+    expect(revertCall).toBeDefined();
+  });
+
   it("reverts the database move and throws when the event cannot move", async () => {
     const db = dbWithConnection();
     db.tables.bookings.push(bookingRow());

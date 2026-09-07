@@ -440,6 +440,8 @@ export async function rescheduleBooking(
   const movedRow = result.booking as unknown as BookingRow;
 
   // Move the existing Google event; reverts the DB move on failure.
+  // If the event was manually deleted on the calendar, recreate it at the
+  // new time instead of failing the reschedule.
   await moveCalendarEvent({
     business,
     row,
@@ -447,6 +449,12 @@ export async function rescheduleBooking(
     newEndIso: endIso,
     previousStartIso: row.start_time,
     previousEndIso: row.end_time,
+    recreate: {
+      service,
+      customerName: row.customer?.name ?? "",
+      customerPhone: row.customer?.phone ?? "",
+      customerEmail: row.customer?.email ?? null,
+    },
   });
 
   await dispatchBookingEvent({
