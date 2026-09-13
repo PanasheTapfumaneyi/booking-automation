@@ -80,6 +80,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       description?: unknown;
       cover_image_url?: unknown;
       logo_url?: unknown;
+      address?: unknown;
+      latitude?: unknown;
+      longitude?: unknown;
+      is_active?: unknown;
     } | null;
     if (!body) {
       return NextResponse.json({ error: "Missing request body." }, { status: 400 });
@@ -96,6 +100,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         description: body.description,
         cover_image_url: body.cover_image_url,
         logo_url: body.logo_url,
+        address: body.address,
+        latitude: body.latitude,
+        longitude: body.longitude,
+        is_active: body.is_active,
       },
       getSupabase(),
     );

@@ -952,6 +952,30 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
               Book another
             </button>
           </div>
+
+          {/* Add to calendar */}
+          <div className="mt-4 flex flex-col gap-2">
+            <p className="text-sm font-medium text-ink">Add to your calendar</p>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={`/api/bookings/${booking.manageToken}/calendar`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-soft transition-all duration-150 hover:border-line-strong hover:text-ink"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+                Download .ics
+              </a>
+              <a
+                href={`/api/bookings/${booking.manageToken}/calendar?google=1`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-soft transition-all duration-150 hover:border-line-strong hover:text-ink"
+              >
+                Google Calendar
+              </a>
+            </div>
+          </div>
         </section>
       )}
     </div>

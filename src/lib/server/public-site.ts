@@ -37,6 +37,8 @@ export async function getBusinessSiteData(
   if (!clean) return null;
   const business = await fetchBusinessBySlug(clean, db as never).catch(() => null);
   if (!business) return null;
+  // Pre-launch businesses stay hidden until the owner activates them.
+  if (business.is_active === false) return null;
 
   const client = db as never;
   const [services, resources, sessions] = await Promise.all([

@@ -8,8 +8,9 @@ import { toApiErrorResponse } from "@/lib/server/route-helper";
 /**
  * GET /api/integrations/google-calendar/connect?business=<businessId>
  *
- * Starts the OAuth flow for a business. The business id is validated and only
- * allowlisted businesses (MVP: the Fade District demo business) may connect.
+ * Starts the OAuth flow for a business. The caller must be a member of the
+ * business (membership-checked); the legacy allowlist in
+ * GOOGLE_CAL_ALLOWED_BUSINESS_IDS additionally admits listed ids.
  * Produces a signed, expiring state token that encodes the business id and is
  * verified in the callback (CSRF protection).
  */

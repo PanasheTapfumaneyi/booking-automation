@@ -30,6 +30,8 @@ export interface TemplateContext {
   endIso: string;
   /** Customer-only: public /manage/[token] URL. */
   manageUrl?: string;
+  /** Customer-only: calendar download URL. */
+  calendarUrl?: string;
   /** Reschedule only: the previously booked interval. */
   previousStartIso?: string;
 }
@@ -50,6 +52,8 @@ export function customerCreatedMessage(ctx: TemplateContext): string {
     `you're booked in for ${ctx.serviceName} on ${dayTime(ctx.startIso, ctx.businessTimezone)}.`,
     "",
     `Manage this appointment: ${ctx.manageUrl ?? "—"}`,
+    "",
+    `Add to your calendar: ${ctx.calendarUrl ?? "—"}`,
   ].join("\n");
 }
 
@@ -67,6 +71,8 @@ export function customerRescheduledMessage(ctx: TemplateContext): string {
     `Previous time: ${previous}`,
     "",
     `Manage this appointment: ${ctx.manageUrl ?? "—"}`,
+    "",
+    `Add to your calendar: ${ctx.calendarUrl ?? "—"}`,
   ].join("\n");
 }
 

@@ -664,32 +664,57 @@ export default function ManageBooking({ token }: ManageBookingProps) {
               </Link>
             </div>
           ) : (
-            <div className="mt-8 flex flex-col gap-3">
-              {canReschedule && (
+            <>
+              <div className="mt-8 flex flex-col gap-3">
+                {canReschedule && (
+                  <button
+                    type="button"
+                    onClick={startReschedule}
+                    className="rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper transition-colors hover:bg-black"
+                  >
+                    Reschedule
+                  </button>
+                )}
+                {bookingMode === "capacity" && !isCancelled && (
+                  <Link
+                    href="/book"
+                    className="rounded-full bg-ink px-6 py-3.5 text-center text-base font-semibold text-paper transition-colors hover:bg-black"
+                  >
+                    Book a different session
+                  </Link>
+                )}
                 <button
                   type="button"
-                  onClick={startReschedule}
-                  className="rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper transition-colors hover:bg-black"
+                  onClick={startCancel}
+                  className="rounded-full border border-line bg-card px-6 py-3.5 text-base font-medium text-ink-soft transition-colors hover:border-red-300 hover:text-red-600"
                 >
-                  Reschedule
+                  Cancel booking
                 </button>
-              )}
-              {bookingMode === "capacity" && !isCancelled && (
-                <Link
-                  href="/book"
-                  className="rounded-full bg-ink px-6 py-3.5 text-center text-base font-semibold text-paper transition-colors hover:bg-black"
-                >
-                  Book a different session
-                </Link>
-              )}
-              <button
-                type="button"
-                onClick={startCancel}
-                className="rounded-full border border-line bg-card px-6 py-3.5 text-base font-medium text-ink-soft transition-colors hover:border-red-300 hover:text-red-600"
-              >
-                Cancel booking
-              </button>
-            </div>
+              </div>
+
+              {/* Add to calendar */}
+              <div className="mt-4 rounded-xl border border-line bg-paper p-4">
+                <p className="text-sm font-medium text-ink">Add to your calendar</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <a
+                    href={`/api/bookings/${token}/calendar`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink-soft hover:border-line-strong hover:text-ink"
+                  >
+                    Download .ics
+                  </a>
+                  <a
+                    href={`/api/bookings/${token}/calendar?google=1`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink-soft hover:border-line-strong hover:text-ink"
+                  >
+                    Google Calendar
+                  </a>
+                </div>
+              </div>
+            </>
           )}
         </section>
       )}

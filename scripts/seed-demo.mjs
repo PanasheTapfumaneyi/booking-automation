@@ -21,6 +21,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { DEMO_BUSINESSES } from "./demo-data.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -51,62 +52,34 @@ if (!url || !key) {
 }
 const db = createClient(url, key, { auth: { persistSession: false } });
 
-const DEMOS = [
+// Demo catalog data — services, resources, sessions that seed-demo manages.
+// Business-level canonical values come from demo-data.mjs (shared with reset).
+const DEMO_CATALOGS = [
   {
     id: "10000000-0000-4000-8000-000000000001",
-    name: "Fade Area",
-    phone: "+230 5711 1111",
-    email: "demo@fadearea.mu",
-    timezone: "Indian/Mauritius",
-    booking_mode: "appointment",
-    slug: "fade-area",
-    tagline: "Your neighbourhood barbershop — walk-ins welcome, appointments preferred.",
-    description: "Fade Area has been keeping Mauritius sharp since 2019. Our barbers specialise in fades, tapers, and classic cuts — all done with attention to detail and a cold drink in hand. Walk in or book ahead, we'll get you sorted.",
-    cover_image_url: "https://images.unsplash.com/photo-1675599193884-38c7a5ceecbc?fm=jpg&q=80&w=1600&auto=format&fit=crop",
-    logo_url: null,
     services: [
-      { name: "Haircut", duration_minutes: 45, price: 450 },
-      { name: "Beard Trim", duration_minutes: 30, price: 250 },
-      { name: "Consultation", duration_minutes: 30, price: 0 },
+      { name: "Haircut", duration_minutes: 45, price: 450, image_url: "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?fm=jpg&q=80&w=800&auto=format&fit=crop", description: "Precision scissor cut and fade, finished to your style." },
+      { name: "Beard Trim", duration_minutes: 30, price: 250, image_url: "https://images.unsplash.com/photo-1621605815971-fbc98d665033?fm=jpg&q=80&w=800&auto=format&fit=crop", description: "Shape, line-up and tidy-up using a straight razor." },
+      { name: "Consultation", duration_minutes: 30, price: 0, image_url: null, description: "Free consultation to discuss your ideal look." },
     ],
     resources: [],
     sessions: [],
   },
   {
     id: "10000000-0000-4000-8000-000000000002",
-    name: "Island Surf Co.",
-    phone: "+230 5722 2222",
-    email: "demo@islandsurf.mu",
-    timezone: "Indian/Mauritius",
-    booking_mode: "resource",
-    slug: "island-surf",
-    tagline: "Island life starts here. Boards, bikes, and beach gear by the hour.",
-    description: "Whether you're catching your first wave or your fiftieth, Island Surf Co. has the gear and the local knowledge to make it happen. Rent a board, grab a bike, or just swing by for a chat about tomorrow's swell.",
-    cover_image_url: "https://images.unsplash.com/photo-1502680390548-bdbac40a9b27?fm=jpg&q=80&w=1600&auto=format&fit=crop",
-    logo_url: null,
-    services: [{ name: "Daily Board Rental", duration_minutes: 1440, price: 1200 }],
+    services: [{ name: "Daily Board Rental", duration_minutes: 1440, price: 1200, image_url: null, description: "Full-day access to any available board. Includes wax and leash." }],
     resources: [
-      { name: "Shortboard — 6ft", resource_type: "equipment" },
-      { name: "Longboard — 8ft", resource_type: "equipment" },
-      { name: "Paddleboard — 10ft", resource_type: "equipment" },
+      { name: "Shortboard — 6ft", resource_type: "equipment", image_url: "https://images.unsplash.com/photo-1502680390548-bdbac40a9b27?fm=jpg&q=80&w=800&auto=format&fit=crop" },
+      { name: "Longboard — 8ft", resource_type: "equipment", image_url: "https://images.unsplash.com/photo-1455729552457-5c322b382024?fm=jpg&q=80&w=800&auto=format&fit=crop" },
+      { name: "Paddleboard — 10ft", resource_type: "equipment", image_url: "https://images.unsplash.com/photo-1564429238961-bf8f8be819cf?fm=jpg&q=80&w=800&auto=format&fit=crop" },
     ],
     sessions: [],
   },
   {
     id: "10000000-0000-4000-8000-000000000003",
-    name: "Blue Lagoon Swim School",
-    phone: "+230 5733 3333",
-    email: "demo@bluelagoon.mu",
-    timezone: "Indian/Mauritius",
-    booking_mode: "capacity",
-    slug: "blue-lagoon",
-    tagline: "Learn to swim with confidence. Classes for all ages and abilities.",
-    description: "Blue Lagoon has been teaching Mauritius to swim since 2020. Small groups, patient instructors, and a pool that feels like home. From toddlers to triathletes, everyone starts somewhere — and this is the place.",
-    cover_image_url: "https://images.unsplash.com/photo-1575429198097-0414ec08e8cd?fm=jpg&q=80&w=1600&auto=format&fit=crop",
-    logo_url: null,
     services: [
-      { name: "Group Swimming Lesson", duration_minutes: 60, price: 350 },
-      { name: "Kids Adventure Swim", duration_minutes: 45, price: 280 },
+      { name: "Group Swimming Lesson", duration_minutes: 60, price: 350, image_url: "https://images.unsplash.com/photo-1575429198097-0414ec08e8cd?fm=jpg&q=80&w=800&auto=format&fit=crop", description: "Small-group lesson for all skill levels. Max 10 per class." },
+      { name: "Kids Adventure Swim", duration_minutes: 45, price: 280, image_url: "https://images.unsplash.com/photo-1519315901367-f34ff9154487?fm=jpg&q=80&w=800&auto=format&fit=crop", description: "Fun, supervised swim session for children aged 5–12." },
     ],
     resources: [],
     sessions: [
@@ -117,6 +90,12 @@ const DEMOS = [
     ],
   },
 ];
+
+// Merge shared business definitions with catalog data
+const DEMOS = DEMO_BUSINESSES.map((biz) => {
+  const catalog = DEMO_CATALOGS.find((c) => c.id === biz.id);
+  return { ...biz, ...catalog };
+});
 
 async function ensureService(businessId, svc) {
   const { data } = await db.from("services").select("id").eq("business_id", businessId).eq("name", svc.name).maybeSingle();
@@ -148,6 +127,8 @@ for (const demo of DEMOS) {
       timezone: demo.timezone, booking_mode: demo.booking_mode, slug: demo.slug, is_demo: true,
       tagline: demo.tagline, description: demo.description,
       cover_image_url: demo.cover_image_url ?? null, logo_url: demo.logo_url ?? null,
+      theme_config: demo.theme_config ?? null,
+      address: demo.address ?? null, latitude: demo.latitude ?? null, longitude: demo.longitude ?? null,
     });
     if (error) throw error;
     businessId = demo.id;
@@ -157,6 +138,8 @@ for (const demo of DEMOS) {
       name: demo.name, is_demo: true,
       tagline: demo.tagline, description: demo.description,
       cover_image_url: demo.cover_image_url ?? null, logo_url: demo.logo_url ?? null,
+      theme_config: demo.theme_config ?? null,
+      address: demo.address ?? null, latitude: demo.latitude ?? null, longitude: demo.longitude ?? null,
     }).eq("id", businessId);
     if (error) throw error;
   }
@@ -192,6 +175,18 @@ for (const demo of DEMOS) {
   }
 
   console.log(`ok: ${demo.name} (${demo.slug})`);
+}
+
+// Update service images and descriptions
+for (const demo of DEMOS) {
+  const { data: biz } = await db.from("businesses").select("id").eq("slug", demo.slug).maybeSingle();
+  if (!biz) continue;
+  for (const svc of demo.services) {
+    await db.from("services").update({ image_url: svc.image_url ?? null, description: svc.description ?? null }).eq("business_id", biz.id).eq("name", svc.name);
+  }
+  for (const res of demo.resources) {
+    await db.from("resources").update({ image_url: res.image_url ?? null }).eq("business_id", biz.id).eq("name", res.name);
+  }
 }
 
 console.log(`seed:demo done — new businesses=${counts.businesses} services=${counts.services} resources=${counts.resources} sessions=${counts.sessions}`);

@@ -326,7 +326,7 @@ describe("settings mutations", () => {
   function seeded(): FakeDb {
     const db = createFakeDb();
     db.tables.businesses = [
-      { id: "biz-1", name: "Alpha", phone: null, timezone: "Indian/Mauritius", booking_mode: "appointment", slug: "alpha", availability: null, tagline: null, description: null, cover_image_url: null, logo_url: null },
+      { id: "biz-1", name: "Alpha", phone: null, timezone: "Indian/Mauritius", booking_mode: "appointment", slug: "alpha", is_demo: false, is_active: true, availability: null, tagline: null, description: null, cover_image_url: null, logo_url: null, theme_config: null, address: null, latitude: null, longitude: null },
     ];
     return db;
   }
@@ -341,11 +341,16 @@ describe("settings mutations", () => {
       timezone: "Indian/Mauritius",
       booking_mode: "appointment",
       slug: "alpha",
+      is_active: true,
       availability: null,
       tagline: null,
       description: null,
       cover_image_url: null,
       logo_url: null,
+      theme_config: null,
+      address: null,
+      latitude: null,
+      longitude: null,
     });
   });
 
@@ -440,7 +445,7 @@ describe("settings mutations", () => {
     const db = seeded();
     db.tables.services = [{ id: "svc-1", business_id: "biz-1", name: "Cut", duration_minutes: 45, price: 500, active: true }];
     expect(await listServices("biz-1", asDb(db))).toEqual([
-      { id: "svc-1", name: "Cut", duration_minutes: 45, price: 500, active: true },
+      { id: "svc-1", name: "Cut", description: null, duration_minutes: 45, price: 500, image_url: null, active: true },
     ]);
   });
 
@@ -471,7 +476,7 @@ describe("updateSession", () => {
   function seeded(): FakeDb {
     const db = createFakeDb();
     db.tables.businesses = [
-      { id: "biz-1", name: "Alpha", phone: null, timezone: "Indian/Mauritius", booking_mode: "capacity", slug: "alpha", availability: null },
+      { id: "biz-1", name: "Alpha", phone: null, timezone: "Indian/Mauritius", booking_mode: "capacity", slug: "alpha", is_demo: false, is_active: true, availability: null, theme_config: null, address: null, latitude: null, longitude: null },
     ];
     db.tables.services = [
       { id: "svc-1", business_id: "biz-1", name: "Trip", duration_minutes: 60, price: 1, active: true },

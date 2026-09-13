@@ -16,7 +16,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     const { slug } = await params;
     const db = getSupabase();
     const business = await fetchBusinessBySlug(slug, db);
-    if (!business) {
+    if (!business || business.is_active === false) {
       return NextResponse.json({ error: "Business not found." }, { status: 404 });
     }
     const [services, resources, sessions] = await Promise.all([

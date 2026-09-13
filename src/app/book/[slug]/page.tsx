@@ -13,7 +13,7 @@ interface BookSlugPageProps {
 export async function generateMetadata({ params }: BookSlugPageProps): Promise<Metadata> {
   const { slug } = await params;
   const business = await fetchBusinessBySlug(slug, getSupabase()).catch(() => null);
-  if (!business) return { title: "Business not found — Kivo" };
+  if (!business || business.is_active === false) return { title: "Business not found — Kivo" };
   return {
     title: `Book an appointment — ${business.name}`,
     description: `Pick a service, choose a time and book at ${business.name} in under a minute.`,
@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: BookSlugPageProps): Promise<M
 export default async function BookSlugPage({ params }: BookSlugPageProps) {
   const { slug } = await params;
   const business = await fetchBusinessBySlug(slug, getSupabase()).catch(() => null);
-  if (!business) notFound();
+  if (!business || business.is_active === false) notFound();
 
   return (
     <>

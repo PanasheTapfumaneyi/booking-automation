@@ -272,6 +272,7 @@ export async function dispatchBookingEvent(
     const eventId = input.eventId ?? generateEventId();
 
     const manageUrl = `${appBaseUrl()}/manage/${input.booking.manage_token}`;
+    const calendarUrl = `${appBaseUrl()}/api/bookings/${input.booking.manage_token}/calendar`;
 
     const ctx: TemplateContext = {
       businessName: input.business.name,
@@ -282,6 +283,7 @@ export async function dispatchBookingEvent(
       startIso: input.booking.start_time,
       endIso: input.booking.end_time,
       manageUrl,
+      calendarUrl,
       previousStartIso: input.previous?.startTime,
     };
 

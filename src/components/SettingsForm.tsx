@@ -19,8 +19,12 @@ export interface SettingsBundle {
     description: string | null;
     cover_image_url: string | null;
     logo_url: string | null;
+    address: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    is_active: boolean;
   };
-  services: Array<{ id: string; name: string; duration_minutes: number; price: number; active: boolean }>;
+  services: Array<{ id: string; name: string; duration_minutes: number; price: number; active: boolean; description: string | null }>;
   resources: Array<{ id: string; name: string; resource_type: string; active: boolean }>;
   sessions: Array<{
     id: string;
@@ -95,6 +99,9 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
   const [description, setDescription] = useState(business.description ?? "");
   const [coverImageUrl, setCoverImageUrl] = useState(business.cover_image_url ?? "");
   const [logoUrl, setLogoUrl] = useState(business.logo_url ?? "");
+  const [address, setAddress] = useState(business.address ?? "");
+  const [latitude, setLatitude] = useState(business.latitude != null ? String(business.latitude) : "");
+  const [longitude, setLongitude] = useState(business.longitude != null ? String(business.longitude) : "");
 
   const [notifyPhone, setNotifyPhone] = useState(bundle.notifications.business_notification_phone ?? "");
   const [customerAlerts, setCustomerAlerts] = useState(bundle.notifications.customer_notifications_enabled);
@@ -107,6 +114,7 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
   const [editName, setEditName] = useState("");
   const [editDuration, setEditDuration] = useState("");
   const [editPrice, setEditPrice] = useState("");
+  const [editDescription, setEditDescription] = useState("");
   const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
   const [editResourceName, setEditResourceName] = useState("");
   const [newResourceName, setNewResourceName] = useState("");
@@ -139,6 +147,9 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
     setDescription(data.business.description ?? "");
     setCoverImageUrl(data.business.cover_image_url ?? "");
     setLogoUrl(data.business.logo_url ?? "");
+    setAddress(data.business.address ?? "");
+    setLatitude(data.business.latitude != null ? String(data.business.latitude) : "");
+    setLongitude(data.business.longitude != null ? String(data.business.longitude) : "");
     setNotifyPhone(data.notifications.business_notification_phone ?? "");
     setCustomerAlerts(data.notifications.customer_notifications_enabled);
     setBusinessAlerts(data.notifications.business_notifications_enabled);
@@ -169,6 +180,9 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
         description,
         cover_image_url: coverImageUrl,
         logo_url: logoUrl,
+        address,
+        latitude: latitude !== "" ? Number(latitude) : null,
+        longitude: longitude !== "" ? Number(longitude) : null,
       }, "PATCH"),
       "Profile saved.",
     );
@@ -202,6 +216,7 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
         name: editName,
         duration_minutes: Number(editDuration),
         price: Number(editPrice || 0),
+        description: editDescription || null,
       }, "PATCH").then(() => setEditingServiceId(null)),
     );
 
@@ -435,6 +450,46 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                 )}
               </label>
             </div>
+
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Business address
+              <input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Royal Road, Quatre Bornes, Mauritius"
+                disabled={busy !== null}
+                className={inputClass}
+              />
+              <span className="text-xs text-ink-soft">Shown on your public page with a map. Max 500 characters.</span>
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 text-sm font-medium">
+                Latitude
+                <input
+                  type="number"
+                  step="any"
+                  value={latitude}
+                  onChange={(e) => setLatitude(e.target.value)}
+                  placeholder="-20.2417"
+                  disabled={busy !== null}
+                  className={inputClass}
+                />
+                <span className="text-xs text-ink-soft">Optional. Enables embedded map.</span>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-medium">
+                Longitude
+                <input
+                  type="number"
+                  step="any"
+                  value={longitude}
+                  onChange={(e) => setLongitude(e.target.value)}
+                  placeholder="57.4781"
+                  disabled={busy !== null}
+                  className={inputClass}
+                />
+                <span className="text-xs text-ink-soft">Optional. Enables embedded map.</span>
+              </label>
+            </div>
             <div>
               <button type="button" disabled={busy !== null} onClick={saveProfile} className={buttonClass}>
                 {busy === "profile" ? "Saving…" : "Save public page"}
@@ -460,6 +515,7 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                         setEditName(service.name);
                         setEditDuration(String(service.duration_minutes));
                         setEditPrice(String(service.price));
+                        setEditDescription(service.description ?? "");
                       }}
                       className="font-medium text-ink-soft hover:text-ink"
                     >
@@ -476,13 +532,26 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                   </span>
                 </div>
                 {editingServiceId === service.id && (
-                  <div className="mt-2.5 flex flex-col gap-2 sm:flex-row">
-                    <input aria-label="Service name" value={editName} onChange={(e) => setEditName(e.target.value)} disabled={busy !== null} className={`${inputClass} flex-1`} />
-                    <input aria-label="Duration in minutes" value={editDuration} onChange={(e) => setEditDuration(e.target.value)} disabled={busy !== null} inputMode="numeric" className={`${inputClass} w-24`} />
-                    <input aria-label="Price in rupees" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} disabled={busy !== null} inputMode="decimal" className={`${inputClass} w-24`} />
-                    <button type="button" disabled={busy !== null} onClick={() => saveServiceEdit(service.id)} className={buttonClass}>
-                      Save
-                    </button>
+                  <div className="mt-2.5 flex flex-col gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <input aria-label="Service name" value={editName} onChange={(e) => setEditName(e.target.value)} disabled={busy !== null} className={`${inputClass} flex-1`} />
+                      <input aria-label="Duration in minutes" value={editDuration} onChange={(e) => setEditDuration(e.target.value)} disabled={busy !== null} inputMode="numeric" className={`${inputClass} w-24`} />
+                      <input aria-label="Price in rupees" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} disabled={busy !== null} inputMode="decimal" className={`${inputClass} w-24`} />
+                    </div>
+                    <textarea
+                      aria-label="Service description"
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      placeholder="Short description shown on your public page..."
+                      rows={2}
+                      disabled={busy !== null}
+                      className={`${inputClass} resize-y`}
+                    />
+                    <div>
+                      <button type="button" disabled={busy !== null} onClick={() => saveServiceEdit(service.id)} className={buttonClass}>
+                        Save
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

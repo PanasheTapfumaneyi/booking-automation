@@ -10,8 +10,33 @@
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { POST } from "./route";
+import { getSlotsForDay, isoToDateKey } from "@/lib/availability";
 
 type Row = Record<string, unknown>;
+
+/** Generate a future ISO timestamp relative to now. */
+function futureIso(daysOffset: number, hours = 0, minutes = 0): string {
+  const d = new Date(Date.now() + daysOffset * 86_400_000 + hours * 3_600_000 + minutes * 60_000);
+  return d.toISOString();
+}
+
+/** A real future on-grid slot so requireAppointmentSlot passes. */
+function nextBookableSlot(): { startIso: string; endIso: string } {
+  const tz = "Indian/Mauritius";
+  for (let dayOffset = 4; dayOffset < 14; dayOffset += 1) {
+    const date = new Date(Date.now() + dayOffset * 86_400_000);
+    const key = isoToDateKey(date.toISOString(), tz);
+    const slots = getSlotsForDay(key, { durationMinutes: 45 }, [], tz);
+    if (slots.length > 0) {
+      const start = new Date(slots[0].startTime).getTime();
+      return {
+        startIso: new Date(start).toISOString(),
+        endIso: new Date(start + 45 * 60_000).toISOString(),
+      };
+    }
+  }
+  throw new Error("no bookable slot found in test window");
+}
 
 class FakeQuery {
   private filters: Array<(row: Row) => boolean> = [];
@@ -213,11 +238,12 @@ describe("POST /api/bookings — appointment mode", () => {
 
   it("creates an appointment booking", async () => {
     seed();
+    const { startIso, endIso } = nextBookableSlot();
     const response = await POST(
       makeRequest({
         serviceId: "svc-1",
-        startTime: "2026-09-10T06:00:00.000Z",
-        endTime: "2026-09-10T06:45:00.000Z",
+        startTime: startIso,
+        endTime: endIso,
         name: "Jean-Marc",
         phone: "+23057123456",
       }),
@@ -229,11 +255,12 @@ describe("POST /api/bookings — appointment mode", () => {
 
   it("rejects missing contact info", async () => {
     seed();
+    const { startIso, endIso } = nextBookableSlot();
     const response = await POST(
       makeRequest({
         serviceId: "svc-1",
-        startTime: "2026-09-10T06:00:00.000Z",
-        endTime: "2026-09-10T06:45:00.000Z",
+        startTime: startIso,
+        endTime: endIso,
         name: "",
         phone: "+23057123456",
       }),
@@ -291,11 +318,13 @@ describe("POST /api/bookings — resource mode", () => {
 
   it("creates a resource booking", async () => {
     seed();
+    const startTime = futureIso(3, 8, 0);
+    const endTime = futureIso(4, 8, 0);
     const response = await POST(
       makeRequest({
         serviceId: "svc-res",
-        startTime: "2026-09-10T08:00:00.000Z",
-        endTime: "2026-09-11T08:00:00.000Z",
+        startTime,
+        endTime,
         name: "Jean-Marc",
         phone: "+23057123456",
         resourceId: "res-1",
@@ -311,8 +340,8 @@ describe("POST /api/bookings — resource mode", () => {
     const response = await POST(
       makeRequest({
         serviceId: "svc-res",
-        startTime: "2026-09-10T08:00:00.000Z",
-        endTime: "2026-09-11T08:00:00.000Z",
+        startTime: futureIso(3, 8, 0),
+        endTime: futureIso(4, 8, 0),
         name: "Jean-Marc",
         phone: "+23057123456",
       }),
@@ -325,8 +354,8 @@ describe("POST /api/bookings — resource mode", () => {
     const response = await POST(
       makeRequest({
         serviceId: "svc-res",
-        startTime: "2026-09-10T08:00:00.000Z",
-        endTime: "2026-09-11T08:00:00.000Z",
+        startTime: futureIso(3, 8, 0),
+        endTime: futureIso(4, 8, 0),
         name: "Jean-Marc",
         phone: "+23057123456",
         resourceId: "res-other",
@@ -340,8 +369,8 @@ describe("POST /api/bookings — resource mode", () => {
     const response = await POST(
       makeRequest({
         serviceId: "svc-res",
-        startTime: "2026-09-10T08:00:00.000Z",
-        endTime: "2026-09-11T08:00:00.000Z",
+        startTime: futureIso(3, 8, 0),
+        endTime: futureIso(4, 8, 0),
         name: "Jean-Marc",
         phone: "+23057123456",
         resourceId: "res-inactive",
@@ -355,8 +384,8 @@ describe("POST /api/bookings — resource mode", () => {
     const response = await POST(
       makeRequest({
         serviceId: "svc-res",
-        startTime: "2026-09-11T08:00:00.000Z",
-        endTime: "2026-09-10T08:00:00.000Z",
+        startTime: futureIso(4, 8, 0),
+        endTime: futureIso(3, 8, 0),
         name: "Jean-Marc",
         phone: "+23057123456",
         resourceId: "res-1",

@@ -21,13 +21,24 @@ import {
   type ResourceRow,
   fetchBlocks,
   fetchResource,
+  fetchResourceBlocks,
 } from "@/lib/server/database";
+import { hasUnitRate, computeResourceTotal } from "@/lib/resource-pricing";
 
 export interface ResourceSummary {
   id: string;
   name: string;
   resourceType: string;
   active: boolean;
+  /** Public photo shown on the item/vehicle card (null when unset). */
+  imageUrl?: string | null;
+  /** Generic per-resource metadata (vehicle specs, per-day rate, …). */
+  metadata?: Record<string, unknown>;
+  /**
+   * Interval search only: whether the item has no blocking booking across the
+   * requested range. Omitted on the plain (non-interval) resource payload.
+   */
+  available?: boolean;
 }
 
 export interface ResourceAvailabilityResult {

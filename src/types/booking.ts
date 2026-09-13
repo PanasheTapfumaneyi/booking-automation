@@ -37,6 +37,14 @@ export interface Resource {
   name: string;
   resourceType: string;
   active: boolean;
+  /** Public photo shown on the item/vehicle card. */
+  imageUrl: string | null;
+  /**
+   * Generic per-resource metadata (schema JSONB). Carried through the public
+   * API so the UI can render vehicle specs; `metadata.rate` is the per-day
+   * price used by the unit-rate pricing engine.
+   */
+  metadata: Record<string, unknown>;
 }
 
 /**
@@ -73,6 +81,8 @@ export interface Booking {
   resourceId: string | null;
   sessionId: string | null;
   quantity: number;
+  /** Item name for resource bookings (vehicle, board, …). Null otherwise. */
+  resourceName: string | null;
   // Denormalized snapshot fields (kept in sync from service + customer on create).
   serviceName: string;
   servicePrice: number;

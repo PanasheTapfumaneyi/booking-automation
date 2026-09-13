@@ -2,8 +2,8 @@
  * Kivo demo reset — `npm run reset:demo`
  *
  * Removes visitor-generated bookings + customers from DEMO businesses only,
- * restoring a predictable demo state. The demo catalog (businesses,
- * services, resources, sessions) is left intact.
+ * restoring a predictable demo state. Also restores canonical business
+ * fields (address, coordinates, theme, etc.) from the shared demo data.
  *
  * MUST only ever touch `is_demo = true` businesses — the business ids are
  * resolved server-side from that flag, never from CLI args or client input.
@@ -13,6 +13,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { getDemoById } from "./demo-data.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -61,4 +62,35 @@ if (bErr) throw bErr;
 const { error: cErr, count: cCount } = await db.from("customers").delete({ count: "exact" }).in("business_id", ids);
 if (cErr) throw cErr;
 
-console.log(`reset:demo done — removed bookings=${bCount ?? 0} customers=${cCount ?? 0} (demo businesses only)`);
+// Restore canonical business fields (address, coordinates, theme, etc.)
+let restored = 0;
+for (const demo of demos ?? []) {
+  const canonical = getDemoById(demo.id);
+  if (!canonical) {
+    console.warn(`reset:demo — no canonical data for ${demo.slug}, skipping restore`);
+    continue;
+  }
+  const { error: uErr } = await db
+    .from("businesses")
+    .update({
+      name: canonical.name,
+      phone: canonical.phone,
+      email: canonical.email,
+      timezone: canonical.timezone,
+      booking_mode: canonical.booking_mode,
+      tagline: canonical.tagline,
+      description: canonical.description,
+      cover_image_url: canonical.cover_image_url,
+      logo_url: canonical.logo_url,
+      theme_config: canonical.theme_config,
+      address: canonical.address,
+      latitude: canonical.latitude,
+      longitude: canonical.longitude,
+    })
+    .eq("id", demo.id)
+    .eq("is_demo", true); // safety belt: only touch demo businesses
+  if (uErr) throw uErr;
+  restored++;
+}
+
+console.log(`reset:demo done — removed bookings=${bCount ?? 0} customers=${cCount ?? 0} restored=${restored} (demo businesses only)`);

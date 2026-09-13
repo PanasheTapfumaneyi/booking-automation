@@ -15,6 +15,7 @@ export type ApiErrorCode =
   | "CONFIG"
   | "UNAUTHENTICATED"
   | "FORBIDDEN"
+  | "CONFLICT"
   | "INTERNAL";
 
 /**

@@ -120,6 +120,20 @@ export function validateBusinessProfile(input: BusinessProfileInput): {
   };
 }
 
+/** Throws 400 VALIDATION on bad email addresses. Empty → null. */
+export function validateBusinessEmail(input: unknown): string | null {
+  if (input === null || input === undefined) return null;
+  if (typeof input !== "string") {
+    throw new ApiError(400, "VALIDATION", "Please enter a valid email address.");
+  }
+  const trimmed = input.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    throw new ApiError(400, "VALIDATION", "Please enter a valid email address.");
+  }
+  return trimmed;
+}
+
 export function parseHoursOrThrow(input: unknown): BusinessHours | null {
   try {
     return parseBusinessHours(input);
@@ -195,6 +209,13 @@ function sanitizeImageUrl(input: unknown): string | null {
 
 export interface CreateBusinessInput extends BusinessProfileInput {
   booking_mode: string;
+  /** Exact slug requested (admin provisioning). Throws 409 when taken. */
+  slug?: string;
+  email?: string | null;
+  address?: string | null;
+  description?: string | null;
+  /** Public visibility. Defaults to true (existing self-service behaviour). */
+  is_active?: boolean;
 }
 
 export interface CreatedBusiness {
@@ -206,6 +227,9 @@ export interface CreatedBusiness {
  * Creates a business, its owner membership, and default notification
  * settings. If a later step fails, the business row is removed again so a
  * half-onboarded business never lingers (cascades wipe the membership).
+ *
+ * Production tenants always land with `is_demo = false` (explicit, never
+ * relying on the column default) and `is_active` as requested.
  */
 export async function createBusinessWithOwner(
   userId: string,
@@ -214,6 +238,10 @@ export async function createBusinessWithOwner(
 ): Promise<CreatedBusiness> {
   const profile = validateBusinessProfile(input);
   const bookingMode = validateBookingMode(input.booking_mode);
+  const email = validateBusinessEmail(input.email ?? null);
+  const address = sanitizeText(input.address ?? null, 500);
+  const description = sanitizeText(input.description ?? null, 2000);
+  const isActive = input.is_active ?? true;
   const client = db as SupabaseClient;
 
   const exists = async (slug: string): Promise<boolean> => {
@@ -224,16 +252,34 @@ export async function createBusinessWithOwner(
       .maybeSingle();
     return Boolean(data);
   };
-  const slug = await ensureUniqueSlug(slugify(profile.name), exists);
+
+  let slug: string;
+  if (input.slug !== undefined && input.slug !== null && String(input.slug).trim() !== "") {
+    slug = validateSlug(String(input.slug));
+    if (await exists(slug)) {
+      throw new ApiError(
+        409,
+        "CONFLICT",
+        "That booking link is already taken. Please choose another.",
+      );
+    }
+  } else {
+    slug = await ensureUniqueSlug(slugify(profile.name), exists);
+  }
 
   const { data: created, error: createError } = await client
     .from("businesses")
     .insert({
       name: profile.name,
       phone: profile.phone,
+      email,
       timezone: profile.timezone,
       booking_mode: bookingMode,
       slug,
+      address,
+      description,
+      is_demo: false,
+      is_active: isActive,
     })
     .select("id, slug")
     .single();
@@ -280,6 +326,11 @@ export interface BusinessSettingsBundle {
     description: string | null;
     cover_image_url: string | null;
     logo_url: string | null;
+    theme_config: unknown;
+    address: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    is_active: boolean;
   };
 }
 
@@ -291,7 +342,7 @@ export async function getBusinessSettings(
   const client = db as SupabaseClient;
   const { data, error } = await client
     .from("businesses")
-    .select("id, name, phone, timezone, booking_mode, slug, availability, tagline, description, cover_image_url, logo_url")
+    .select("id, name, phone, timezone, booking_mode, slug, availability, tagline, description, cover_image_url, logo_url, theme_config, address, latitude, longitude, is_active")
     .eq("id", businessId)
     .maybeSingle();
   if (error || !data) {
@@ -317,6 +368,11 @@ export async function getBusinessSettings(
       description: (row.description as string | null) ?? null,
       cover_image_url: (row.cover_image_url as string | null) ?? null,
       logo_url: (row.logo_url as string | null) ?? null,
+      theme_config: row.theme_config ?? null,
+      address: (row.address as string | null) ?? null,
+      latitude: (row.latitude as number | null) ?? null,
+      longitude: (row.longitude as number | null) ?? null,
+      is_active: (row.is_active as boolean | null) ?? true,
     },
   };
 }
@@ -327,6 +383,11 @@ export interface UpdateBusinessProfileInput extends BusinessProfileInput {
   description?: unknown;
   cover_image_url?: unknown;
   logo_url?: unknown;
+  address?: unknown;
+  latitude?: unknown;
+  longitude?: unknown;
+  /** Owner-controlled public visibility (activation switch). */
+  is_active?: unknown;
 }
 
 /**
@@ -363,6 +424,18 @@ export async function updateBusinessProfile(
   if (input.logo_url !== undefined) {
     patch.logo_url = sanitizeImageUrl(input.logo_url);
   }
+  if (input.address !== undefined) {
+    patch.address = sanitizeText(input.address, 500);
+  }
+  if (input.latitude !== undefined) {
+    patch.latitude = typeof input.latitude === "number" ? input.latitude : null;
+  }
+  if (input.longitude !== undefined) {
+    patch.longitude = typeof input.longitude === "number" ? input.longitude : null;
+  }
+  if (input.is_active !== undefined) {
+    patch.is_active = Boolean(input.is_active);
+  }
 
   const { error } = await client.from("businesses").update(patch).eq("id", businessId);
   if (error) {
@@ -377,8 +450,10 @@ export async function updateBusinessProfile(
 export interface ServiceSummary {
   id: string;
   name: string;
+  description: string | null;
   duration_minutes: number;
   price: number;
+  image_url: string | null;
   active: boolean;
 }
 
@@ -386,14 +461,16 @@ export async function listServices(businessId: string, db: DbLike): Promise<Serv
   const client = db as SupabaseClient;
   const { data, error } = await client
     .from("services")
-    .select("id, name, duration_minutes, price, active")
+    .select("id, name, description, duration_minutes, price, image_url, active")
     .eq("business_id", businessId);
   if (error) throw error;
   return ((data ?? []) as Array<Record<string, unknown>>).map((s) => ({
     id: s.id as string,
     name: s.name as string,
+    description: (s.description as string | null) ?? null,
     duration_minutes: s.duration_minutes as number,
     price: Number(s.price ?? 0),
+    image_url: (s.image_url as string | null) ?? null,
     active: Boolean(s.active),
   }));
 }
@@ -402,6 +479,7 @@ export interface ResourceSummary {
   id: string;
   name: string;
   resource_type: string;
+  image_url: string | null;
   active: boolean;
 }
 
@@ -409,13 +487,14 @@ export async function listResources(businessId: string, db: DbLike): Promise<Res
   const client = db as SupabaseClient;
   const { data, error } = await client
     .from("resources")
-    .select("id, name, resource_type, active")
+    .select("id, name, resource_type, image_url, active")
     .eq("business_id", businessId);
   if (error) throw error;
   return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
     id: r.id as string,
     name: r.name as string,
     resource_type: (r.resource_type as string) ?? "generic",
+    image_url: (r.image_url as string | null) ?? null,
     active: Boolean(r.active),
   }));
 }
@@ -505,6 +584,8 @@ export interface UpdateServiceInput {
   duration_minutes?: number;
   price?: number;
   active?: boolean;
+  description?: string | null;
+  image_url?: string | null;
 }
 
 export async function updateService(
@@ -536,6 +617,8 @@ export async function updateService(
     patch.price = price;
   }
   if (input.active !== undefined) patch.active = Boolean(input.active);
+  if (input.description !== undefined) patch.description = sanitizeText(input.description, 500);
+  if (input.image_url !== undefined) patch.image_url = sanitizeImageUrl(input.image_url);
   const client = db as SupabaseClient;
   const { data, error } = await client
     .from("services")

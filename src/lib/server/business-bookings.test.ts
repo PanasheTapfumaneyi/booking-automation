@@ -41,6 +41,12 @@ function nextBookableSlot(durationMinutes = 45): { startIso: string; endIso: str
   throw new Error("no bookable slot found in test window");
 }
 
+/** Future ISO timestamp relative to test runtime (never goes stale). */
+function futureIso(daysOffset: number, hours = 0, minutes = 0): string {
+  const d = new Date(Date.now() + daysOffset * 86_400_000 + hours * 3_600_000 + minutes * 60_000);
+  return d.toISOString();
+}
+
 type Row = Record<string, unknown>;
 
 class FakeQuery {
@@ -694,6 +700,8 @@ describe("resource-mode reschedule (business-bookings)", () => {
   it("reschedules a resource booking with endTime", async () => {
     const db = holder.db as FakeDb;
     seedResourceCore(db);
+    const bookingStart = futureIso(3, 8, 0);
+    const bookingEnd = futureIso(3, 12, 0);
     db.tables.bookings = [
       bookingRow({
         id: "b-res-1",
@@ -702,8 +710,8 @@ describe("resource-mode reschedule (business-bookings)", () => {
         resource_id: "res-1",
         manage_token: "tok-res-1",
         status: "confirmed",
-        start_time: "2026-09-10T08:00:00.000Z",
-        end_time: "2026-09-10T12:00:00.000Z",
+        start_time: bookingStart,
+        end_time: bookingEnd,
         customer_id: "cust-1",
       }),
     ];
@@ -715,7 +723,7 @@ describe("resource-mode reschedule (business-bookings)", () => {
       Object.assign(db.tables.bookings[0], {
         start_time: args.p_start_time,
         end_time: args.p_end_time,
-        previous_start_time: "2026-09-10T08:00:00.000Z",
+        previous_start_time: bookingStart,
       });
       return {
         ok: true,
@@ -728,21 +736,23 @@ describe("resource-mode reschedule (business-bookings)", () => {
           status: "confirmed",
           start_time: args.p_start_time,
           end_time: args.p_end_time,
-          previous_start_time: "2026-09-10T08:00:00.000Z",
+          previous_start_time: bookingStart,
           customer_id: "cust-1",
         }),
       };
     };
 
+    const newStart = futureIso(5, 14, 0);
+    const newEnd = futureIso(5, 18, 0);
     const moved = await rescheduleBusinessBooking(
       "biz-res",
       "b-res-1",
-      "2026-09-11T14:00:00.000Z",
-      "2026-09-11T18:00:00.000Z",
+      newStart,
+      newEnd,
       db as never,
     );
-    expect(moved.startTime).toBe("2026-09-11T14:00:00.000Z");
-    expect(moved.endTime).toBe("2026-09-11T18:00:00.000Z");
+    expect(moved.startTime).toBe(newStart);
+    expect(moved.endTime).toBe(newEnd);
     expect(moved).not.toHaveProperty("manageToken");
     expect(JSON.stringify(moved)).not.toContain("tok-res-1");
   });
@@ -758,8 +768,8 @@ describe("resource-mode reschedule (business-bookings)", () => {
         resource_id: "res-1",
         manage_token: "tok-res-1",
         status: "confirmed",
-        start_time: "2026-09-10T08:00:00.000Z",
-        end_time: "2026-09-10T12:00:00.000Z",
+        start_time: futureIso(3, 8, 0),
+        end_time: futureIso(3, 12, 0),
         customer_id: "cust-1",
       }),
     ];
@@ -768,7 +778,7 @@ describe("resource-mode reschedule (business-bookings)", () => {
       rescheduleBusinessBooking(
         "biz-res",
         "b-res-1",
-        "2026-09-11T14:00:00.000Z",
+        futureIso(5, 14, 0),
         undefined,
         db as never,
       ),

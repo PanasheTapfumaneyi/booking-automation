@@ -1,23 +1,25 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import {
+  BusinessHero,
+  OfferingCard,
+  OpeningHours,
+  ReviewsSection,
+  ContactSection,
+  LocationSection,
+  BusinessFooter,
+} from "@/components/business";
+import MobileStickyCta from "@/components/business/MobileStickyCta";
 import { getSupabase } from "@/lib/supabase/server";
 import { getBusinessSiteData } from "@/lib/server/public-site";
+import { parseTheme, themeToCssVars } from "@/lib/server/business-theme";
 import { minutesToLabel } from "@/lib/availability";
 import { formatPrice } from "@/lib/demo";
-import { WEEKDAY_KEYS, type BusinessHours } from "@/lib/availability/hours";
+import type { BusinessHours } from "@/lib/availability/hours";
 
 interface BusinessPageProps {
   params: Promise<{ slug: string }>;
 }
-
-const MODE_LABEL: Record<string, string> = {
-  appointment: "Appointments",
-  resource: "Rentals",
-  capacity: "Classes & Tours",
-};
 
 const MODE_TAGLINE: Record<string, string> = {
   appointment: "Simple booking, without the back-and-forth.",
@@ -25,23 +27,35 @@ const MODE_TAGLINE: Record<string, string> = {
   capacity: "Join a session — spots are limited.",
 };
 
-const WEEKDAY_LABEL: Record<string, string> = {
-  mon: "Monday",
-  tue: "Tuesday",
-  wed: "Wednesday",
-  thu: "Thursday",
-  fri: "Friday",
-  sat: "Saturday",
-  sun: "Sunday",
-};
+function getDemoReviews(slug: string): Array<{ name: string; text: string; rating: number }> {
+  const reviews: Record<string, Array<{ name: string; text: string; rating: number }>> = {
+    "fade-area": [
+      { name: "Jean-Pierre M.", text: "Best fade in Quatre Bornes. Always leave looking sharp.", rating: 5 },
+      { name: "Arjun K.", text: "Quick, clean, and professional. My go-to barbershop.", rating: 5 },
+      { name: "David L.", text: "Great atmosphere and attention to detail. Highly recommend.", rating: 4 },
+    ],
+    "island-surf": [
+      { name: "Sarah T.", text: "Perfect boards for beginners and pros. Loved the paddleboard!", rating: 5 },
+      { name: "Marco R.", text: "Friendly staff, great gear. Will definitely rent again.", rating: 5 },
+      { name: "Emma W.", text: "Easy booking process and fair prices. The longboard was mint.", rating: 4 },
+    ],
+    "blue-lagoon": [
+      { name: "Priya S.", text: "My kids love the swim lessons. Patient, professional instructors.", rating: 5 },
+      { name: "Tom H.", text: "Went from terrified to confident in just a few weeks.", rating: 5 },
+      { name: "Leila M.", text: "Small class sizes make all the difference. Worth every rupee.", rating: 5 },
+    ],
+  };
+  return reviews[slug] ?? [];
+}
 
 export async function generateMetadata({ params }: BusinessPageProps): Promise<Metadata> {
   const { slug } = await params;
   const data = await getBusinessSiteData(slug, getSupabase()).catch(() => null);
   if (!data) return { title: "Business not found — Kivo" };
+  const tagline = data.business.tagline || MODE_TAGLINE[data.business.booking_mode] || "Book online in under a minute.";
   return {
     title: `${data.business.name} — Book online`,
-    description: `View services and book online at ${data.business.name}. ${MODE_TAGLINE[data.business.booking_mode] ?? ""}`,
+    description: `View services and book online at ${data.business.name}. ${tagline}`,
   };
 }
 
@@ -55,64 +69,24 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   const bookHref = `/book/${business.slug ?? slug}`;
   const hours = (business.availability ?? null) as BusinessHours | null;
   const tagline = business.tagline || MODE_TAGLINE[mode] || "Book online in under a minute.";
+  const theme = parseTheme(business.theme_config);
+  const cssVars = themeToCssVars(theme);
+  const reviews = getDemoReviews(slug);
 
   return (
-    <>
-      <Navbar />
+    <div className="min-h-screen bg-paper text-ink pb-16 sm:pb-0" style={cssVars}>
       <main className="flex-1">
-        {/* Hero — the business's identity first */}
-        <section
-          className="border-b border-line bg-paper"
-          style={business.cover_image_url ? {
-            backgroundImage: `url(${business.cover_image_url})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          } : undefined}
-        >
-          <div className={`mx-auto max-w-[1200px] px-6 py-16 sm:py-20 ${business.cover_image_url ? "bg-ink/60 text-white" : ""}`}>
-            {business.logo_url && (
-              <img
-                src={business.logo_url}
-                alt={`${business.name} logo`}
-                className="mb-4 h-14 w-14 rounded-xl object-contain sm:h-16 sm:w-16"
-              />
-            )}
-            <p className={`text-sm font-semibold uppercase tracking-[0.18em] ${business.cover_image_url ? "text-white/80" : "text-brand"}`}>
-              {MODE_LABEL[mode] ?? "Bookings"}
-            </p>
-            <h1 className="mt-4 max-w-2xl text-[clamp(2rem,4.5vw,3.25rem)] font-bold leading-[1.05] tracking-tight">
-              {business.name}
-            </h1>
-            <p className={`mt-4 max-w-xl text-lg leading-relaxed ${business.cover_image_url ? "text-white/80" : "text-ink-soft"}`}>
-              {tagline}
-            </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Link
-                href={bookHref}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-7 py-3.5 text-base font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
-              >
-                Book now
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                  <path d="M2 7H12M8 3L12 7L8 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </Link>
-              {business.phone && (
-                <a
-                  href={`tel:${business.phone.replace(/\s+/g, "")}`}
-                  className={`inline-flex items-center justify-center rounded-lg border px-7 py-3.5 text-base font-medium transition-all duration-150 ${
-                    business.cover_image_url
-                      ? "border-white/30 text-white hover:border-white/60 hover:text-white"
-                      : "border-line bg-card text-ink-soft hover:border-line-strong hover:text-ink"
-                  }`}
-                >
-                  {business.phone}
-                </a>
-              )}
-            </div>
-          </div>
-        </section>
+        <BusinessHero
+          name={business.name}
+          tagline={tagline}
+          mode={mode}
+          coverImageUrl={business.cover_image_url ?? null}
+          logoUrl={business.logo_url ?? null}
+          bookHref={bookHref}
+          phone={business.phone ?? null}
+          theme={theme}
+        />
 
-        {/* About — custom description */}
         {business.description && (
           <section className="mx-auto max-w-[1200px] px-6 py-14 sm:py-16">
             <h2 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink">About</h2>
@@ -122,31 +96,31 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
           </section>
         )}
 
-        {/* Offerings */}
         <section className="mx-auto max-w-[1200px] px-6 py-14 sm:py-20">
+          <h2 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink">
+            {mode === "appointment" && "Services"}
+            {mode === "resource" && "Available to reserve"}
+            {mode === "capacity" && "Upcoming sessions"}
+          </h2>
+
           {mode === "appointment" && (
             <>
-              <h2 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink">Services</h2>
               {services.length === 0 ? (
                 <p className="mt-4 text-ink-soft">No services are currently listed. Please check back soon.</p>
               ) : (
                 <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {services.map((s) => (
-                    <div key={s.id} className="flex flex-col rounded-2xl border border-line bg-card p-6">
-                      <h3 className="text-lg font-bold text-ink">{s.name}</h3>
-                      <div className="mt-2 flex items-baseline justify-between">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted">
-                          {minutesToLabel(s.duration_minutes)}
-                        </p>
-                        <p className="text-xl font-bold tabular-nums text-ink">{formatPrice(s.price)}</p>
-                      </div>
-                      <Link
-                        href={bookHref}
-                        className="mt-5 inline-flex items-center justify-center rounded-lg border border-line px-5 py-2.5 text-sm font-semibold text-ink transition-all duration-150 hover:border-brand hover:text-brand"
-                      >
-                        Book
-                      </Link>
-                    </div>
+                    <OfferingCard
+                      key={s.id}
+                      name={s.name}
+                      description={s.description ?? null}
+                      imageUrl={s.image_url ?? null}
+                      duration={minutesToLabel(s.duration_minutes)}
+                      price={formatPrice(s.price)}
+                      bookHref={bookHref}
+                      ctaLabel="Book"
+                      theme={theme}
+                    />
                   ))}
                 </div>
               )}
@@ -155,22 +129,20 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
 
           {mode === "resource" && (
             <>
-              <h2 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink">Available to reserve</h2>
               {resources.length === 0 ? (
                 <p className="mt-4 text-ink-soft">No items are currently listed. Please check back soon.</p>
               ) : (
                 <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {resources.map((r) => (
-                    <div key={r.id} className="flex flex-col rounded-2xl border border-line bg-card p-6">
-                      <h3 className="text-lg font-bold text-ink">{r.name}</h3>
-                      <p className="mt-1 text-sm capitalize text-muted">{r.resource_type}</p>
-                      <Link
-                        href={bookHref}
-                        className="mt-5 inline-flex items-center justify-center rounded-lg border border-line px-5 py-2.5 text-sm font-semibold text-ink transition-all duration-150 hover:border-brand hover:text-brand"
-                      >
-                        Check availability
-                      </Link>
-                    </div>
+                    <OfferingCard
+                      key={r.id}
+                      name={r.name}
+                      description={null}
+                      imageUrl={r.image_url ?? null}
+                      bookHref={bookHref}
+                      ctaLabel="Check availability"
+                      theme={theme}
+                    />
                   ))}
                 </div>
               )}
@@ -179,7 +151,6 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
 
           {mode === "capacity" && (
             <>
-              <h2 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink">Upcoming sessions</h2>
               {sessions.length === 0 ? (
                 <p className="mt-4 text-ink-soft">No sessions are currently scheduled. Please check back soon.</p>
               ) : (
@@ -190,25 +161,17 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
                     const time = start.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: business.timezone });
                     const full = s.remaining <= 0;
                     return (
-                      <div key={s.id} className="flex flex-col rounded-2xl border border-line bg-card p-6">
-                        <p className="text-sm font-semibold text-ink">{s.service_name ?? "Session"}</p>
-                        <p className="mt-1 text-sm text-ink-soft">{date} · {time}</p>
-                        <p className="mt-2 text-xs font-medium text-muted">
-                          {full ? "Full" : `${s.remaining} of ${s.capacity} spots left`}
-                        </p>
-                        {full ? (
-                          <span className="mt-5 inline-flex cursor-not-allowed items-center justify-center rounded-lg bg-surface-muted px-5 py-2.5 text-sm font-semibold text-muted">
-                            Full
-                          </span>
-                        ) : (
-                          <Link
-                            href={bookHref}
-                            className="mt-5 inline-flex items-center justify-center rounded-lg border border-line px-5 py-2.5 text-sm font-semibold text-ink transition-all duration-150 hover:border-brand hover:text-brand"
-                          >
-                            Book a spot
-                          </Link>
-                        )}
-                      </div>
+                      <OfferingCard
+                        key={s.id}
+                        name={s.service_name ?? "Session"}
+                        description={null}
+                        imageUrl={null}
+                        capacity={full ? { remaining: 0, total: s.capacity } : { remaining: s.remaining, total: s.capacity }}
+                        sessionTime={`${date} · ${time}`}
+                        bookHref={bookHref}
+                        ctaLabel="Book a spot"
+                        theme={theme}
+                      />
                     );
                   })}
                 </div>
@@ -217,56 +180,32 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
           )}
         </section>
 
-        {/* Details */}
-        <section className="border-t border-line bg-card">
-          <div className="mx-auto grid max-w-[1200px] gap-10 px-6 py-14 sm:py-16 md:grid-cols-2">
-            <div>
-              <h2 className="text-xl font-bold tracking-tight text-ink">Opening hours</h2>
-              {hours ? (
-                <dl className="mt-5 space-y-2.5">
-                  {WEEKDAY_KEYS.map((day) => {
-                    const h = hours[day];
-                    return (
-                      <div key={day} className="flex items-center justify-between gap-4 border-b border-line pb-2.5 last:border-0">
-                        <dt className="text-ink-soft">{WEEKDAY_LABEL[day]}</dt>
-                        <dd className="font-medium tabular-nums text-ink">
-                          {h ? `${h.open} – ${h.close}` : "Closed"}
-                        </dd>
-                      </div>
-                    );
-                  })}
-                </dl>
-              ) : (
-                <p className="mt-4 text-ink-soft">Contact {business.name} for opening hours.</p>
-              )}
-            </div>
-            <div>
-              <h2 className="text-xl font-bold tracking-tight text-ink">Contact</h2>
-              <div className="mt-5 space-y-2 text-ink-soft">
-                {business.phone && <p className="font-medium text-ink">{business.phone}</p>}
-                {business.email && <p>{business.email}</p>}
-                {!business.phone && !business.email && (
-                  <p>Book online — no phone call needed.</p>
-                )}
-              </div>
-              <Link
-                href={bookHref}
-                className="mt-6 inline-flex items-center gap-2 rounded-lg bg-brand px-6 py-3 text-[15px] font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
-              >
-                Book now
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                  <path d="M2 7H12M8 3L12 7L8 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </Link>
-            </div>
+        <section className="mx-auto max-w-[1200px] px-6 py-14 sm:py-16">
+          <h2 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink">Opening hours</h2>
+          <div className="mt-6">
+            <OpeningHours hours={hours} timezone={business.timezone} />
           </div>
         </section>
 
-        <div className="mx-auto max-w-[1200px] px-6 py-8 text-center">
-          <p className="text-xs text-muted">Powered by Kivo</p>
-        </div>
+        <LocationSection
+          address={business.address ?? null}
+          latitude={business.latitude ?? null}
+          longitude={business.longitude ?? null}
+          businessName={business.name}
+        />
+
+        <ReviewsSection reviews={reviews} businessName={business.name} />
+
+        <ContactSection
+          name={business.name}
+          phone={business.phone ?? null}
+          email={business.email ?? null}
+          bookHref={bookHref}
+          theme={theme}
+        />
       </main>
-      <Footer />
-    </>
+      <BusinessFooter />
+      <MobileStickyCta bookHref={bookHref} primary={theme.primary} />
+    </div>
   );
 }

@@ -106,9 +106,10 @@ export function googleApiTimeoutMs(): number {
 
 /**
  * Business identifiers that may be connected/disconnected through the internal
- * integration routes. For the MVP the allowed set defaults to the Fade District
- * demo business; a real business-owner authentication gate must replace this
- * before public self-service onboarding.
+ * integration routes without a session membership (legacy demo allowlist).
+ * Member-owned businesses are admitted via their session membership, so real
+ * tenants never need to be listed here. `GOOGLE_CAL_ALLOWED_BUSINESS_IDS`
+ * (comma-separated) overrides the default.
  */
 export function allowedBusinessIds(): string[] {
   const configured = process.env.GOOGLE_CAL_ALLOWED_BUSINESS_IDS;

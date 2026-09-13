@@ -49,8 +49,11 @@ npm run reset:demo
 ```
 
 Removes visitor-generated bookings + customers from `is_demo = true`
-businesses only (scope resolved server-side from the flag). Catalog is
-left intact. Requires service-role credentials; never a public API.
+businesses only (scope resolved server-side from the flag). Also restores
+canonical business fields (address, coordinates, theme, tagline, etc.)
+from the shared demo data module. Catalog structure is left intact.
+
+Requires service-role credentials; never a public API.
 
 Manual equivalent (scoped the same way):
 

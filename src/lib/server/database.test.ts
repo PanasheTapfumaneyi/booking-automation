@@ -23,6 +23,12 @@ import { getSlotsForDay, isoToDateKey } from "@/lib/availability";
 
 type Row = Record<string, unknown>;
 
+/** Generate a future ISO timestamp relative to now. */
+function futureIso(daysOffset: number, hours = 0, minutes = 0): string {
+  const d = new Date(Date.now() + daysOffset * 86_400_000 + hours * 3_600_000 + minutes * 60_000);
+  return d.toISOString();
+}
+
 // ---------------------------------------------------------------------------
 // Fake Supabase surface
 // ---------------------------------------------------------------------------
@@ -216,8 +222,8 @@ function bookingRow(overrides: Row = {}): Row {
     resource_id: null,
     session_id: null,
     quantity: 1,
-    start_time: "2026-09-08T06:00:00.000Z",
-    end_time: "2026-09-08T06:45:00.000Z",
+    start_time: futureIso(1, 6, 0),
+    end_time: futureIso(1, 6, 45),
     status: "confirmed",
     google_event_id: null,
     manage_token: "tok-1",
@@ -399,8 +405,8 @@ describe("resource-mode reschedule", () => {
       resource_id: "res-1",
       manage_token: "tok-res-1",
       status: "confirmed",
-      start_time: "2026-09-10T08:00:00.000Z",
-      end_time: "2026-09-10T12:00:00.000Z",
+      start_time: futureIso(3, 8, 0),
+      end_time: futureIso(3, 12, 0),
       ...overrides,
     });
   }
@@ -408,61 +414,60 @@ describe("resource-mode reschedule", () => {
   it("moves the booking to a new interval on the same resource", async () => {
     fake().tables.bookings = [resourceBooking()];
 
+    const bookingStart = futureIso(3, 8, 0);
     // assertResourceFree queries bookings for overlap — no other rows = free.
     fake().rpcImpl = (fn, args) => {
       expect(fn).toBe("update_booking_time");
       const row = { ...(fake().tables.bookings[0] as Row) };
       row.start_time = args.p_start_time;
       row.end_time = args.p_end_time;
-      row.previous_start_time = "2026-09-10T08:00:00.000Z";
+      row.previous_start_time = bookingStart;
       return { ok: true, booking: row };
     };
 
-    const moved = await rescheduleBooking(
-      "tok-res-1",
-      "2026-09-11T14:00:00.000Z",
-      "2026-09-11T18:00:00.000Z",
-    );
-    expect(moved.startTime).toBe("2026-09-11T14:00:00.000Z");
-    expect(moved.endTime).toBe("2026-09-11T18:00:00.000Z");
-    expect(moved.previousStartTime).toBe("2026-09-10T08:00:00.000Z");
+    const newStart = futureIso(5, 14, 0);
+    const newEnd = futureIso(5, 18, 0);
+    const moved = await rescheduleBooking("tok-res-1", newStart, newEnd);
+    expect(moved.startTime).toBe(newStart);
+    expect(moved.endTime).toBe(newEnd);
+    expect(moved.previousStartTime).toBe(bookingStart);
     expect(moved.manageToken).toBe("tok-res-1");
   });
 
   it("rejects when the new interval overlaps another active booking on the same resource", async () => {
+    const b1Start = futureIso(3, 8, 0);
+    const b1End = futureIso(3, 12, 0);
+    const b2Start = futureIso(4, 10, 0);
+    const b2End = futureIso(4, 14, 0);
     fake().tables.bookings = [
-      resourceBooking({ id: "b-res-1", start_time: "2026-09-10T08:00:00.000Z", end_time: "2026-09-10T12:00:00.000Z" }),
-      resourceBooking({ id: "b-res-2", manage_token: "tok-res-2", start_time: "2026-09-11T10:00:00.000Z", end_time: "2026-09-11T14:00:00.000Z" }),
+      resourceBooking({ id: "b-res-1", start_time: b1Start, end_time: b1End }),
+      resourceBooking({ id: "b-res-2", manage_token: "tok-res-2", start_time: b2Start, end_time: b2End }),
     ];
 
+    const overlapStart = futureIso(4, 12, 0);
+    const overlapEnd = futureIso(4, 16, 0);
     await expect(
-      rescheduleBooking(
-        "tok-res-1",
-        "2026-09-11T12:00:00.000Z",
-        "2026-09-11T16:00:00.000Z",
-      ),
+      rescheduleBooking("tok-res-1", overlapStart, overlapEnd),
     ).rejects.toMatchObject({ status: 409, code: "SLOT_UNAVAILABLE" });
   });
 
   it("self-excludes: rescheduling to the same time is not rejected", async () => {
+    const sameStart = futureIso(3, 8, 0);
+    const sameEnd = futureIso(3, 12, 0);
     fake().tables.bookings = [
-      resourceBooking({ start_time: "2026-09-10T08:00:00.000Z", end_time: "2026-09-10T12:00:00.000Z" }),
+      resourceBooking({ start_time: sameStart, end_time: sameEnd }),
     ];
 
     fake().rpcImpl = (fn, args) => {
       const row = { ...(fake().tables.bookings[0] as Row) };
       row.start_time = args.p_start_time;
       row.end_time = args.p_end_time;
-      row.previous_start_time = "2026-09-10T08:00:00.000Z";
+      row.previous_start_time = sameStart;
       return { ok: true, booking: row };
     };
 
-    const moved = await rescheduleBooking(
-      "tok-res-1",
-      "2026-09-10T08:00:00.000Z",
-      "2026-09-10T12:00:00.000Z",
-    );
-    expect(moved.startTime).toBe("2026-09-10T08:00:00.000Z");
+    const moved = await rescheduleBooking("tok-res-1", sameStart, sameEnd);
+    expect(moved.startTime).toBe(sameStart);
   });
 
   it("rejects when the resource belongs to another business", async () => {
@@ -473,12 +478,10 @@ describe("resource-mode reschedule", () => {
       resourceBooking({ resource_id: "res-other" }),
     ];
 
+    const newStart = futureIso(5, 14, 0);
+    const newEnd = futureIso(5, 18, 0);
     await expect(
-      rescheduleBooking(
-        "tok-res-1",
-        "2026-09-11T14:00:00.000Z",
-        "2026-09-11T18:00:00.000Z",
-      ),
+      rescheduleBooking("tok-res-1", newStart, newEnd),
     ).rejects.toMatchObject({ status: 400, code: "RESOURCE_NOT_FOUND" });
   });
 
@@ -487,32 +490,29 @@ describe("resource-mode reschedule", () => {
       resourceBooking({ resource_id: null }),
     ];
 
+    const newStart = futureIso(5, 14, 0);
+    const newEnd = futureIso(5, 18, 0);
     await expect(
-      rescheduleBooking(
-        "tok-res-1",
-        "2026-09-11T14:00:00.000Z",
-        "2026-09-11T18:00:00.000Z",
-      ),
+      rescheduleBooking("tok-res-1", newStart, newEnd),
     ).rejects.toMatchObject({ status: 400, code: "VALIDATION" });
   });
 
   it("rejects when endTime is missing", async () => {
     fake().tables.bookings = [resourceBooking()];
 
+    const newStart = futureIso(5, 14, 0);
     await expect(
-      rescheduleBooking("tok-res-1", "2026-09-11T14:00:00.000Z"),
+      rescheduleBooking("tok-res-1", newStart),
     ).rejects.toMatchObject({ status: 400, code: "VALIDATION" });
   });
 
   it("rejects when end is before start", async () => {
     fake().tables.bookings = [resourceBooking()];
 
+    const newStart = futureIso(5, 18, 0);
+    const newEnd = futureIso(5, 14, 0);
     await expect(
-      rescheduleBooking(
-        "tok-res-1",
-        "2026-09-11T18:00:00.000Z",
-        "2026-09-11T14:00:00.000Z",
-      ),
+      rescheduleBooking("tok-res-1", newStart, newEnd),
     ).rejects.toMatchObject({ status: 400, code: "VALIDATION" });
   });
 
@@ -534,12 +534,10 @@ describe("resource-mode reschedule", () => {
     ];
     fake().tables.bookings = [resourceBooking()];
 
+    const newStart = futureIso(5, 14, 0);
+    const newEnd = futureIso(5, 18, 0);
     await expect(
-      rescheduleBooking(
-        "tok-res-1",
-        "2026-09-11T14:00:00.000Z",
-        "2026-09-11T18:00:00.000Z",
-      ),
+      rescheduleBooking("tok-res-1", newStart, newEnd),
     ).rejects.toMatchObject({ status: 400, code: "RESOURCE_NOT_FOUND" });
   });
 });

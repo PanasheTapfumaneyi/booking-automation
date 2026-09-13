@@ -27,6 +27,13 @@ const business = {
   timezone: "Indian/Mauritius",
   booking_mode: "appointment",
   calendar_id: null,
+  slug: "fade-district",
+  is_demo: false,
+  is_active: true,
+  theme_config: null,
+  address: null,
+  latitude: null,
+  longitude: null,
   created_at: "2026-01-01T00:00:00.000Z",
   updated_at: "2026-01-01T00:00:00.000Z",
 } as BusinessRow;
@@ -35,9 +42,13 @@ const service = {
   id: "svc-1",
   business_id: "biz-1",
   name: "Haircut + Beard",
+  description: null,
   duration_minutes: 60,
   price: 700,
+  image_url: null,
   active: true,
+  created_at: "2026-01-01T00:00:00.000Z",
+  updated_at: "2026-01-01T00:00:00.000Z",
 } as ServiceRow;
 
 function bookingRow(overrides: Record<string, unknown> = {}): BookingRow {

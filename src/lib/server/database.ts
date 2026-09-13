@@ -19,6 +19,8 @@ export interface BusinessRow {
   slug: string | null;
   /** Explicit demo-business flag (migration 0010). Server-side only. */
   is_demo: boolean;
+  /** Public visibility gate (migration 0014). Inactive = hidden from public surfaces. */
+  is_active: boolean;
   /** Per-business weekly hours (JSONB); null/absent days use platform defaults. */
   availability: BusinessHours | null;
   /** Custom tagline shown on the public business page (overrides mode default). */
@@ -29,6 +31,13 @@ export interface BusinessRow {
   cover_image_url: string | null;
   /** Business logo URL shown in the public page hero. */
   logo_url: string | null;
+  /** Business color theme config (JSONB). Null = default Kivo teal. */
+  theme_config: unknown;
+  /** Public address for the business location. */
+  address: string | null;
+  /** Map coordinates (nullable). */
+  latitude: number | null;
+  longitude: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -37,8 +46,10 @@ export interface ServiceRow {
   id: string;
   business_id: string;
   name: string;
+  description: string | null;
   duration_minutes: number;
   price: string | number;
+  image_url: string | null;
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -57,6 +68,7 @@ export interface ResourceRow {
   business_id: string;
   name: string;
   resource_type: string;
+  image_url: string | null;
   active: boolean;
   metadata: Record<string, unknown>;
   created_at: string;
@@ -94,6 +106,7 @@ export interface BookingRow {
   updated_at: string;
   service?: Pick<ServiceRow, "name" | "duration_minutes" | "price"> | null;
   customer?: Pick<CustomerRow, "name" | "phone" | "email"> | null;
+  resource?: Pick<ResourceRow, "name" | "metadata"> | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -129,6 +142,7 @@ export const BOOKING_SELECT = [
   "updated_at",
   "service:services(id, name, duration_minutes, price)",
   "customer:customers(id, name, phone, email)",
+  "resource:resources(id, name, metadata)",
 ].join(", ");
 
 export const BLOCKING_STATUS_LIST = BLOCKING_BOOKING_STATUSES.join(",");
@@ -269,6 +283,42 @@ export async function fetchBlocks(params: {
 
 export function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
+}
+
+/**
+ * Active per-resource bookings overlapping [startIso, endIso] for a business.
+ * Used by the interval availability search to mark which items/vehicles are
+ * free across a multi-day period. Appointment and capacity bookings carry no
+ * resource and are therefore excluded by the `resource_id is not null` filter.
+ */
+export async function fetchResourceBlocks(params: {
+  businessId: string;
+  startIso: string;
+  endIso: string;
+  excludeBookingId?: string;
+}): Promise<{ resourceId: string; startTime: string; endTime: string }[]> {
+  let query = getSupabase()
+    .from("bookings")
+    .select("id, resource_id, start_time, end_time")
+    .eq("business_id", params.businessId)
+    .in("status", BLOCKING_BOOKING_STATUSES)
+    .not("resource_id", "is", null)
+    .lt("start_time", params.endIso)
+    .gt("end_time", params.startIso);
+
+  if (params.excludeBookingId) {
+    query = query.neq("id", params.excludeBookingId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new ApiError(500, "INTERNAL", "We couldn't check availability.");
+  }
+  return (data ?? []).map((block) => ({
+    resourceId: block.resource_id as string,
+    startTime: block.start_time as string,
+    endTime: block.end_time as string,
+  }));
 }
 
 export async function findOrCreateCustomer(

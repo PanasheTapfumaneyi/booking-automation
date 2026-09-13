@@ -119,7 +119,12 @@ const DEMO_BUSINESS: Row = {
   calendar_id: null,
   slug: "fade-area",
   is_demo: true,
+  is_active: true,
   availability: null,
+  theme_config: null,
+  address: null,
+  latitude: null,
+  longitude: null,
   created_at: "2026-01-01T00:00:00.000Z",
   updated_at: "2026-01-01T00:00:00.000Z",
 };

@@ -10,7 +10,7 @@ interface RouteContext {
 
 /**
  * PATCH /api/businesses/[id]/services/[serviceId]
- * Body: `{ name?, duration_minutes?, price?, active? }` (deactivate via active:false).
+ * Body: `{ name?, duration_minutes?, price?, active?, description?, image_url? }` (deactivate via active:false).
  */
 export async function PATCH(request: Request, { params }: RouteContext) {
   try {
@@ -21,6 +21,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       duration_minutes?: unknown;
       price?: unknown;
       active?: unknown;
+      description?: unknown;
+      image_url?: unknown;
     } | null;
     if (!body) {
       return NextResponse.json({ error: "Missing request body." }, { status: 400 });
@@ -33,6 +35,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         duration_minutes: body.duration_minutes === undefined ? undefined : Number(body.duration_minutes),
         price: body.price === undefined ? undefined : Number(body.price),
         active: typeof body.active === "boolean" ? body.active : undefined,
+        description: body.description === undefined ? undefined : typeof body.description === "string" ? body.description : null,
+        image_url: body.image_url === undefined ? undefined : typeof body.image_url === "string" ? body.image_url : null,
       },
       getSupabase(),
     );
