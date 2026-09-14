@@ -94,7 +94,6 @@ function mapBooking(row: BookingRow): Booking {
     quantity: row.quantity,
     resourceName: row.resource?.name ?? null,
     serviceName: row.service?.name ?? "",
-    resourceName: row.resource?.name ?? null,
     // Unit-rate resource bookings (rentals) price by days × resource rate.
     servicePrice: computeResourceTotal({
       metadata: row.resource?.metadata ?? null,
