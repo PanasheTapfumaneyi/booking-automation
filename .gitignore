@@ -41,3 +41,6 @@ next-env.d.ts
 
 /test-results/
 /playwright-report/
+# Playwright authenticated storage states contain session cookies — never commit.
+/e2e/auth.json
+/e2e/*.storage.json

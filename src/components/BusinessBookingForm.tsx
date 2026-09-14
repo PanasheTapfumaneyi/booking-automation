@@ -78,6 +78,7 @@ export default function BusinessBookingForm({
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   const selectedSession = sessions.find((s) => s.id === sessionId) ?? null;
   const sessionSeats =
@@ -102,12 +103,19 @@ export default function BusinessBookingForm({
 
   useEffect(() => {
     let cancelled = false;
+    // Bounded load: a stalled catalog request must surface as a visible
+    // error with Retry — never an eternal skeleton that hides the form.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20_000);
     async function load() {
+      setLoading(true);
+      setError(null);
       try {
+        const init = { signal: controller.signal };
         const [servicesRes, resourcesRes, sessionsRes] = await Promise.all([
-          fetch(`/api/businesses/${businessId}/services`),
-          fetch(`/api/businesses/${businessId}/resources`),
-          fetch(`/api/businesses/${businessId}/sessions`),
+          fetch(`/api/businesses/${businessId}/services`, init),
+          fetch(`/api/businesses/${businessId}/resources`, init),
+          fetch(`/api/businesses/${businessId}/sessions`, init),
         ]);
         if (!servicesRes.ok) throw new Error("services");
         const servicesData = (await servicesRes.json()) as { services: CatalogService[] };
@@ -121,17 +129,25 @@ export default function BusinessBookingForm({
           const sessionsData = (await sessionsRes.json()) as { sessions: CatalogSession[] };
           if (!cancelled) setSessions(sessionsData.sessions.filter((s) => s.active));
         }
-      } catch {
-        if (!cancelled) setError("We couldn't load your offering. Please reload and try again.");
+      } catch (loadError: unknown) {
+        if (cancelled) return;
+        setError(
+          loadError instanceof DOMException && loadError.name === "AbortError"
+            ? "Loading your offering timed out. Check your connection and try again."
+            : "We couldn't load your offering. Please reload and try again.",
+        );
       } finally {
+        clearTimeout(timeout);
         if (!cancelled) setLoading(false);
       }
     }
     void load();
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
+      controller.abort();
     };
-  }, [businessId, bookingMode]);
+  }, [businessId, bookingMode, loadAttempt]);
 
   async function loadSlots(nextDateKey: string) {
     if (!serviceId) return;
@@ -258,7 +274,14 @@ export default function BusinessBookingForm({
       <h2 className="text-lg font-semibold">New booking</h2>
       {error && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={() => setLoadAttempt((n) => n + 1)}
+            className="mt-2 font-medium text-ink underline hover:no-underline"
+          >
+            Retry loading offering
+          </button>
         </div>
       )}
 
