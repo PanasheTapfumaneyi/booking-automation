@@ -87,6 +87,7 @@ function mapBooking(row: BookingRow): Booking {
     resourceId: row.resource_id,
     sessionId: row.session_id,
     quantity: row.quantity,
+    resourceName: row.resource?.name ?? null,
     serviceName: row.service?.name ?? "",
     servicePrice: Number(row.service?.price ?? 0),
     serviceDurationMinutes: row.service?.duration_minutes ?? 0,

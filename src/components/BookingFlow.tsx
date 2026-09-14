@@ -191,6 +191,8 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
             name: r.name,
             resourceType: r.resource_type,
             active: true,
+            imageUrl: null,
+            metadata: {},
           })),
           sessions: data.sessions.map((s) => ({
             id: s.id,
