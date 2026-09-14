@@ -26,8 +26,12 @@ function fakeGateway(overrides: Partial<SendGateway> = {}): SendGateway {
   };
 }
 
-async function startApp(gateway: SendGateway, apiKey = "test-key"): Promise<string> {
-  const app: Express = createApp({ apiKey, gateway });
+async function startApp(
+  gateway: SendGateway,
+  apiKey = "test-key",
+  getQr?: () => string | null,
+): Promise<string> {
+  const app: Express = createApp({ apiKey, gateway, ...(getQr ? { getQr } : {}) });
   const server: Server = await new Promise((resolve) => {
     const s = app.listen(0, "127.0.0.1", () => resolve(s));
   });
@@ -163,6 +167,52 @@ describe("POST /send", () => {
     });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ success: false, error: "INVALID_JSON" });
+  });
+});
+
+describe("GET /qr", () => {
+  const auth = { Authorization: "Bearer test-key" };
+
+  it("rejects missing credentials with 401", async () => {
+    const base = await startApp(fakeGateway(), "test-key", () => "qr-payload");
+    const res = await fetch(`${base}/qr`);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ success: false, error: "UNAUTHORIZED" });
+  });
+
+  it("rejects wrong credentials with 401", async () => {
+    const base = await startApp(fakeGateway(), "test-key", () => "qr-payload");
+    const res = await fetch(`${base}/qr`, { headers: { Authorization: "Bearer wrong" } });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ success: false, error: "UNAUTHORIZED" });
+  });
+
+  it("returns 404 QR_NOT_AVAILABLE when no QR is stored", async () => {
+    const base = await startApp(fakeGateway());
+    const res = await fetch(`${base}/qr`, { headers: auth });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ success: false, error: "QR_NOT_AVAILABLE" });
+  });
+
+  it("returns a PNG with no-store when a QR is stored", async () => {
+    const base = await startApp(fakeGateway(), "test-key", () => "linking-qr-payload");
+    const res = await fetch(`${base}/qr`, { headers: auth });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("image/png");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    // PNG magic bytes — and a real image, not an empty body.
+    expect(Array.from(bytes.slice(0, 8))).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+    expect(bytes.length).toBeGreaterThan(100);
+  });
+
+  it("never leaks the raw QR string in the PNG response path", async () => {
+    const secret = "super-secret-qr-value-12345";
+    const base = await startApp(fakeGateway(), "test-key", () => secret);
+    const res = await fetch(`${base}/qr`, { headers: auth });
+    expect(res.status).toBe(200);
+    const raw = Buffer.from(await res.arrayBuffer()).toString("latin1");
+    expect(raw).not.toContain(secret);
   });
 });
 
