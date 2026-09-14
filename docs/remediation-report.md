@@ -10,8 +10,9 @@ Source: `Kivo_Site_Audit_and_OpenCode_Fix_Prompt (1).md` (all 41 KIVO issues)
 |---|---|
 | `npx tsc --noEmit` | Clean |
 | `npm run lint` | 0 errors, 4 pre-existing `<img>` warnings (remote/cover previews kept as-is; would need remote-image config) |
-| `npx vitest run` | **42 files / 431 tests passed** (410 at audit start + 21 regressions added) |
+| `npx vitest run` | **42 files / 431 tests passed** (369 at branch merge-base → 431 at HEAD = +58 cases: 6 new files — resource strategy 15, resource-pricing 11, capacity 10, rental-flow 9, booking-service 8, availability route-interval 6 — plus additions to demo-reset/database) |
 | `npm run build` | Succeeds; `/robots.txt` static, `/sitemap.xml` dynamic, all routes listed |
+| Playwright `e2e/smoke.spec.ts` (new, browser-event driven) | Local prod-build: **6 passed, 2 live-only skipped**. Live `BASE_URL=https://booking-automation-delta.vercel.app`: **5 passed, 3 failed** — the 3 failures are the real-404 status tests (prod still serves the pre-fix bundle; fix verified locally, pending redeploy). Rental + test-business pass on prod at test time (see § Interactive failures). |
 
 ## Issue status matrix
 
@@ -37,7 +38,7 @@ Legend: ✅ fixed · 🟡 partial · ⬜ not done
 | KIVO-016 | P2 | `Island Surf Co..` and `Rs 0` | Trailing-period stripped in metadata description; `formatPrice(0)` → "Free" | ✅ |
 | KIVO-017 | P2 | Demo storefronts no real opening hours | Migration `0015_demo_opening_hours.sql` seeds hours for all 4 demos; panel renders only when hours exist | ✅ |
 | KIVO-018 | P2 | Dashboard raw `2026-09-14`; duplicated title | Localized `Intl` date in business timezone; corrected titles | ✅ |
-| KIVO-019 | P2 | Framework bare 404 | Branded `src/app/not-found.tsx` with Home / View demos / Sign in | ✅ |
+| KIVO-019 | P2 | Framework bare 404 | Branded `src/app/not-found.tsx` with Home / View demos / Sign in **and real 404 statuses**: `notFound()` in `generateMetadata` (route `loading.tsx` suspense shells otherwise flush 200 first) + server token pre-check on `/manage/[token]`; `loading.tsx` removed from business/book/demo-dashboard slug routes | ✅ |
 | KIVO-020 | P2 | No robots, sitemap, favicon, OG image, canonical, twitter, theme color | `robots.ts`, `sitemap.ts` (env-based URL, public slugs), `favicon.svg`, 1200×630 `og.png`, `metadataBase`, `summary_large_image`, `themeColor`; `robots: noindex` on dashboard/manage routes | ✅ |
 | KIVO-021 | P2 | Auth UX: no forgot-password, no show/hide, weak signup guidance | 🔜 Planned (password recovery, show/hide toggle, aligned validation) | ⬜ |
 | KIVO-022 | P2 | Grey slab storefront hero | Partial by design: stores support cover/logo/address/map; branded gradient fallback TODO | 🟡 |
@@ -45,7 +46,7 @@ Legend: ✅ fixed · 🟡 partial · ⬜ not done
 | KIVO-024 | P1 | Duplicate help text diverged from real behavior | Copy neutralized in BookingActions/BusinessBookingForm/ManageBooking | ✅ |
 | KIVO-025 | P1 | Promise of confirmation despite failed dispatch | `confirmationWording` helper keys off real dispatch result; `"Book another"` resets notice | ✅ |
 | KIVO-026 | P1 | Back navigation traveled deep | Controlled `Back` steps within flow; "Book another" resets fully | ✅ |
-| KIVO-027 | P1 | `?business=` fallback leaking/404s | Invalid/unowned `?business=` → `notFound()` everywhere | ✅ |
+| KIVO-027 | P1 | `?business=` fallback leaking/404s | Invalid/unowned/malformed `?business=` → `notFound()` on dashboard, bookings, bookings/[id] **and settings** (no first-owned fallback; absent param still defaults) | ✅ |
 | KIVO-028 | P1 | Service search was free-text guesswork | `BookingSearchForm` uses real `services` `<select>`; bookings list fetches active services | ✅ |
 | KIVO-029 | P2 | Settings input looseness | name/maxLength/timezone combobox + validity/lat-lng/price bounds, client validation | ✅ |
 | KIVO-030 | P1 | "Hidden default hours" copy contradictory | HoursEditor truthful footer; per open-day copy-to-all; `close ≤ open` warning | ✅ |
@@ -56,10 +57,50 @@ Legend: ✅ fixed · 🟡 partial · ⬜ not done
 | KIVO-035 | P1 | Hours labels identical per day | Per-day `aria-label="<Day> open"` | ✅ |
 | KIVO-036 | P2 | Empty dashboard lacks onboarding checklist | 🔜 Planned (dismissible completion checklist keyed to real data) | ⬜ |
 | KIVO-037 | P2 | Integration status terse, no drill-down | Error cards + settings route exist; last-check/retry diagnostics 🔜 | 🟡 |
-| KIVO-038 | P0 | Reschedule "service not available" + no recovery | Resolved offering consistently, excluded booking from conflicts, retry recovered; regression suite | ✅ |
-| KIVO-039 | P0 | Rental funnel: valid dates left Check availability disabled with no error | All 4 pickup/return date+time controls bound to validated state; invalid intervals explained inline; availability lookup gated on valid interval; regression same-day/exact/multi-day | ✅ |
+| KIVO-038 | P0 | **Customer appointment rescheduling** failing with "That service isn't available right now" (not catalog loading) | Slot validation + self-exclusion of the moved booking (`excludeBookingId: row.id`); service-active gate kept at create time; retry recovery; regression suite | ✅ |
+| KIVO-039 | P0 | Rental funnel: valid dates left Check availability disabled with no error | All 4 pickup/return date+time controls bound to validated state; invalid intervals explained inline; availability lookup gated on valid interval; regression same-day/exact/multi-day | ✅ (Playwright interaction test fills all four native inputs → errors clear → enabled → fleet; passes locally and on prod at test time) |
 | KIVO-040 | P1 | Failed dispatches counted, confirmation still promised | `{ booking, notifications }` contract; honest copy via `dispatched`; regression test | ✅ |
-| KIVO-041 | P1 | Kivo Drive empty hours heading; vehicle intent lost | Rendering real hours or omitting empty section (migration 0015); `?vehicle=` query carries selection | ✅ |
+| KIVO-041 | P1 | Kivo Drive empty hours heading; vehicle intent lost | Rendering real hours or omitting empty section (migration 0015 file committed; **application to the live project NOT verified from this workspace — see § Interactive failures G**); `?vehicle=` query carries selection | 🟡 |
+
+## Interactive failures (Playwright-verified, 2026-09-14)
+
+HTTP-status smoke checks missed functional failures, so `e2e/smoke.spec.ts`
+(all browser events, no React-state mutation) replaces them. Local runs use
+`npm run build` + `npm run start`; live runs use
+`BASE_URL=https://booking-automation-delta.vercel.app` (+ `E2E_LIVE=1` for
+prod-only fixtures; `E2E_STORAGE_STATE` for the authenticated subset).
+
+1. **Kivo Drive desync** — test fills the four native inputs, asserts each
+   required error clears, asserts Check availability enables, clicks, asserts
+   the fleet step. **Passes locally and on prod at test time** (no console
+   errors, no failed sub-requests). The reported prod failure does not
+   reproduce now; code shows controlled inputs with render-derived validation
+   and no draft-reset path. Suspected transient (cold boot / stale chunk).
+2. **test-business catalog** — Mens Haircut assertion + API shape assertion.
+   **Passes on prod at test time.** Public route hardened regardless:
+   `service:services(name)` embed removed (JS join from fetched services) so
+   catalog no longer depends on the PostgREST FK cache; dev-only error
+   category added to `toApiErrorResponse` (never in production, never secrets).
+3. **Invalid business IDs** — settings now `notFound()`s supplied-but-unowned
+   ids (was: silent first-owned fallback). Anon path asserts login redirect
+   without rendering any business; authed 404 path needs `E2E_STORAGE_STATE`.
+4. **`new=1` drawer** — page renders `BusinessBookingForm` ("New booking" /
+   "Confirm booking") whenever `params.new` is set; no searchParams bug found
+   (already `await`ed). Anon path asserts login redirect; authed render needs
+   `E2E_STORAGE_STATE` and was not browser-verified.
+5. **Real 404s** — fixed locally (all three slug/token probes return 404);
+   **still 200 on prod** because the deployed bundle predates the fix.
+   Redeploy `1e6c07c`-plus-working-tree to close.
+
+## G. Migration history (not verified — no blind push)
+
+`0015_demo_opening_hours.sql` is committed in-repo. The live project's
+migration history could **not** be inspected from this workspace (no
+`supabase/config.toml` link, no DB connection string, direct PostgREST egress
+fails). Opening hours already render in production (operator-confirmed), so
+the 0015-equivalent data appears present — **do not run `supabase db push`
+blindly**. Verify first with `supabase migration list` against the linked
+project, then push only if 0015 shows pending.
 
 ## What remains (recommended next steps)
 

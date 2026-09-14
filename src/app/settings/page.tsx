@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import SettingsForm, { type SettingsBundle } from "@/components/SettingsForm";
@@ -33,10 +33,16 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   if (memberships.length === 0) redirect("/onboarding");
 
   const params = await searchParams;
-  const selectedId =
-    (params.business && memberships.some((m) => m.business_id === params.business)
-      ? params.business
-      : memberships[0].business_id) as string;
+  // A supplied business id must be owned: malformed, nonexistent or
+  // unowned ids are a 404, never a silent fallback to the first owned
+  // business (KIVO-027: no cross-tenant leakage through the URL). Only an
+  // absent parameter defaults to the first membership.
+  const requestedBusiness =
+    params.business && params.business.trim().length > 0 ? params.business : null;
+  if (requestedBusiness && !memberships.some((m) => m.business_id === requestedBusiness)) {
+    notFound();
+  }
+  const selectedId = (requestedBusiness ? requestedBusiness : memberships[0].business_id) as string;
 
   const db = getSupabase();
   const [settings, services, resources, sessions, notifications, calendar] =

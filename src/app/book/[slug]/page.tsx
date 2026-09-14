@@ -20,8 +20,10 @@ const MODE_META: Record<string, { verb: string; blurb: string }> = {
 export async function generateMetadata({ params }: BookSlugPageProps): Promise<Metadata> {
   const { slug } = await params;
   const business = await fetchBusinessBySlug(slug, getSupabase()).catch(() => null);
+  // 404 here (not just in the page): generateMetadata resolves before the
+  // loading.tsx suspense shell flushes, so the 404 status is committed.
   if (!business || business.is_active === false) {
-    return { title: "Booking not found" };
+    notFound();
   }
   const meta = MODE_META[business.booking_mode] ?? MODE_META.appointment;
   return {

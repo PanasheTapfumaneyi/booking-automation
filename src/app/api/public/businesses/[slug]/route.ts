@@ -30,15 +30,25 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
         .select("id, name, resource_type, image_url, metadata")
         .eq("business_id", business.id)
         .eq("active", true),
+      // Plain columns only: no `service:services(name)` embed, so the
+      // catalog never depends on the PostgREST FK/relationship cache. The
+      // service name is joined in JS from the services already fetched
+      // above (same rows, same request, no extra round-trip).
       db
         .from("booking_sessions")
-        .select("id, service_id, start_time, end_time, capacity, active, service:services(name)")
+        .select("id, service_id, start_time, end_time, capacity, active")
         .eq("business_id", business.id)
         .eq("active", true),
     ]);
     if (services.error || resources.error || sessions.error) {
       throw services.error ?? resources.error ?? sessions.error;
     }
+    const serviceNames = new Map(
+      ((services.data ?? []) as Array<Record<string, unknown>>).map((s) => [
+        s.id as string,
+        s.name as string,
+      ]),
+    );
 
     // Compute booked counts for capacity sessions (only for future sessions)
     const now = new Date().toISOString();
@@ -62,7 +72,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
           booked,
           remaining: Math.max(0, capacity - booked),
           active: row.active as boolean,
-          service_name: ((row.service ?? {}) as Record<string, unknown>).name as string | null ?? null,
+          service_name: serviceNames.get(row.service_id as string) ?? null,
         };
       }),
     );

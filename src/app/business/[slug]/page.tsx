@@ -62,7 +62,10 @@ function getDemoReviews(slug: string): Array<{ name: string; text: string; ratin
 export async function generateMetadata({ params }: BusinessPageProps): Promise<Metadata> {
   const { slug } = await params;
   const data = await getBusinessSiteData(slug, getSupabase()).catch(() => null);
-  if (!data) return { title: "Business not found" };
+  // 404 here (not just in the page): generateMetadata resolves before the
+  // loading.tsx suspense shell flushes, so the 404 status is committed.
+  // A page-only notFound() fires after the shell streams with status 200.
+  if (!data) notFound();
   const tagline = data.business.tagline || MODE_TAGLINE[data.business.booking_mode] || "Book online in under a minute.";
   const cleanName = data.business.name.trim().replace(/\.$/, "");
   return {

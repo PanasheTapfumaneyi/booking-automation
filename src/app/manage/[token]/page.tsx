@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ManageBooking from "@/components/ManageBooking";
+import { getSupabase } from "@/lib/supabase/server";
 
 interface ManagePageProps {
   params: Promise<{ token: string }>;
@@ -15,6 +17,18 @@ export const metadata: Metadata = {
 
 export default async function ManagePage({ params }: ManagePageProps) {
   const { token } = await params;
+
+  // Missing bookings get a real 404 status (not a 200 with "not found"
+  // text): unknown tokens never resolve to another booking. Only a
+  // confirmed-absent token 404s — a database error still renders the
+  // client's retryable error state instead of a misleading 404.
+  const decoded = decodeURIComponent(token);
+  const { data, error } = await getSupabase()
+    .from("bookings")
+    .select("id")
+    .eq("manage_token", decoded)
+    .maybeSingle();
+  if (!error && !data) notFound();
 
   return (
     <>

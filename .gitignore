@@ -38,3 +38,6 @@ next-env.d.ts
 **.node-persist**
 **_IGNORE_**
 # end managed
+
+/test-results/
+/playwright-report/
