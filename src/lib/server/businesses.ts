@@ -481,13 +481,15 @@ export interface ResourceSummary {
   resource_type: string;
   image_url: string | null;
   active: boolean;
+  /** Generic per-resource metadata (vehicle specs, per-day rate, …). */
+  metadata: Record<string, unknown>;
 }
 
 export async function listResources(businessId: string, db: DbLike): Promise<ResourceSummary[]> {
   const client = db as SupabaseClient;
   const { data, error } = await client
     .from("resources")
-    .select("id, name, resource_type, image_url, active")
+    .select("id, name, resource_type, image_url, active, metadata")
     .eq("business_id", businessId);
   if (error) throw error;
   return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
@@ -496,6 +498,7 @@ export async function listResources(businessId: string, db: DbLike): Promise<Res
     resource_type: (r.resource_type as string) ?? "generic",
     image_url: (r.image_url as string | null) ?? null,
     active: Boolean(r.active),
+    metadata: ((r.metadata ?? {}) as Record<string, unknown>) ?? {},
   }));
 }
 

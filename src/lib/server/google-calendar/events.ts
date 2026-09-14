@@ -12,6 +12,17 @@ export interface EventPayloadInput {
   customerEmail?: string | null;
   startIso: string;
   endIso: string;
+  /**
+   * Item name for resource bookings. Renders `Toyota Vitz — Courtney` as the
+   * event title instead of the service-based summary. Absent for appointment
+   * and capacity bookings (their titles are unchanged).
+   */
+  resourceName?: string;
+  /**
+   * Pre-formatted total price (e.g. "Rs 4,200") for unit-rate resource
+   * bookings. Falls back to the service price when absent.
+   */
+  displayTotal?: string;
 }
 
 /**
@@ -27,16 +38,21 @@ export interface EventPayloadInput {
 export function buildEventPayload(input: EventPayloadInput): CalendarEventBody {
   const lines = [
     `Service: ${input.service.name}`,
+    input.resourceName ? `Item: ${input.resourceName}` : null,
     `Customer: ${input.customerName}`,
     `Phone: ${input.customerPhone}`,
     input.customerEmail ? `Email: ${input.customerEmail}` : null,
-    `Price: Rs${Number(input.service.price)}`,
+    input.displayTotal
+      ? `Price: ${input.displayTotal}`
+      : `Price: Rs${Number(input.service.price)}`,
     `Booking ID: ${input.bookingId}`,
     "Managed by the Booking Platform",
   ].filter((line): line is string => line !== null);
 
   return {
-    summary: `${input.service.name} - ${input.customerName}`,
+    summary: input.resourceName
+      ? `${input.resourceName} - ${input.customerName}`
+      : `${input.service.name} - ${input.customerName}`,
     description: lines.join("\n"),
     start: { dateTime: input.startIso, timeZone: input.business.timezone },
     end: { dateTime: input.endIso, timeZone: input.business.timezone },

@@ -27,7 +27,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
         .eq("active", true),
       db
         .from("resources")
-        .select("id, name, resource_type")
+        .select("id, name, resource_type, image_url, metadata")
         .eq("business_id", business.id)
         .eq("active", true),
       db

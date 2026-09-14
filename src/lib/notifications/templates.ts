@@ -34,10 +34,24 @@ export interface TemplateContext {
   calendarUrl?: string;
   /** Reschedule only: the previously booked interval. */
   previousStartIso?: string;
+  /** Item name for resource bookings (vehicle for rentals). Absent otherwise. */
+  resourceName?: string;
+  /** Pre-formatted booking total ("Rs 4,200") for unit-rate resource bookings. */
+  displayTotal?: string;
 }
 
 function dayTime(iso: string, timezone: string): string {
   return `${formatLongDateInZone(iso, timezone)} at ${formatTimeInZone(iso, timezone)}`;
+}
+
+/** Item-aware label: `Car Rental (Toyota Vitz)` for rentals, service otherwise. */
+function itemLabel(ctx: TemplateContext): string {
+  return ctx.resourceName ? `${ctx.serviceName} (${ctx.resourceName})` : ctx.serviceName;
+}
+
+/** Optional total line, present only for rental/unit-rate bookings. */
+function totalLine(ctx: TemplateContext): string | null {
+  return ctx.displayTotal ? `Total: ${ctx.displayTotal}` : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -45,16 +59,21 @@ function dayTime(iso: string, timezone: string): string {
 // ---------------------------------------------------------------------------
 
 export function customerCreatedMessage(ctx: TemplateContext): string {
-  return [
+  const lines = [
     `${ctx.businessName} — appointment confirmed`,
     "",
     `Hi ${ctx.customerName},`,
-    `you're booked in for ${ctx.serviceName} on ${dayTime(ctx.startIso, ctx.businessTimezone)}.`,
+    `you're booked in for ${itemLabel(ctx)} on ${dayTime(ctx.startIso, ctx.businessTimezone)}.`,
+  ];
+  const total = totalLine(ctx);
+  if (total) lines.push("", total);
+  lines.push(
     "",
     `Manage this appointment: ${ctx.manageUrl ?? "—"}`,
     "",
     `Add to your calendar: ${ctx.calendarUrl ?? "—"}`,
-  ].join("\n");
+  );
+  return lines.join("\n");
 }
 
 export function customerRescheduledMessage(ctx: TemplateContext): string {
@@ -62,18 +81,23 @@ export function customerRescheduledMessage(ctx: TemplateContext): string {
   const previous = ctx.previousStartIso
     ? dayTime(ctx.previousStartIso, ctx.businessTimezone)
     : "—";
-  return [
+  const lines = [
     `${ctx.businessName} — appointment rescheduled`,
     "",
     `Hi ${ctx.customerName},`,
-    `your ${ctx.serviceName} has moved to ${newTime}.`,
+    `your ${itemLabel(ctx)} has moved to ${newTime}.`,
     "",
     `Previous time: ${previous}`,
+  ];
+  const total = totalLine(ctx);
+  if (total) lines.push("", total);
+  lines.push(
     "",
     `Manage this appointment: ${ctx.manageUrl ?? "—"}`,
     "",
     `Add to your calendar: ${ctx.calendarUrl ?? "—"}`,
-  ].join("\n");
+  );
+  return lines.join("\n");
 }
 
 export function customerCancelledMessage(ctx: TemplateContext): string {
@@ -81,7 +105,7 @@ export function customerCancelledMessage(ctx: TemplateContext): string {
     `${ctx.businessName} — appointment cancelled`,
     "",
     `Hi ${ctx.customerName},`,
-    `your ${ctx.serviceName} on ${dayTime(ctx.startIso, ctx.businessTimezone)} has been cancelled.`,
+    `your ${itemLabel(ctx)} on ${dayTime(ctx.startIso, ctx.businessTimezone)} has been cancelled.`,
     "",
     `Need to rebook? ${ctx.manageUrl ?? "Visit us again soon."}`,
   ].join("\n");
@@ -131,12 +155,14 @@ export function buildReminderMessage(
 // ---------------------------------------------------------------------------
 
 export function businessCreatedMessage(ctx: TemplateContext): string {
-  return [
+  const lines = [
     `New booking — ${ctx.businessName}`,
     "",
-    `${ctx.serviceName} on ${dayTime(ctx.startIso, ctx.businessTimezone)}`,
+    `${itemLabel(ctx)} on ${dayTime(ctx.startIso, ctx.businessTimezone)}`,
     `Customer: ${ctx.customerName} · ${ctx.customerPhone}`,
-  ].join("\n");
+  ];
+  if (ctx.displayTotal) lines.push(`Total: ${ctx.displayTotal}`);
+  return lines.join("\n");
 }
 
 export function businessRescheduledMessage(ctx: TemplateContext): string {
@@ -144,20 +170,22 @@ export function businessRescheduledMessage(ctx: TemplateContext): string {
   const from = ctx.previousStartIso
     ? dayTime(ctx.previousStartIso, ctx.businessTimezone)
     : "—";
-  return [
+  const lines = [
     `Reschedule — ${ctx.businessName}`,
     "",
-    `${ctx.serviceName} moved from ${from}`,
+    `${itemLabel(ctx)} moved from ${from}`,
     `New: ${moved}`,
     `Customer: ${ctx.customerName} · ${ctx.customerPhone}`,
-  ].join("\n");
+  ];
+  if (ctx.displayTotal) lines.push(`Total: ${ctx.displayTotal}`);
+  return lines.join("\n");
 }
 
 export function businessCancelledMessage(ctx: TemplateContext): string {
   return [
     `Cancellation — ${ctx.businessName}`,
     "",
-    `${ctx.serviceName} on ${dayTime(ctx.startIso, ctx.businessTimezone)} cancelled`,
+    `${itemLabel(ctx)} on ${dayTime(ctx.startIso, ctx.businessTimezone)} cancelled`,
     `Customer: ${ctx.customerName} · ${ctx.customerPhone}`,
   ].join("\n");
 }

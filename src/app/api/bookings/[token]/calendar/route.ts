@@ -28,6 +28,8 @@ async function buildCalendarEvent(token: string): Promise<CalendarEvent> {
   return {
     businessName: business.name,
     serviceName: booking.serviceName,
+    resourceName: booking.resourceName ?? undefined,
+    customerName: booking.customerName,
     startTime: booking.startTime,
     endTime: booking.endTime,
     timezone: business.timezone,

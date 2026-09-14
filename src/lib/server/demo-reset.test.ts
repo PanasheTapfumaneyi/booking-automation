@@ -8,8 +8,8 @@ import { describe, it, expect } from "vitest";
 import { DEMO_BUSINESSES, getDemoBySlug, getDemoById } from "../../../scripts/demo-data.mjs";
 
 describe("demo-data.mjs — canonical definitions", () => {
-  it("exports exactly 3 demo businesses", () => {
-    expect(DEMO_BUSINESSES).toHaveLength(3);
+  it("exports 4 demo businesses", () => {
+    expect(DEMO_BUSINESSES).toHaveLength(4);
   });
 
   it("has all required location fields for each business", () => {
@@ -22,6 +22,7 @@ describe("demo-data.mjs — canonical definitions", () => {
   });
 
   it("getDemoBySlug returns correct business", () => {
+    expect(getDemoBySlug("kivo-drive")?.id).toBe("10000000-0000-4000-8000-000000000004");
     expect(getDemoBySlug("fade-area")?.id).toBe("10000000-0000-4000-8000-000000000001");
     expect(getDemoBySlug("island-surf")?.id).toBe("10000000-0000-4000-8000-000000000002");
     expect(getDemoBySlug("blue-lagoon")?.id).toBe("10000000-0000-4000-8000-000000000003");
@@ -30,7 +31,15 @@ describe("demo-data.mjs — canonical definitions", () => {
 
   it("getDemoById returns correct business", () => {
     expect(getDemoById("10000000-0000-4000-8000-000000000001")?.slug).toBe("fade-area");
+    expect(getDemoById("10000000-0000-4000-8000-000000000004")?.slug).toBe("kivo-drive");
     expect(getDemoById("nonexistent")).toBeNull();
+  });
+
+  it("kivo-drive has correct canonical location", () => {
+    const biz = getDemoBySlug("kivo-drive")!;
+    expect(biz.address).toBe("Quay Street, Port Louis, Mauritius");
+    expect(biz.latitude).toBe(-20.1604);
+    expect(biz.longitude).toBe(57.5044);
   });
 
   it("fade-area has correct canonical location", () => {

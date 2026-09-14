@@ -99,7 +99,7 @@ export async function resourceAvailability(params: {
 
   const { data, error } = await getSupabase()
     .from("resources")
-    .select("id, business_id, name, resource_type, active")
+    .select("id, business_id, name, resource_type, active, image_url, metadata")
     .eq("business_id", business.id)
     .eq("active", true);
 
@@ -121,11 +121,108 @@ export async function resourceAvailability(params: {
     },
     date,
     timezone,
+    resources: (data ?? []).map((resource) => toResourceSummary(resource)),
+  };
+}
+
+/**
+ * Interval availability — "which items are free from start to end?".
+ *
+ * The engine's multi-day core. Every active resource is returned together with
+ * an `available` flag, image and metadata so the rental UI can render the fleet
+ * grid in a single request. Different items can overlap freely (the DB guards
+ * per resource); a cancelled booking never marks an item unavailable.
+ */
+export async function resourceIntervalAvailability(params: {
+  business: BusinessRow;
+  service: ServiceRow;
+  startIso: string;
+  endIso: string;
+  excludeBookingId?: string;
+}): Promise<ResourceAvailabilityResult & { startIso: string; endIso: string }> {
+  const { business, service } = params;
+  const timezone = business.timezone || DEFAULT_TIMEZONE;
+
+  const [{ data, error }, blocks] = await Promise.all([
+    getSupabase()
+      .from("resources")
+      .select("id, business_id, name, resource_type, active, image_url, metadata")
+      .eq("business_id", business.id)
+      .eq("active", true),
+    fetchResourceBlocks({
+      businessId: business.id,
+      startIso: params.startIso,
+      endIso: params.endIso,
+      excludeBookingId: params.excludeBookingId,
+    }),
+  ]);
+
+  if (error) {
+    throw new ApiError(500, "INTERNAL", "We couldn't check availability.");
+  }
+
+  const blocked = new Set(blocks.map((b) => b.resourceId));
+
+  return {
+    kind: "resource",
+    business: { id: business.id, name: business.name, timezone },
+    service: {
+      id: service.id,
+      name: service.name,
+      durationMinutes: service.duration_minutes,
+      price: Number(service.price),
+    },
+    date: params.startIso.slice(0, 10),
+    startIso: params.startIso,
+    endIso: params.endIso,
+    timezone,
     resources: (data ?? []).map((resource) => ({
-      id: resource.id as string,
-      name: resource.name as string,
-      resourceType: resource.resource_type as string,
-      active: resource.active as boolean,
+      ...toResourceSummary(resource),
+      available: !blocked.has(resource.id as string),
     })),
   };
+}
+
+function toResourceSummary(resource: {
+  id: unknown;
+  name: unknown;
+  resource_type: unknown;
+  active: unknown;
+  image_url: unknown;
+  metadata: unknown;
+}): ResourceSummary {
+  const metadata = (resource.metadata ?? {}) as Record<string, unknown>;
+  return {
+    id: resource.id as string,
+    name: resource.name as string,
+    resourceType: resource.resource_type as string,
+    active: resource.active as boolean,
+    imageUrl: (resource.image_url as string | null) ?? null,
+    metadata,
+  };
+}
+
+/**
+ * Whether a business should present its resource flow as a rental (fleet grid
+ * + interval search) rather than the plain "pick an item" flow. Driven by the
+ * generic unit-rate metadata, never by slug or demo flag, so any business with
+ * day-priced resources gets the rental experience.
+ */
+export function isUnitRatedCollection(resources: ResourceRow[]): boolean {
+  return resources.length > 0 && resources.every((r) => hasUnitRate(r.metadata));
+}
+
+/** Convenience total for a resource booking (used by calendar/notification). */
+export function resourceBookingTotal(input: {
+  metadata: Record<string, unknown> | null | undefined;
+  startIso: string;
+  endIso: string;
+  servicePrice: number;
+}): number {
+  return computeResourceTotal({
+    metadata: input.metadata,
+    startTime: input.startIso,
+    endTime: input.endIso,
+    fallbackPrice: input.servicePrice,
+  });
 }

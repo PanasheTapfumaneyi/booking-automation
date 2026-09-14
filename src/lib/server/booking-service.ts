@@ -22,6 +22,7 @@ import {
 } from "@/lib/server/strategies/capacity";
 
 import { generateManageToken } from "@/lib/server/token";
+import { computeResourceTotal, formatMauritianRupees } from "@/lib/resource-pricing";
 import {
   assertNewTimeCalendarFree,
   moveCalendarEvent,
@@ -88,7 +89,14 @@ function mapBooking(row: BookingRow): Booking {
     sessionId: row.session_id,
     quantity: row.quantity,
     serviceName: row.service?.name ?? "",
-    servicePrice: Number(row.service?.price ?? 0),
+    resourceName: row.resource?.name ?? null,
+    // Unit-rate resource bookings (rentals) price by days × resource rate.
+    servicePrice: computeResourceTotal({
+      metadata: row.resource?.metadata ?? null,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      fallbackPrice: Number(row.service?.price ?? 0),
+    }),
     serviceDurationMinutes: row.service?.duration_minutes ?? 0,
     customerName: row.customer?.name ?? "",
     customerPhone: row.customer?.phone ?? "",
@@ -236,7 +244,7 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
           "Please choose one of the available items.",
         );
       }
-      await validateResourceBooking({
+      const resource = await validateResourceBooking({
         businessId: business.id,
         resourceId: input.resourceId,
       });
@@ -276,13 +284,34 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
         p_manage_token: token,
         p_resource_id: input.resourceId,
       });
+
+      const displayTotal = formatMauritianRupees(
+        computeResourceTotal({
+          metadata: resource.metadata,
+          startTime: startIso,
+          endTime: endIso,
+          fallbackPrice: Number(service.price),
+        }),
+      );
       const bookingResource = normalizeBookingRow(row, service, contact);
+      await syncAfterCreate({
+        business,
+        service,
+        row,
+        customerName: contact.name,
+        customerPhone: contact.phone,
+        customerEmail: contact.email,
+        resourceName: resource.name,
+        displayTotal,
+      });
       await dispatchBookingEvent({
         business,
         serviceName: service.name,
         booking: row,
         customer: contact,
         type: "booking.created",
+        resourceName: resource.name,
+        displayTotal,
       });
       return bookingResource;
     }
@@ -498,6 +527,17 @@ export async function rescheduleBooking(
       customerName: row.customer?.name ?? "",
       customerPhone: row.customer?.phone ?? "",
       customerEmail: row.customer?.email ?? null,
+      resourceName: row.resource?.name ?? undefined,
+      displayTotal: row.resource?.metadata
+        ? formatMauritianRupees(
+            computeResourceTotal({
+              metadata: row.resource.metadata,
+              startTime: startIso,
+              endTime: endIso,
+              fallbackPrice: Number(service.price),
+            }),
+          )
+        : undefined,
     },
   });
 
@@ -508,6 +548,7 @@ export async function rescheduleBooking(
     customer: row.customer ?? { name: "", phone: "" },
     type: "booking.rescheduled",
     previous: { startTime: row.start_time, endTime: row.end_time },
+    resourceName: row.resource?.name ?? undefined,
   });
 
   return normalizeBookingRow(
@@ -582,6 +623,7 @@ export async function cancelBooking(token: string): Promise<Booking> {
     booking: cancelled,
     customer: cancelled.customer ?? { name: "", phone: "" },
     type: "booking.cancelled",
+    resourceName: cancelled.resource?.name ?? undefined,
   });
 
   return mapBooking(cancelled);

@@ -16,8 +16,16 @@ import { DEMO_SERVICES, DEMO_BUSINESS } from "@/lib/demo";
 import {
   apiCreateBooking,
   apiGetAvailability,
+  type ResourceAvailability,
   BookingApiError,
 } from "@/lib/booking-api";
+import {
+  hasUnitRate,
+  readUnitRate,
+  rentalDays,
+  computeResourceTotal,
+  formatMauritianRupees,
+} from "@/lib/resource-pricing";
 import ServiceCard from "@/components/ServiceCard";
 import BookingCalendar from "@/components/BookingCalendar";
 import TimeSlot from "@/components/TimeSlot";
@@ -30,11 +38,13 @@ import BookingSummary from "@/components/BookingSummary";
 
 type AppointmentStep = "service" | "date" | "time" | "details" | "confirmation";
 type ResourceStep = "service" | "resource" | "date" | "time" | "details" | "confirmation";
+type RentalStep = "dates" | "fleet" | "details" | "confirmation";
 type CapacityStep = "service" | "session" | "quantity" | "details" | "confirmation";
-type Step = AppointmentStep | ResourceStep | CapacityStep;
+type Step = AppointmentStep | ResourceStep | RentalStep | CapacityStep;
 
 const APPOINTMENT_STEPS: AppointmentStep[] = ["service", "date", "time", "details"];
 const RESOURCE_STEPS: ResourceStep[] = ["service", "resource", "date", "time", "details"];
+const RENTAL_STEPS: RentalStep[] = ["dates", "fleet", "details"];
 const CAPACITY_STEPS: CapacityStep[] = ["service", "session", "quantity", "details"];
 
 const STEP_LABELS: Record<string, string> = {
@@ -46,6 +56,8 @@ const STEP_LABELS: Record<string, string> = {
   quantity: "Guests",
   details: "Your details",
   confirmation: "Done",
+  dates: "Dates",
+  fleet: "Vehicle",
 };
 
 // ---------------------------------------------------------------------------
@@ -108,6 +120,15 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
   const [resourceStartTime, setResourceStartTime] = useState("");
   const [resourceEndTime, setResourceEndTime] = useState("");
 
+  // Rental (multi-day resource) state
+  const [pickupDate, setPickupDate] = useState("");
+  const [pickupTime, setPickupTime] = useState("");
+  const [returnDate, setReturnDate] = useState("");
+  const [returnTime, setReturnTime] = useState("");
+  const [rentalRange, setRentalRange] = useState<{ startIso: string; endIso: string } | null>(null);
+  const [rentalResults, setRentalResults] = useState<ResourceAvailability | null>(null);
+  const [rentalLoading, setRentalLoading] = useState(false);
+
   // Capacity state
   const [selectedSession, setSelectedSession] = useState<BookingSession | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -118,9 +139,15 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
   const [creating, setCreating] = useState(false);
 
   const mode = catalog?.business.bookingMode ?? "appointment";
+  const isRental =
+    mode === "resource" &&
+    (catalog?.resources.length ?? 0) > 0 &&
+    (catalog?.resources ?? []).every((r) => hasUnitRate(r.metadata));
   const steps =
     mode === "resource"
-      ? RESOURCE_STEPS
+      ? isRental
+        ? RENTAL_STEPS
+        : RESOURCE_STEPS
       : mode === "capacity"
         ? CAPACITY_STEPS
         : APPOINTMENT_STEPS;
@@ -156,7 +183,13 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
             durationMinutes: number;
             price: number;
           }>;
-          resources: Array<{ id: string; name: string; resource_type: string }>;
+          resources: Array<{
+            id: string;
+            name: string;
+            resource_type: string;
+            image_url: string | null;
+            metadata: Record<string, unknown> | null;
+          }>;
           sessions: Array<{
             id: string;
             service_id: string;
@@ -191,6 +224,8 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
             name: r.name,
             resourceType: r.resource_type,
             active: true,
+            imageUrl: r.image_url ?? null,
+            metadata: (r.metadata ?? {}) as Record<string, unknown>,
           })),
           sessions: data.sessions.map((s) => ({
             id: s.id,
@@ -205,6 +240,29 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
           })),
         });
         setCatalogError(null);
+
+        // Rental mode: auto-select the single rental service and land on the
+        // availability search (no separate service picker needed).
+        const rentalService = data.services[0];
+        if (
+          data.business.booking_mode === "resource" &&
+          rentalService &&
+          data.resources.length > 0 &&
+          data.resources.every((r) =>
+            hasUnitRate((r.metadata ?? {}) as Record<string, unknown>),
+          )
+        ) {
+          setService({
+            id: rentalService.id,
+            businessId: data.business.id,
+            name: rentalService.name,
+            durationMinutes: rentalService.durationMinutes,
+            price: rentalService.price,
+            description: "",
+            active: true,
+          });
+          setStep("dates");
+        }
       })
       .catch((fetchError: unknown) => {
         if (cancelled) return;
@@ -329,6 +387,55 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
   }
 
   // -----------------------------------------------------------------------
+  // Rental mode handlers (multi-day resource)
+  // -----------------------------------------------------------------------
+
+  function handleCheckRentalDates() {
+    if (!service || !pickupDate || !pickupTime || !returnDate || !returnTime) {
+      setError("Please choose pick-up and return dates and times.");
+      return;
+    }
+    const startIso = buildIsoFromDateTime(pickupDate, pickupTime, catalog!.business.timezone);
+    const endIso = buildIsoFromDateTime(returnDate, returnTime, catalog!.business.timezone);
+    if (endIso <= startIso) {
+      setError("Return date and time must be after pick-up.");
+      return;
+    }
+    setRentalRange({ startIso, endIso });
+    setRentalResults(null);
+    setRentalLoading(true);
+    setError(null);
+    apiGetAvailability({
+      serviceId: service.id,
+      date: pickupDate,
+      businessId: catalog?.business.id,
+      rangeStart: startIso,
+      rangeEnd: endIso,
+    })
+      .then((availability) => {
+        setRentalResults(
+          availability.kind === "resource" ? availability : null,
+        );
+      })
+      .catch((searchError: unknown) => {
+        setError(
+          searchError instanceof BookingApiError
+            ? searchError.message
+            : "We couldn't check availability. Please try again.",
+        );
+      })
+      .finally(() => {
+        setRentalLoading(false);
+      });
+  }
+
+  function handleSelectRentalResource(resource: Resource) {
+    setSelectedResource(resource);
+    setError(null);
+    setStep("details");
+  }
+
+  // -----------------------------------------------------------------------
   // Capacity mode handlers
   // -----------------------------------------------------------------------
 
@@ -365,6 +472,21 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
         name: values.name,
         phone: values.phone,
         email: values.email,
+      };
+    } else if (mode === "resource" && isRental) {
+      if (!selectedResource || !rentalRange) {
+        setError("Something went wrong. Please start again.");
+        setStep("dates");
+        return;
+      }
+      input = {
+        serviceId: service.id,
+        startTime: rentalRange.startIso,
+        endTime: rentalRange.endIso,
+        name: values.name,
+        phone: values.phone,
+        email: values.email,
+        resourceId: selectedResource.id,
       };
     } else if (mode === "resource") {
       if (!selectedResource || !resourceStartTime || !resourceEndTime) {
@@ -417,7 +539,9 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
           (createError.isSlotUnavailable || createError.isCapacityFull)
         ) {
           setError(createError.message);
-          setStep(mode === "capacity" ? "session" : "time");
+          setStep(
+            mode === "capacity" ? "session" : isRental ? "fleet" : "time",
+          );
           return;
         }
         setError(
@@ -516,6 +640,216 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
               </div>
             </>
           )}
+        </section>
+      )}
+
+      {/* ================================================================ */}
+      {/* RENTAL MODE: dates → fleet → details → confirmation             */}
+      {/* ================================================================ */}
+
+      {/* Pick-up / return search */}
+      {step === "dates" && (
+        <section>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Pick-up &amp; return
+          </h1>
+          <p className="mt-1.5 text-ink-soft">
+            Search available vehicles at {catalog?.business.name ?? "this business"}.
+          </p>
+
+          <div className="mt-6 grid gap-5 sm:grid-cols-2">
+            <div>
+              <label htmlFor="pickup-date" className="mb-1.5 block text-sm font-medium text-ink">
+                Pick-up date
+              </label>
+              <input
+                id="pickup-date"
+                type="date"
+                min={localToday()}
+                value={pickupDate}
+                onChange={(e) => setPickupDate(e.target.value)}
+                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-gold"
+              />
+              <label htmlFor="pickup-time" className="mb-1.5 mt-4 block text-sm font-medium text-ink">
+                Pick-up time
+              </label>
+              <input
+                id="pickup-time"
+                type="time"
+                value={pickupTime}
+                onChange={(e) => setPickupTime(e.target.value)}
+                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-gold"
+              />
+            </div>
+            <div>
+              <label htmlFor="return-date" className="mb-1.5 block text-sm font-medium text-ink">
+                Return date
+              </label>
+              <input
+                id="return-date"
+                type="date"
+                min={pickupDate || localToday()}
+                value={returnDate}
+                onChange={(e) => setReturnDate(e.target.value)}
+                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-gold"
+              />
+              <label htmlFor="return-time" className="mb-1.5 mt-4 block text-sm font-medium text-ink">
+                Return time
+              </label>
+              <input
+                id="return-time"
+                type="time"
+                value={returnTime}
+                onChange={(e) => setReturnTime(e.target.value)}
+                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-gold"
+              />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            disabled={!pickupDate || !pickupTime || !returnDate || !returnTime}
+            onClick={handleCheckRentalDates}
+            className="mt-6 w-full rounded-full bg-ink px-6 py-3 text-sm font-semibold text-paper transition-colors hover:bg-black disabled:opacity-40"
+          >
+            {rentalLoading ? "Checking…" : "Check availability"}
+          </button>
+        </section>
+      )}
+
+      {/* Fleet grid */}
+      {step === "fleet" && rentalRange && (
+        <section>
+          <button
+            type="button"
+            onClick={() => selectStep("dates")}
+            className="mb-5 text-sm font-medium text-ink-soft hover:text-ink"
+          >
+            ‹ Back to dates
+          </button>
+          <h1 className="text-2xl font-semibold tracking-tight">Choose your vehicle</h1>
+          <p className="mt-1.5 text-ink-soft">
+            {formatSelectedDate(pickupDate)} · {formatRentalTime(pickupTime)} —{" "}
+            {formatSelectedDate(returnDate)} · {formatRentalTime(returnTime)}
+          </p>
+
+          {rentalLoading && (
+            <div className="mt-6 rounded-xl border border-line bg-card p-8 text-center text-ink-soft">
+              Checking vehicle availability…
+            </div>
+          )}
+
+          {!rentalLoading && (!rentalResults || rentalResults.kind !== "resource") && (
+            <div className="mt-6 rounded-xl border border-line bg-card p-8 text-center text-ink-soft">
+              No availability data yet.
+            </div>
+          )}
+
+          {!rentalLoading &&
+            rentalResults?.kind === "resource" &&
+            rentalResults.resources.length === 0 && (
+              <div className="mt-6 rounded-xl border border-line bg-card p-8 text-center">
+                <p className="font-medium">No vehicles available</p>
+                <p className="mt-1 text-sm text-ink-soft">
+                  Try adjusting your dates.
+                </p>
+              </div>
+            )}
+
+          {!rentalLoading &&
+            rentalResults?.kind === "resource" &&
+            rentalResults.resources.length > 0 && (
+              <div className="mt-6 grid gap-4">
+                {rentalResults.resources.map((vehicle) => {
+                  const rate = readUnitRate(vehicle.metadata);
+                  const days = rentalDays(rentalRange.startIso, rentalRange.endIso);
+                  const total =
+                    rate && rate > 0
+                      ? formatMauritianRupees(rate * days)
+                      : formatMauritianRupees(service!.price);
+                  const available = vehicle.available !== false;
+                  const specs = vehicle.metadata ?? {};
+                  const seats = typeof specs.seats === "number" ? specs.seats : 5;
+                  const fuel = typeof specs.fuel === "string" ? specs.fuel : "Petrol";
+                  const transmission =
+                    typeof specs.transmission === "string" ? specs.transmission : "Automatic";
+                  const category =
+                    typeof specs.category === "string" ? specs.category : "Car";
+                  return (
+                    <button
+                      key={vehicle.id}
+                      type="button"
+                      disabled={!available}
+                      onClick={() =>
+                        handleSelectRentalResource({
+                          id: vehicle.id,
+                          businessId: catalog!.business.id,
+                          name: vehicle.name,
+                          resourceType: vehicle.resourceType,
+                          active: true,
+                          imageUrl: vehicle.imageUrl ?? null,
+                          metadata: vehicle.metadata ?? {},
+                        })
+                      }
+                      className={[
+                        "w-full overflow-hidden rounded-xl border text-left transition-colors",
+                        available
+                          ? "border-line bg-card hover:border-gold/60"
+                          : "border-line bg-card opacity-55",
+                      ].join(" ")}
+                    >
+                      <div className="relative aspect-[16/8] w-full bg-ink/5">
+                        {vehicle.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={vehicle.imageUrl}
+                            alt={vehicle.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-ink-soft">
+                            {vehicle.name}
+                          </div>
+                        )}
+                        <span
+                          className={[
+                            "absolute top-3 left-3 rounded-full px-3 py-1 text-xs font-semibold",
+                            available ? "bg-emerald-500 text-white" : "bg-ink/70 text-paper",
+                          ].join(" ")}
+                        >
+                          {available ? "Available" : "Unavailable"}
+                        </span>
+                      </div>
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold">{vehicle.name}</p>
+                            <p className="mt-0.5 text-sm text-ink-soft">
+                              {category} · {transmission} · {seats} seats · {fuel}
+                            </p>
+                          </div>
+                          <p className="text-right text-sm font-semibold">
+                            {rate && rate > 0 ? (
+                              <>
+                                Rs {rate}
+                                <span className="block text-xs font-normal text-ink-soft">
+                                  / day
+                                </span>
+                              </>
+                            ) : null}
+                          </p>
+                        </div>
+                        {available && (
+                          <p className="mt-3 border-t border-line pt-3 text-sm font-medium text-ink">
+                            {days} day{days === 1 ? "" : "s"} · {total}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
         </section>
       )}
 
@@ -869,7 +1203,7 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
             type="button"
             onClick={() => {
               if (mode === "appointment") selectStep("time");
-              else if (mode === "resource") selectStep("time");
+              else if (mode === "resource") selectStep(isRental ? "fleet" : "time");
               else selectStep("quantity");
             }}
             className="mb-5 text-sm font-medium text-ink-soft hover:text-ink"
@@ -883,6 +1217,7 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
           <div className="mb-6 mt-6">
             <BookingSummary
               booking={buildSummaryBooking()}
+              businessName={catalog?.business.name ?? DEMO_BUSINESS.name}
               showPrice={mode !== "capacity" || quantity <= 1}
             />
             {mode === "capacity" && quantity > 1 && (
@@ -915,7 +1250,10 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
           </p>
 
           <div className="mt-8 text-left">
-            <BookingSummary booking={booking} />
+            <BookingSummary
+              booking={booking}
+              businessName={catalog?.business.name ?? DEMO_BUSINESS.name}
+            />
             {mode === "capacity" && booking.quantity > 1 && (
               <p className="mt-2 text-sm text-ink-soft">
                 × {booking.quantity} guests
@@ -934,6 +1272,17 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
               type="button"
               onClick={() => {
                 setBooking(null);
+                if (isRental) {
+                  setPickupDate("");
+                  setPickupTime("");
+                  setReturnDate("");
+                  setReturnTime("");
+                  setRentalRange(null);
+                  setRentalResults(null);
+                  setSelectedResource(null);
+                  setStep("dates");
+                  return;
+                }
                 setService(null);
                 setSelectedDateKey(null);
                 setSelectedSlot(null);
@@ -986,6 +1335,20 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
   // -----------------------------------------------------------------------
 
   function buildSummaryBooking() {
+    if (mode === "resource" && isRental && rentalRange && selectedResource) {
+      return {
+        serviceName: `${service!.name} — ${selectedResource.name}`,
+        startTime: rentalRange.startIso,
+        endTime: rentalRange.endIso,
+        servicePrice: computeResourceTotal({
+          metadata: selectedResource.metadata,
+          startTime: rentalRange.startIso,
+          endTime: rentalRange.endIso,
+          fallbackPrice: service!.price,
+        }),
+        serviceDurationMinutes: 0,
+      };
+    }
     if (mode === "resource" && selectedResource) {
       return {
         serviceName: `${service!.name} — ${selectedResource.name}`,
@@ -1026,6 +1389,24 @@ function formatSelectedDate(dateKey: string): string {
     day: "numeric",
     month: "long",
     timeZone: "UTC",
+  });
+}
+
+/** YYYY-MM-DD for today, in the viewer's local timezone (min for the date picker). */
+function localToday(): string {
+  const d = new Date();
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60_000);
+  return local.toISOString().split("T")[0];
+}
+
+/** Format a "HH:MM" time string as a human-readable 12-hour time. */
+function formatRentalTime(time: string): string {
+  if (!time) return "";
+  const [hours, minutes] = time.split(":").map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return time;
+  return new Date(2000, 0, 1, hours, minutes).toLocaleTimeString("en-MU", {
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 

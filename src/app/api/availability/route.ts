@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
     const businessId = searchParams.get("businessId") ?? undefined;
     const excludeBookingToken =
       searchParams.get("excludeBookingToken") ?? undefined;
+    const rangeStart = searchParams.get("rangeStart") ?? undefined;
+    const rangeEnd = searchParams.get("rangeEnd") ?? undefined;
     // Booking-UUID exclusion is never accepted here: a UUID is not an
     // authorization capability. Reschedule flows use authorized paths
     // (manage token for customers, membership-checked business routes).
@@ -36,15 +38,38 @@ export async function GET(request: NextRequest) {
     if (!isDateString(date)) {
       throw new ApiError(400, "VALIDATION", "The date format is invalid.");
     }
+    const startIso = rangeStart ? parseInstant(rangeStart) : undefined;
+    const endIso = rangeEnd ? parseInstant(rangeEnd) : undefined;
+    if (Boolean(rangeStart) !== Boolean(rangeEnd)) {
+      throw new ApiError(
+        400,
+        "VALIDATION",
+        "Both rangeStart and rangeEnd are required for an interval search.",
+      );
+    }
+    if (rangeStart && (!startIso || !endIso || endIso.getTime() <= startIso.getTime())) {
+      throw new ApiError(
+        400,
+        "VALIDATION",
+        "The availability range must be a valid start and end time.",
+      );
+    }
 
     const availability = await getAvailability({
       businessId,
       serviceId,
       date,
       excludeBookingToken,
+      startIso: startIso?.toISOString(),
+      endIso: endIso?.toISOString(),
     });
     return NextResponse.json(availability);
   } catch (error) {
     return toApiErrorResponse(error);
   }
+}
+
+function parseInstant(value: string): Date | null {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
 }

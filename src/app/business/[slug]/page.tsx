@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   BusinessHero,
@@ -27,8 +28,18 @@ const MODE_TAGLINE: Record<string, string> = {
   capacity: "Join a session — spots are limited.",
 };
 
+/** A unit-rated collection (per-day price on every resource) is a fleet/rental. */
+function isUnitRatedFleet(resources: Array<{ metadata: Record<string, unknown> }>): boolean {
+  return resources.length > 0 && resources.every((r) => typeof r.metadata?.rate === "number");
+}
+
 function getDemoReviews(slug: string): Array<{ name: string; text: string; rating: number }> {
   const reviews: Record<string, Array<{ name: string; text: string; rating: number }>> = {
+    "kivo-drive": [
+      { name: "Priya N.", text: "Rented the Creta for a road trip to the south. Spotless car, zero paperwork, unreal value.", rating: 5 },
+      { name: "Jean-Baptiste D.", text: "Booked online in under a minute. The Hilux handled the coastal track like a dream.", rating: 5 },
+      { name: "Fatima A.", text: "Discovered them through the online booking page — no calls, no queues. Just a car waiting for me.", rating: 5 },
+    ],
     "fade-area": [
       { name: "Jean-Pierre M.", text: "Best fade in Quatre Bornes. Always leave looking sharp.", rating: 5 },
       { name: "Arjun K.", text: "Quick, clean, and professional. My go-to barbershop.", rating: 5 },
@@ -99,7 +110,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         <section className="mx-auto max-w-[1200px] px-6 py-14 sm:py-20">
           <h2 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink">
             {mode === "appointment" && "Services"}
-            {mode === "resource" && "Available to reserve"}
+            {mode === "resource" && (isUnitRatedFleet(resources) ? "The fleet" : "Available to reserve")}
             {mode === "capacity" && "Upcoming sessions"}
           </h2>
 
@@ -131,6 +142,53 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
             <>
               {resources.length === 0 ? (
                 <p className="mt-4 text-ink-soft">No items are currently listed. Please check back soon.</p>
+              ) : isUnitRatedFleet(resources) ? (
+                <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {resources.map((r) => {
+                    const rate = typeof r.metadata.rate === "number" ? r.metadata.rate : null;
+                    const seats = typeof r.metadata.seats === "number" ? r.metadata.seats : null;
+                    const specs = [r.metadata.transmission, seats ? `${seats} seats` : null, r.metadata.fuel]
+                      .filter(Boolean)
+                      .join(" · ");
+                    return (
+                      <div
+                        key={r.id}
+                        className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-card"
+                      >
+                        <div className="relative aspect-[16/10] w-full bg-ink/5">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={r.image_url ?? undefined}
+                            alt={r.name}
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                          />
+                        </div>
+                        <div className="flex flex-1 flex-col p-5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <h3 className="text-lg font-bold text-ink">{r.name}</h3>
+                              <p className="mt-1 text-sm text-ink-soft">
+                                {[r.metadata.category, specs].filter(Boolean).join(" · ")}
+                              </p>
+                            </div>
+                            {rate !== null && (
+                              <p className="text-right font-bold text-ink">
+                                Rs {rate.toLocaleString("en-MU")}
+                                <span className="block text-xs font-normal text-ink-soft">/ day</span>
+                              </p>
+                            )}
+                          </div>
+                          <Link
+                            href={bookHref}
+                            className="mt-5 inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
+                          >
+                            Rent this car
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
                 <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {resources.map((r) => (

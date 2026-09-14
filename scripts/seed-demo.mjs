@@ -22,6 +22,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { DEMO_BUSINESSES } from "./demo-data.mjs";
+import { applyDemoReservations } from "./demo-reservations.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -55,6 +56,20 @@ const db = createClient(url, key, { auth: { persistSession: false } });
 // Demo catalog data — services, resources, sessions that seed-demo manages.
 // Business-level canonical values come from demo-data.mjs (shared with reset).
 const DEMO_CATALOGS = [
+  {
+    id: "10000000-0000-4000-8000-000000000004",
+    services: [
+      { name: "Car Rental", duration_minutes: 1440, price: 1500, image_url: null, description: "Self-drive car rental by the day. All Kivo Drive vehicles come with full insurance and 24/7 roadside assistance." },
+    ],
+    resources: [
+      { name: "Toyota Vitz", resource_type: "vehicle", image_url: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?fm=jpg&q=80&w=900&auto=format&fit=crop", metadata: { rate: 1400, category: "Compact", transmission: "Automatic", seats: 5, fuel: "Petrol", luggage: "2 bags", features: ["AC", "Bluetooth", "Reverse camera"] } },
+      { name: "Suzuki Swift", resource_type: "vehicle", image_url: "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?fm=jpg&q=80&w=900&auto=format&fit=crop", metadata: { rate: 1600, category: "Compact", transmission: "Automatic", seats: 5, fuel: "Petrol", luggage: "2 bags", features: ["AC", "Apple CarPlay", "Reverse camera"] } },
+      { name: "Nissan Note", resource_type: "vehicle", image_url: "https://images.unsplash.com/photo-1555215695-3004980ad54e?fm=jpg&q=80&w=900&auto=format&fit=crop", metadata: { rate: 1750, category: "Family", transmission: "Automatic", seats: 5, fuel: "Petrol", luggage: "3 bags", features: ["AC", "Spacious boot", "Bluetooth"] } },
+      { name: "Hyundai Creta", resource_type: "vehicle", image_url: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?fm=jpg&q=80&w=900&auto=format&fit=crop", metadata: { rate: 2500, category: "SUV", transmission: "Automatic", seats: 5, fuel: "Petrol", luggage: "4 bags", features: ["AC", "Sunroof", "Apple CarPlay", "Reverse camera"] } },
+      { name: "Toyota Hilux", resource_type: "vehicle", image_url: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?fm=jpg&q=80&w=900&auto=format&fit=crop", metadata: { rate: 3000, category: "Pickup", transmission: "Automatic", seats: 5, fuel: "Diesel", luggage: "4 bags", features: ["4WD", "AC", "Towing hook", "Bluetooth"] } },
+    ],
+    sessions: [],
+  },
   {
     id: "10000000-0000-4000-8000-000000000001",
     services: [
@@ -155,7 +170,7 @@ for (const demo of DEMOS) {
   for (const res of demo.resources) {
     const { data } = await db.from("resources").select("id").eq("business_id", businessId).eq("name", res.name).maybeSingle();
     if (!data) {
-      const { error } = await db.from("resources").insert({ business_id: businessId, name: res.name, resource_type: res.resource_type, active: true });
+      const { error } = await db.from("resources").insert({ business_id: businessId, name: res.name, resource_type: res.resource_type, active: true, metadata: res.metadata ?? {} });
       if (error) throw error;
       counts.resources++;
     }
@@ -185,8 +200,12 @@ for (const demo of DEMOS) {
     await db.from("services").update({ image_url: svc.image_url ?? null, description: svc.description ?? null }).eq("business_id", biz.id).eq("name", svc.name);
   }
   for (const res of demo.resources) {
-    await db.from("resources").update({ image_url: res.image_url ?? null }).eq("business_id", biz.id).eq("name", res.name);
+    await db.from("resources").update({ image_url: res.image_url ?? null, metadata: res.metadata ?? {} }).eq("business_id", biz.id).eq("name", res.name);
   }
 }
 
 console.log(`seed:demo done — new businesses=${counts.businesses} services=${counts.services} resources=${counts.resources} sessions=${counts.sessions}`);
+
+// Create canonical demo reservations (idempotent).
+const reservations = await applyDemoReservations(db);
+console.log(`seed:demo done — new reservations=${reservations}`);

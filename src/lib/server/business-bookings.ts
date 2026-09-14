@@ -30,6 +30,7 @@ import {
   type CreateBookingInput,
 } from "@/lib/server/booking-service";
 import { toDateKey, getLocalDayInfo, addDaysKey } from "@/lib/availability/time";
+import { computeResourceTotal } from "@/lib/resource-pricing";
 import type { Booking } from "@/types/booking";
 
 type DbLike = Pick<SupabaseClient, "from">;
@@ -58,7 +59,7 @@ export const BOOKING_ADMIN_SELECT = [
   "updated_at",
   "service:services(id, name, duration_minutes, price)",
   "customer:customers(id, name, phone, email)",
-  "resource:resources(id, name)",
+  "resource:resources(id, name, metadata)",
   "session:booking_sessions(id, start_time, end_time, capacity)",
 ].join(", ");
 
@@ -96,7 +97,7 @@ interface AdminRow {
   updated_at: string;
   service?: { id: string; name: string; duration_minutes: number; price: number | string } | null;
   customer?: { id: string; name: string; phone: string; email: string | null } | null;
-  resource?: { id: string; name: string } | null;
+  resource?: { id: string; name: string; metadata: Record<string, unknown> | null } | null;
   session?: { id: string; start_time: string; end_time: string | null; capacity: number } | null;
 }
 
@@ -110,7 +111,13 @@ function toBusinessBooking(row: AdminRow): BusinessBooking {
     sessionId: row.session_id,
     quantity: row.quantity,
     serviceName: row.service?.name ?? "",
-    servicePrice: Number(row.service?.price ?? 0),
+    // Unit-rate rentals price by days × rate; anything else keeps the price.
+    servicePrice: computeResourceTotal({
+      metadata: row.resource?.metadata ?? null,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      fallbackPrice: Number(row.service?.price ?? 0),
+    }),
     serviceDurationMinutes: row.service?.duration_minutes ?? 0,
     customerName: row.customer?.name ?? "",
     customerPhone: row.customer?.phone ?? "",

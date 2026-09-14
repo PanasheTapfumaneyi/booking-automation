@@ -19,9 +19,33 @@ import {
 } from "./appointment";
 
 const TZ = "Indian/Mauritius";
-// Monday 2026-09-07 and Sunday 2026-09-13.
-const MONDAY = "2026-09-07";
-const SUNDAY = "2026-09-13";
+
+/**
+ * Next upcoming Monday/Sunday (business-local), always inside the 30-day
+ * booking window so `isDateKeyAvailable` horizon checks stay stable.
+ */
+function nextWeekday(weekday: number): string {
+  for (let offset = 1; offset <= 40; offset++) {
+    const probe = new Date(Date.now() + offset * 86_400_000);
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: TZ,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(probe);
+    const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
+    const y = get("year");
+    const m = get("month");
+    const d = get("day");
+    if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() === weekday) {
+      return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+  throw new Error("no matching weekday within 40 days");
+}
+// The next Monday and the next Sunday.
+const MONDAY = nextWeekday(1);
+const SUNDAY = nextWeekday(0);
 const HOUR = { durationMinutes: 60 };
 
 const CUSTOM_MON_10_12: BusinessHours = {

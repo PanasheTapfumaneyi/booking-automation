@@ -6,6 +6,7 @@ import Footer from "@/components/Footer";
 import BookingActions from "@/components/BookingActions";
 import { StatusPill } from "@/app/dashboard/page";
 import { formatTimeInZone, formatLongDateInZone } from "@/lib/availability";
+import { formatMauritianRupees } from "@/lib/resource-pricing";
 import { getRequestUser, getMyMemberships } from "@/lib/server/auth";
 import { getSupabase } from "@/lib/supabase/server";
 import { requireBusinessOwner } from "@/lib/server/auth";
@@ -96,6 +97,12 @@ export default async function BookingDetailPage({ params, searchParams }: Detail
                   <dd className="text-right font-medium tabular-nums">{booking.quantity}</dd>
                 </div>
               )}
+              <div className="flex justify-between gap-4">
+                <dt className="text-ink-soft">Total</dt>
+                <dd className="text-right font-semibold tabular-nums">
+                  {formatMauritianRupees(booking.servicePrice)}
+                </dd>
+              </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-ink-soft">Status</dt>
                 <dd className="text-right font-medium">{booking.status}</dd>
