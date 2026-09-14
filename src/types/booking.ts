@@ -98,6 +98,10 @@ export interface Booking {
   previousStartTime: string | null; // set on reschedule
   createdAt: string;
   updatedAt: string;
+  /** Business display name — enriched server-side on token-scoped fetches so headers never fall back to a demo name. */
+  businessName?: string;
+  /** IANA timezone of the booking business — enriched server-side on token-scoped fetches. */
+  businessTimezone?: string;
 }
 
 export interface Customer {

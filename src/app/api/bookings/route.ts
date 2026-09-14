@@ -17,8 +17,11 @@ export async function POST(request: Request) {
       throw new ApiError(400, "VALIDATION", "Please provide booking details.");
     }
 
-    const booking = await createBooking(body as NewBookingInput);
-    return NextResponse.json({ booking }, { status: 201 });
+    const result = await createBooking(body as NewBookingInput);
+    return NextResponse.json(
+      { booking: result.booking, notifications: result.notifications },
+      { status: 201 },
+    );
   } catch (error) {
     return toApiErrorResponse(error);
   }

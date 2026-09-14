@@ -4,6 +4,7 @@ import { ApiError } from "@/lib/server/errors";
 import {
   type ServiceRow,
   type BookingRow,
+  type BusinessRow,
   BOOKING_SELECT,
   fetchBusiness,
   fetchService,
@@ -30,7 +31,10 @@ import {
   syncAfterCreate,
 } from "@/lib/server/google-calendar/sync";
 
-import { dispatchBookingEvent } from "@/lib/server/notifications/service";
+import {
+  dispatchBookingEvent,
+  type NotificationDispatchResult,
+} from "@/lib/server/notifications/service";
 
 export { generateManageToken } from "@/lib/server/token";
 
@@ -120,6 +124,21 @@ function normalizeBookingRow(
   return mapBooking({ ...row, service, customer });
 }
 
+/**
+ * Attaches the real business identity to an API-facing booking so headers,
+ * summaries and timezone formatting never fall back to a hardcoded demo name.
+ */
+function withBusinessContext(
+  booking: Booking,
+  business: Pick<BusinessRow, "name" | "timezone">,
+): Booking {
+  return {
+    ...booking,
+    businessName: business.name,
+    businessTimezone: business.timezone,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Shared RPC call (mode-agnostic)
 // ---------------------------------------------------------------------------
@@ -171,7 +190,19 @@ async function insertBooking(rpcArgs: Record<string, unknown>): Promise<BookingR
 
 export type CreateBookingInput = NewBookingInput;
 
-export async function createBooking(input: CreateBookingInput): Promise<Booking> {
+export interface CreateBookingResult {
+  booking: Booking;
+  /**
+   * Non-throwing notification dispatch summary. Lets the UI be honest about
+   * whether a confirmation was actually sent (KIVO-025/040) instead of
+   * promising one unconditionally.
+   */
+  notifications: NotificationDispatchResult;
+}
+
+export async function createBooking(
+  input: CreateBookingInput,
+): Promise<CreateBookingResult> {
   const contact = validateContact(input);
 
   const service = await fetchService(input.serviceId);
@@ -225,7 +256,7 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
 
       // Fire-and-forget: WhatsApp failure never blocks the booking response
       // (notification dispatch is fully non-throwing — §22 failure isolation).
-      await dispatchBookingEvent({
+      const notifications = await dispatchBookingEvent({
         business,
         serviceName: service.name,
         booking: row,
@@ -233,7 +264,7 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
         type: "booking.created",
       });
 
-      return booking;
+      return { booking: withBusinessContext(booking, business), notifications };
     }
 
     case "resource": {
@@ -304,7 +335,7 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
         resourceName: resource.name,
         displayTotal,
       });
-      await dispatchBookingEvent({
+      const notifications = await dispatchBookingEvent({
         business,
         serviceName: service.name,
         booking: row,
@@ -313,7 +344,10 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
         resourceName: resource.name,
         displayTotal,
       });
-      return bookingResource;
+      return {
+        booking: withBusinessContext(bookingResource, business),
+        notifications,
+      };
     }
 
     case "capacity": {
@@ -345,14 +379,17 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
         p_quantity: quantity,
       });
       const bookingCapacity = normalizeBookingRow(row, service, contact);
-      await dispatchBookingEvent({
+      const notifications = await dispatchBookingEvent({
         business,
         serviceName: service.name,
         booking: row,
         customer: contact,
         type: "booking.created",
       });
-      return bookingCapacity;
+      return {
+        booking: withBusinessContext(bookingCapacity, business),
+        notifications,
+      };
     }
   }
 }
@@ -366,7 +403,8 @@ export async function getBookingByToken(token: string): Promise<Booking> {
       "We couldn't find this appointment. The link may be incorrect.",
     );
   }
-  return mapBooking(found.row);
+  const business = await fetchBusiness(found.row.business_id);
+  return withBusinessContext(mapBooking(found.row), business);
 }
 
 export async function rescheduleBooking(
@@ -551,10 +589,13 @@ export async function rescheduleBooking(
     resourceName: row.resource?.name ?? undefined,
   });
 
-  return normalizeBookingRow(
-    movedRow,
-    service,
-    row.customer ?? { name: "", phone: "", email: null },
+  return withBusinessContext(
+    normalizeBookingRow(
+      movedRow,
+      service,
+      row.customer ?? { name: "", phone: "", email: null },
+    ),
+    business,
   );
 }
 
@@ -626,5 +667,5 @@ export async function cancelBooking(token: string): Promise<Booking> {
     resourceName: cancelled.resource?.name ?? undefined,
   });
 
-  return mapBooking(cancelled);
+  return withBusinessContext(mapBooking(cancelled), cancelBusiness);
 }

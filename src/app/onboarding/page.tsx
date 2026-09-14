@@ -8,7 +8,7 @@ import { getRequestUser, getMyMemberships } from "@/lib/server/auth";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Set up your business — Kivo",
+  title: "Set up your business",
   description: "Create your business and start taking bookings.",
 };
 

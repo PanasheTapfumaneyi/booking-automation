@@ -4,7 +4,7 @@ import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 
 export const metadata: Metadata = {
-  title: "Try Kivo — Live Demos",
+  title: "Try the live demos",
   description:
     "See how Kivo works for different business types. Try appointment booking, resource rental, or capacity-based class scheduling.",
 };

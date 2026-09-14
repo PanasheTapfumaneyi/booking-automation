@@ -17,7 +17,7 @@ import { getConnectionStatus } from "@/lib/server/google-calendar/connections";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Business settings — Kivo",
+  title: "Business settings",
   description: "Edit your business profile, offering, hours and notifications.",
 };
 

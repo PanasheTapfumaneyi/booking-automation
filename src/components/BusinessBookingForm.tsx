@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import BookingCalendar from "@/components/BookingCalendar";
+import { Skeleton, SlowNotice } from "@/components/LoadingState";
 import { zonedInstant, type BusinessHours } from "@/lib/availability";
 import { apiGetAvailability, BookingApiError } from "@/lib/booking-api";
 import type { TimeSlot as SlotOption } from "@/types/booking";
@@ -29,6 +30,7 @@ interface CatalogSession {
   start_time: string;
   end_time: string | null;
   capacity: number;
+  remaining?: number;
   active: boolean;
 }
 
@@ -76,6 +78,27 @@ export default function BusinessBookingForm({
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedSession = sessions.find((s) => s.id === sessionId) ?? null;
+  const sessionSeats =
+    selectedSession?.remaining != null &&
+    selectedSession.remaining !== undefined
+      ? selectedSession.remaining
+      : selectedSession?.capacity ?? 0;
+
+  const appointmentValid = bookingMode !== "appointment" || slot !== null;
+  const resourceValid =
+    bookingMode !== "resource" ||
+    (resourceId !== "" && dateKey !== null && startTime !== "" && endTime !== "" && startTime < endTime);
+  const seatsCount = Number(quantity);
+  const capacityValid =
+    bookingMode !== "capacity" ||
+    (sessionId !== "" && Number.isFinite(seatsCount) && seatsCount >= 1 && (sessionSeats < 1 || seatsCount <= sessionSeats));
+  const hasCustomer =
+    customerId !== null ||
+    (customerName.trim().length >= 2 && customerPhone.replace(/\D/g, "").length >= 7);
+  const canSubmit =
+    serviceId !== "" && appointmentValid && resourceValid && capacityValid && hasCustomer;
 
   useEffect(() => {
     let cancelled = false;
@@ -178,8 +201,12 @@ export default function BusinessBookingForm({
         body.endTime = zonedInstant(dateKey, endTime, timezone);
       } else {
         if (!sessionId) throw new Error("Please choose a departure.");
+        const q = Number(quantity) || 1;
+        if (q < 1 || (sessionSeats > 0 && q > sessionSeats)) {
+          throw new Error("Please choose a valid number of guests.");
+        }
         body.sessionId = sessionId;
-        body.quantity = Number(quantity) || 1;
+        body.quantity = q;
         body.startTime = new Date().toISOString();
         body.endTime = new Date().toISOString();
       }
@@ -215,7 +242,15 @@ export default function BusinessBookingForm({
     "rounded-xl border border-line bg-paper px-4 py-2.5 text-sm outline-none focus:border-gold disabled:opacity-40";
 
   if (loading) {
-    return <p className="py-4 text-sm text-ink-soft">Loading your offering…</p>;
+    return (
+      <div className="flex flex-col gap-3 py-2" aria-hidden="true">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-11 w-full" />
+        <Skeleton className="h-11 w-full" />
+        <Skeleton className="h-11 w-full" />
+        <SlowNotice />
+      </div>
+    );
   }
 
   return (
@@ -275,7 +310,19 @@ export default function BusinessBookingForm({
           </label>
           <label className="flex flex-col gap-1.5 text-sm font-medium">
             Guests
-            <input value={quantity} onChange={(e) => setQuantity(e.target.value)} inputMode="numeric" className={inputClass} />
+            <input
+              value={quantity}
+              onChange={(e) => {
+                const raw = Number(e.target.value);
+                const next = Number.isFinite(raw) ? Math.max(1, Math.min(Math.floor(raw), sessionSeats)) : 1;
+                setQuantity(String(next));
+              }}
+              inputMode="numeric"
+              className={inputClass}
+            />
+            {sessionSeats > 0 && (
+              <p className="text-xs text-ink-soft">{sessionSeats} seats left.</p>
+            )}
           </label>
         </>
       ) : (
@@ -283,7 +330,7 @@ export default function BusinessBookingForm({
           <div>
             <p className="text-sm font-medium">Date</p>
             <div className="mt-2">
-              <BookingCalendar selectedDateKey={dateKey} onSelectDateKey={loadSlots} hours={hours} />
+              <BookingCalendar selectedDateKey={dateKey} onSelectDateKey={loadSlots} hours={hours} timezone={timezone} />
             </div>
           </div>
           {bookingMode === "appointment" && (
@@ -376,8 +423,8 @@ export default function BusinessBookingForm({
               </ul>
             )}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input aria-label="Customer name" placeholder="Full name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className={inputClass} />
-              <input aria-label="Customer phone" placeholder="Phone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className={inputClass} />
+              <input aria-label="Customer name" required aria-required="true" placeholder="Full name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className={inputClass} />
+              <input aria-label="Customer phone" required aria-required="true" inputMode="tel" placeholder="Phone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className={inputClass} />
             </div>
             <input aria-label="Customer email (optional)" placeholder="Email (optional)" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} className={inputClass} />
             <p className="text-xs text-ink-soft">Matching phone numbers reuse the existing customer.</p>
@@ -388,14 +435,14 @@ export default function BusinessBookingForm({
       <div>
         <button
           type="button"
-          disabled={busy || !serviceId}
+          disabled={busy || !canSubmit}
           onClick={submit}
           className="w-full rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy ? "Saving…" : "Confirm booking"}
         </button>
         <p className="mt-2 text-xs text-ink-soft">
-          Saves through the same checks as online booking — conflicts and calendar rules apply. The customer gets the usual WhatsApp confirmation.
+          Saves through the same checks as online booking — conflicts and calendar rules apply.
         </p>
       </div>
       <p className="text-xs text-ink-soft">Times shown in {timezone}.</p>

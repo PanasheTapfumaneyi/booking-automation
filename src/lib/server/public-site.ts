@@ -57,3 +57,24 @@ export async function getBusinessSiteData(
       .sort((a, b) => Date.parse(a.start_time) - Date.parse(b.start_time)),
   };
 }
+
+/**
+ * Returns all active, publicly-visible business slugs (for sitemap / robots).
+ * Never raises — callers fall back to an empty list on any error.
+ */
+export async function listPublicBusinessSlugs(
+  db: DbLike,
+): Promise<Array<{ slug: string }>> {
+  try {
+    const { data } = await db
+      .from("businesses")
+      .select("slug")
+      .not("slug", "is", null)
+      .or("is_active.is.null,is_active.eq.true");
+    return (data ?? [])
+      .filter((row: Record<string, unknown>) => typeof row.slug === "string" && row.slug)
+      .map((row: Record<string, unknown>) => ({ slug: String(row.slug) }));
+  } catch {
+    return [];
+  }
+}

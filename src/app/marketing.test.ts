@@ -35,7 +35,9 @@ describe("marketing — demo page", () => {
     const mod = await import("@/app/demo/page");
     expect(mod.metadata).toBeDefined();
     if (typeof mod.metadata === "object" && mod.metadata !== null && "title" in mod.metadata) {
-      expect(String(mod.metadata.title)).toContain("Kivo");
+      // The root layout template appends "— Kivo", so page titles stay terse
+      // and never duplicate the brand (KIVO-007).
+      expect(mod.metadata.title).not.toContain("Kivo");
     }
   });
 

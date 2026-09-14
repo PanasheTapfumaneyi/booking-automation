@@ -62,11 +62,12 @@ function getDemoReviews(slug: string): Array<{ name: string; text: string; ratin
 export async function generateMetadata({ params }: BusinessPageProps): Promise<Metadata> {
   const { slug } = await params;
   const data = await getBusinessSiteData(slug, getSupabase()).catch(() => null);
-  if (!data) return { title: "Business not found — Kivo" };
+  if (!data) return { title: "Business not found" };
   const tagline = data.business.tagline || MODE_TAGLINE[data.business.booking_mode] || "Book online in under a minute.";
+  const cleanName = data.business.name.trim().replace(/\.$/, "");
   return {
     title: `${data.business.name} — Book online`,
-    description: `View services and book online at ${data.business.name}. ${tagline}`,
+    description: `View services and book online at ${cleanName}. ${tagline}`,
   };
 }
 
@@ -179,7 +180,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
                             )}
                           </div>
                           <Link
-                            href={bookHref}
+                            href={`${bookHref}?vehicle=${encodeURIComponent(r.id)}`}
                             className="mt-5 inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
                           >
                             Rent this car
@@ -238,12 +239,14 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
           )}
         </section>
 
-        <section className="mx-auto max-w-[1200px] px-6 py-14 sm:py-16">
-          <h2 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink">Opening hours</h2>
-          <div className="mt-6">
-            <OpeningHours hours={hours} timezone={business.timezone} />
-          </div>
-        </section>
+        {hours && (
+          <section className="mx-auto max-w-[1200px] px-6 py-14 sm:py-16">
+            <h2 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink">Opening hours</h2>
+            <div className="mt-6">
+              <OpeningHours hours={hours} timezone={business.timezone} />
+            </div>
+          </section>
+        )}
 
         <LocationSection
           address={business.address ?? null}

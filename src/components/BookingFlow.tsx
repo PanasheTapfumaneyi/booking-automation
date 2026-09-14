@@ -12,21 +12,27 @@ import type {
   TimeSlot as SlotOption,
 } from "@/types/booking";
 import type { BusinessHours } from "@/lib/availability";
+import { clampQuantity, DEFAULT_TIMEZONE } from "@/lib/availability";
 import { DEMO_SERVICES, DEMO_BUSINESS } from "@/lib/demo";
 import {
   apiCreateBooking,
   apiGetAvailability,
   type ResourceAvailability,
+  type DispatchSummary,
   BookingApiError,
 } from "@/lib/booking-api";
 import {
-  hasUnitRate,
+  rentalEnablementReasons,
+  pickPreselectedVehicle,
+} from "@/lib/rental-flow";
+import {
   readUnitRate,
   rentalDays,
   computeResourceTotal,
   formatMauritianRupees,
 } from "@/lib/resource-pricing";
 import ServiceCard from "@/components/ServiceCard";
+import { ServiceListSkeleton, SlowNotice } from "@/components/LoadingState";
 import BookingCalendar from "@/components/BookingCalendar";
 import TimeSlot from "@/components/TimeSlot";
 import BookingForm, { type BookingFormValues } from "@/components/BookingForm";
@@ -66,6 +72,8 @@ const STEP_LABELS: Record<string, string> = {
 
 interface BookingFlowProps {
   businessSlug?: string;
+  /** Optional vehicle preselect via `?vehicle=<id>` from the business page. */
+  initialVehicleId?: string;
 }
 
 interface Catalog {
@@ -85,7 +93,20 @@ interface Catalog {
 // Component
 // ---------------------------------------------------------------------------
 
-export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
+function confirmationWording(summary: DispatchSummary | null): string {
+  if (!summary || !summary.dispatched) {
+    return "This page is your booking confirmation.";
+  }
+  if (summary.recipients.customer === "sent") {
+    return "A confirmation has been sent to your phone.";
+  }
+  return "This page is your booking confirmation.";
+}
+
+export default function BookingFlow({
+  businessSlug,
+  initialVehicleId,
+}: BookingFlowProps = {}) {
   const [step, setStep] = useState<Step>("service");
   const [service, setService] = useState<Service | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(
@@ -113,6 +134,7 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
   const [slots, setSlots] = useState<SlotOption[] | null>(null);
   const [slotsError, setSlotsError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [catalogRetry, setCatalogRetry] = useState(0);
 
   // Resource state
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
@@ -128,21 +150,24 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
   const [rentalRange, setRentalRange] = useState<{ startIso: string; endIso: string } | null>(null);
   const [rentalResults, setRentalResults] = useState<ResourceAvailability | null>(null);
   const [rentalLoading, setRentalLoading] = useState(false);
+  const [preselectedUsed, setPreselectedUsed] = useState(false);
 
   // Capacity state
   const [selectedSession, setSelectedSession] = useState<BookingSession | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const quantityRemaining = selectedSession?.remaining ?? 0;
 
   // Shared state
   const [booking, setBooking] = useState<Booking | null>(null);
+  const [confirmationNotice, setConfirmationNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   const mode = catalog?.business.bookingMode ?? "appointment";
-  const isRental =
-    mode === "resource" &&
-    (catalog?.resources.length ?? 0) > 0 &&
-    (catalog?.resources ?? []).every((r) => hasUnitRate(r.metadata));
+  // Every resource-mode business books an item over a date/time interval
+  // (pickup + return). Unit-rated fleets price by days × rate; non-unit rated
+  // resources (surf boards, hourly items) fall back to the service price.
+  const isRental = mode === "resource";
   const steps =
     mode === "resource"
       ? isRental
@@ -241,16 +266,13 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
         });
         setCatalogError(null);
 
-        // Rental mode: auto-select the single rental service and land on the
+        // Resource mode: auto-select the single rental service and land on the
         // availability search (no separate service picker needed).
         const rentalService = data.services[0];
         if (
           data.business.booking_mode === "resource" &&
           rentalService &&
-          data.resources.length > 0 &&
-          data.resources.every((r) =>
-            hasUnitRate((r.metadata ?? {}) as Record<string, unknown>),
-          )
+          data.resources.length > 0
         ) {
           setService({
             id: rentalService.id,
@@ -275,7 +297,7 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
     return () => {
       cancelled = true;
     };
-  }, [businessSlug]);
+  }, [businessSlug, catalogRetry]);
 
   // -----------------------------------------------------------------------
   // Load appointment slots (appointment mode only)
@@ -335,7 +357,7 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
     if (mode === "capacity") {
       setStep("session");
     } else if (mode === "resource") {
-      setStep("resource");
+      setStep("dates");
     } else {
       setStep("date");
     }
@@ -413,9 +435,37 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
       rangeEnd: endIso,
     })
       .then((availability) => {
-        setRentalResults(
-          availability.kind === "resource" ? availability : null,
-        );
+        const results =
+          availability.kind === "resource" ? availability : null;
+        setRentalResults(results);
+        if (!results) {
+          setStep("fleet");
+          return;
+        }
+        // Deep link from the business page (?vehicle=<id>): when the target
+        // vehicle is free for the chosen dates, preselect it and skip to the
+        // details step. Otherwise land on the fleet grid for a manual pick.
+        if (!preselectedUsed && initialVehicleId) {
+          const matched = pickPreselectedVehicle(
+            results.resources,
+            initialVehicleId,
+          );
+          if (matched) {
+            setSelectedResource({
+              id: matched.id,
+              businessId: catalog!.business.id,
+              name: matched.name,
+              resourceType: matched.resourceType,
+              active: true,
+              imageUrl: matched.imageUrl,
+              metadata: matched.metadata,
+            });
+            setPreselectedUsed(true);
+            setStep("details");
+            return;
+          }
+        }
+        setStep("fleet");
       })
       .catch((searchError: unknown) => {
         setError(
@@ -473,7 +523,7 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
         phone: values.phone,
         email: values.email,
       };
-    } else if (mode === "resource" && isRental) {
+    } else if (mode === "resource") {
       if (!selectedResource || !rentalRange) {
         setError("Something went wrong. Please start again.");
         setStep("dates");
@@ -483,24 +533,6 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
         serviceId: service.id,
         startTime: rentalRange.startIso,
         endTime: rentalRange.endIso,
-        name: values.name,
-        phone: values.phone,
-        email: values.email,
-        resourceId: selectedResource.id,
-      };
-    } else if (mode === "resource") {
-      if (!selectedResource || !resourceStartTime || !resourceEndTime) {
-        setError("Something went wrong. Please start again.");
-        setStep("service");
-        return;
-      }
-      // Build ISO timestamps from date + time in the business timezone
-      const startIso = buildIsoFromDateTime(resourceDateKey!, resourceStartTime, catalog!.business.timezone);
-      const endIso = buildIsoFromDateTime(resourceDateKey!, resourceEndTime, catalog!.business.timezone);
-      input = {
-        serviceId: service.id,
-        startTime: startIso,
-        endTime: endIso,
         name: values.name,
         phone: values.phone,
         email: values.email,
@@ -530,7 +562,8 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
 
     apiCreateBooking(input)
       .then((created) => {
-        setBooking(created);
+        setBooking(created.booking);
+        setConfirmationNotice(confirmationWording(created.notifications));
         setStep("confirmation");
       })
       .catch((createError: unknown) => {
@@ -562,6 +595,14 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
   const stepIndex = currentStepIndex();
   const slotsLoading = mode === "appointment" && !slotsError && slotQuery !== null && slots === null;
 
+  const rentalValidation = rentalEnablementReasons({
+    pickupDate,
+    pickupTime,
+    returnDate,
+    returnTime,
+  });
+  const rentalSearchDisabled = rentalValidation.length > 0;
+
   return (
     <div className="mx-auto w-full max-w-xl px-5 py-8">
       {/* Step indicator */}
@@ -571,7 +612,7 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
             const done = step === "confirmation" ? true : index < stepIndex;
             const active = step === item;
             return (
-              <li key={item} className="flex flex-1 items-center gap-2">
+              <li key={item} className="flex flex-1 items-center gap-2" aria-current={active ? "step" : undefined}>
                 <span
                   className={[
                     "flex h-6 w-6 items-center justify-center rounded-full border text-[11px]",
@@ -619,9 +660,21 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
             What would you like to book?
           </h1>
           {catalogError ? (
-            <p className="mt-6 text-red-700">{catalogError}</p>
+            <div className="mt-6">
+              <p className="text-red-700">{catalogError}</p>
+              <button
+                type="button"
+                onClick={() => setCatalogRetry((count) => count + 1)}
+                className="mt-3 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-paper hover:bg-black"
+              >
+                Retry
+              </button>
+            </div>
           ) : !catalog ? (
-            <p className="mt-6 text-ink-soft">Loading services…</p>
+            <div className="mt-6">
+              <ServiceListSkeleton />
+              <SlowNotice />
+            </div>
           ) : (
             <>
               <p className="mt-1.5 text-ink-soft">
@@ -706,9 +759,21 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
             </div>
           </div>
 
+          {rentalValidation.length > 0 && (
+            <ul
+              role="status"
+              className="mt-4 space-y-1 text-sm text-red-700"
+              aria-live="polite"
+            >
+              {rentalValidation.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          )}
+
           <button
             type="button"
-            disabled={!pickupDate || !pickupTime || !returnDate || !returnTime}
+            disabled={rentalSearchDisabled || rentalLoading}
             onClick={handleCheckRentalDates}
             className="mt-6 w-full rounded-full bg-ink px-6 py-3 text-sm font-semibold text-paper transition-colors hover:bg-black disabled:opacity-40"
           >
@@ -884,6 +949,7 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
                 <button
                   key={resource.id}
                   type="button"
+                  aria-label={`${resource.name}, ${resource.resourceType}`}
                   onClick={() => handleSelectResource(resource)}
                   className={[
                     "w-full rounded-xl border p-4 text-left transition-colors",
@@ -922,6 +988,7 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
               selectedDateKey={resourceDateKey}
               onSelectDateKey={handleSelectResourceDate}
               hours={catalog?.business.hours ?? null}
+              timezone={catalog?.business.timezone}
             />
           </div>
         </section>
@@ -1036,12 +1103,21 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
                     <div className="flex items-start justify-between">
                       <div>
                         <p className="font-medium">
-                          {formatSessionDate(session.startTime)}
+                          {formatSessionDate(
+                            session.startTime,
+                            catalog?.business.timezone ?? DEFAULT_TIMEZONE,
+                          )}
                         </p>
                         <p className="mt-1 text-sm text-ink-soft">
-                          {formatSessionTime(session.startTime)}
+                          {formatSessionTime(
+                            session.startTime,
+                            catalog?.business.timezone ?? DEFAULT_TIMEZONE,
+                          )}
                           {session.endTime
-                            ? ` – ${formatSessionTime(session.endTime)}`
+                            ? ` – ${formatSessionTime(
+                                session.endTime,
+                                catalog?.business.timezone ?? DEFAULT_TIMEZONE,
+                              )}`
                             : ""}
                         </p>
                       </div>
@@ -1071,35 +1147,54 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
           </button>
           <h1 className="text-2xl font-semibold tracking-tight">How many guests?</h1>
           <p className="mt-1.5 text-ink-soft">
-            {formatSessionDate(selectedSession.startTime)} ·{" "}
-            {formatSessionTime(selectedSession.startTime)}
+            {formatSessionDate(
+              selectedSession.startTime,
+              catalog?.business.timezone ?? DEFAULT_TIMEZONE,
+            )}{" "}·{" "}
+            {formatSessionTime(
+              selectedSession.startTime,
+              catalog?.business.timezone ?? DEFAULT_TIMEZONE,
+            )}
           </p>
 
           <div className="mt-6 flex items-center gap-4">
             <button
               type="button"
-              onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-lg font-medium hover:border-gold"
+              aria-label="Decrease guests"
+              disabled={quantity <= 1}
+              onClick={() => setQuantity((q) => clampQuantity(q - 1, quantityRemaining))}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-lg font-medium hover:border-gold disabled:cursor-not-allowed disabled:opacity-40"
             >
               −
             </button>
-            <span className="w-12 text-center text-2xl font-semibold">{quantity}</span>
+            <span className="w-12 text-center text-2xl font-semibold" aria-live="polite">
+              {quantity}
+            </span>
             <button
               type="button"
-              onClick={() => setQuantity((q) => q + 1)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-lg font-medium hover:border-gold"
+              aria-label="Increase guests"
+              disabled={quantityRemaining >= 1 && quantity >= quantityRemaining}
+              onClick={() => setQuantity((q) => clampQuantity(q + 1, quantityRemaining))}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-lg font-medium hover:border-gold disabled:cursor-not-allowed disabled:opacity-40"
             >
               +
             </button>
           </div>
 
+          <p className="mt-3 text-sm text-ink-soft">
+            {quantityRemaining > 0
+              ? `${quantityRemaining} spot${quantityRemaining === 1 ? "" : "s"} left for this session.`
+              : "This session just filled up — please choose another departure."}
+          </p>
+
           <button
             type="button"
+            disabled={quantityRemaining < 1}
             onClick={() => {
               setError(null);
               setStep("details");
             }}
-            className="mt-6 w-full rounded-full bg-ink px-6 py-3 text-sm font-semibold text-paper transition-colors hover:bg-black"
+            className="mt-6 w-full rounded-full bg-ink px-6 py-3 text-sm font-semibold text-paper transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
           >
             Continue
           </button>
@@ -1128,6 +1223,7 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
               selectedDateKey={selectedDateKey}
               onSelectDateKey={handleSelectDate}
               hours={catalog?.business.hours ?? null}
+              timezone={catalog?.business.timezone}
             />
           </div>
         </section>
@@ -1245,9 +1341,9 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
           <h1 className="mt-5 text-2xl font-semibold tracking-tight">
             Booking confirmed
           </h1>
-          <p className="mt-1.5 text-ink-soft">
-            You will receive a confirmation shortly.
-          </p>
+          {confirmationNotice && (
+            <p className="mt-1.5 text-ink-soft">{confirmationNotice}</p>
+          )}
 
           <div className="mt-8 text-left">
             <BookingSummary
@@ -1272,6 +1368,7 @@ export default function BookingFlow({ businessSlug }: BookingFlowProps = {}) {
               type="button"
               onClick={() => {
                 setBooking(null);
+                setConfirmationNotice(null);
                 if (isRental) {
                   setPickupDate("");
                   setPickupTime("");
@@ -1410,21 +1507,21 @@ function formatRentalTime(time: string): string {
   });
 }
 
-function formatSessionDate(iso: string): string {
+function formatSessionDate(iso: string, timezone = DEFAULT_TIMEZONE): string {
   return new Date(iso).toLocaleDateString("en-MU", {
     weekday: "short",
     day: "numeric",
     month: "short",
-    timeZone: "UTC",
+    timeZone: timezone,
   });
 }
 
-function formatSessionTime(iso: string): string {
+function formatSessionTime(iso: string, timezone = DEFAULT_TIMEZONE): string {
   return new Date(iso).toLocaleTimeString("en-MU", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-    timeZone: "UTC",
+    timeZone: timezone,
   });
 }
 

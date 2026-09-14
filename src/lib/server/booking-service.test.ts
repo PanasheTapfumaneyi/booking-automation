@@ -131,7 +131,13 @@ beforeEach(() => {
   assertResourceFreeMock.mockReset().mockResolvedValue(undefined);
   rpcMock.mockReset().mockResolvedValue({ data: { ok: true, booking: rpcRow() }, error: null });
   syncAfterCreateMock.mockReset().mockResolvedValue(undefined);
-  dispatchMock.mockReset().mockResolvedValue(undefined);
+  dispatchMock
+    .mockReset()
+    .mockResolvedValue({
+      dispatched: true,
+      recipients: { customer: "sent", business: "not_notified" },
+      primary: "customer",
+    });
 });
 
 afterEach(() => {
@@ -140,7 +146,7 @@ afterEach(() => {
 
 describe("createBooking — resource (rental)", () => {
   it("persists the interval + item and returns the computed day×rate total", async () => {
-    const booking = await createBooking(baseInput);
+    const { booking } = await createBooking(baseInput);
 
     expect(rpcMock).toHaveBeenCalledOnce();
     const rpcArgs = rpcMock.mock.calls[0][1] as Record<string, unknown>;
@@ -156,6 +162,15 @@ describe("createBooking — resource (rental)", () => {
     expect(booking.resourceId).toBe("res-vitz");
     expect(booking.resourceName).toBe("Toyota Vitz");
     expect(booking.servicePrice).toBe(2800); // 2 days × 1400
+  });
+
+  it("surfaces the notification dispatch summary (KIVO-025/040)", async () => {
+    const { notifications } = await createBooking(baseInput);
+    expect(notifications).toEqual({
+      dispatched: true,
+      recipients: { customer: "sent", business: "not_notified" },
+      primary: "customer",
+    });
   });
 
   it("drives calendar sync with the vehicle name and the formatted total", async () => {

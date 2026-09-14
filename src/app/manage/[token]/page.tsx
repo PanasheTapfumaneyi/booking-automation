@@ -8,9 +8,9 @@ interface ManagePageProps {
 }
 
 export const metadata: Metadata = {
-  title: "Manage appointment — Fade District",
-  description:
-    "View, reschedule or cancel your appointment at Fade District.",
+  title: "Manage your booking",
+  description: "View, reschedule or cancel your booking.", // neutral: valid and invalid tokens share this
+  robots: { index: false, follow: false },
 };
 
 export default async function ManagePage({ params }: ManagePageProps) {

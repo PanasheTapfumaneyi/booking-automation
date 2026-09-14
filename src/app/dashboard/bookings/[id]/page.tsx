@@ -4,6 +4,7 @@ import { redirect, notFound } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BookingActions from "@/components/BookingActions";
+import CopyBookingLink from "@/components/CopyBookingLink";
 import { StatusPill } from "@/app/dashboard/page";
 import { formatTimeInZone, formatLongDateInZone } from "@/lib/availability";
 import { formatMauritianRupees } from "@/lib/resource-pricing";
@@ -18,8 +19,9 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Booking details — Kivo",
+  title: "Booking details",
   description: "Review, reschedule or cancel a booking.",
+  robots: { index: false, follow: false },
 };
 
 interface DetailPageProps {
@@ -36,10 +38,14 @@ export default async function BookingDetailPage({ params, searchParams }: Detail
 
   const { id: bookingId } = await params;
   const query = await searchParams;
-  const selectedId =
-    (query.business && memberships.some((m) => m.business_id === query.business)
-      ? query.business
-      : memberships[0].business_id) as string;
+  // A provided but unowned business id is a 404 (KIVO-027), never a silent
+  // fallback to another business.
+  const requestedBusiness =
+    query.business && query.business.trim().length > 0 ? query.business : null;
+  if (requestedBusiness && !memberships.some((m) => m.business_id === requestedBusiness)) {
+    notFound();
+  }
+  const selectedId = (requestedBusiness ? requestedBusiness : memberships[0].business_id) as string;
 
   // Ownership is verified inside requireBusinessOwner; unknown ids and other
   // businesses' bookings share one safe 404 below.
@@ -65,7 +71,10 @@ export default async function BookingDetailPage({ params, searchParams }: Detail
             <h1 className="text-2xl font-semibold tracking-tight">
               {formatLongDateInZone(booking.startTime, tz)}
             </h1>
-            <StatusPill status={booking.status} />
+            <div className="flex items-center gap-2">
+              <StatusPill status={booking.status} />
+              <CopyBookingLink slug={ctx.business.slug} />
+            </div>
           </div>
           <p className="mt-1 tabular-nums text-ink-soft">
             {formatTimeInZone(booking.startTime, tz)} – {formatTimeInZone(booking.endTime, tz)} · {tz}

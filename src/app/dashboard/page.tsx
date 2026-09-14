@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CopyBookingLink from "@/components/CopyBookingLink";
@@ -14,12 +14,14 @@ import {
   getBusinessDayBounds,
 } from "@/lib/server/business-bookings";
 import { listResources, listSessions } from "@/lib/server/businesses";
+import WorkspaceShell from "@/components/WorkspaceShell";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Dashboard — Kivo",
+  title: "Dashboard",
   description: "Today's bookings, upcoming appointments, and quick actions.",
+  robots: { index: false, follow: false },
 };
 
 interface DashboardPageProps {
@@ -38,10 +40,14 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   if (memberships.length === 0) redirect("/onboarding");
 
   const params = await searchParams;
-  const selectedId =
-    (params.business && memberships.some((m) => m.business_id === params.business)
-      ? params.business
-      : memberships[0].business_id) as string;
+  // A provided but unowned business id is a 404 (KIVO-027), never a silent
+  // fallback to another business.
+  const requestedBusiness =
+    params.business && params.business.trim().length > 0 ? params.business : null;
+  if (requestedBusiness && !memberships.some((m) => m.business_id === requestedBusiness)) {
+    notFound();
+  }
+  const selectedId = (requestedBusiness ? requestedBusiness : memberships[0].business_id) as string;
 
   const db = getSupabase();
   const business = await fetchBusiness(selectedId, db).catch(() => null);
@@ -57,6 +63,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const now = new Date();
   const bounds = getBusinessDayBounds(business.timezone, now);
+  const todayLabel = new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: business.timezone,
+  }).format(now);
   const [today, upcoming, counts] = await Promise.all([
     listBusinessBookings(
       business.id,
@@ -89,12 +102,19 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     <>
       <Navbar />
       <main className="flex-1">
-        <div className="mx-auto w-full max-w-3xl px-5 py-10">
+        <div className="mx-auto w-full max-w-5xl px-5 py-10">
+          <div className="flex flex-col gap-8 lg:flex-row">
+            <WorkspaceShell
+              businessId={business.id}
+              businessName={business.name}
+              businessSlug={business.slug}
+            />
+            <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">{business.name}</h1>
               <p className="mt-1 text-sm text-ink-soft">
-                {bounds.todayKey} · {business.timezone}
+                {todayLabel} · {business.timezone}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -305,6 +325,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             <Link href="/logout" className="font-medium text-ink-soft hover:text-ink">
               Log out
             </Link>
+          </div>
+            </div>
           </div>
         </div>
       </main>

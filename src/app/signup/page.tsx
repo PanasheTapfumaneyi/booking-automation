@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 import LoginForm from "@/components/LoginForm";
 
 export const metadata: Metadata = {
-  title: "Create your business account — Kivo",
+  title: "Create your business account",
   description: "Set up online booking for your business on Kivo.",
 };
 

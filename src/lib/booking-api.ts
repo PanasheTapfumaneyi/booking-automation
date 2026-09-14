@@ -73,11 +73,26 @@ export function apiGetBooking(token: string): Promise<Booking> {
   ).then((body) => body.booking);
 }
 
-export function apiCreateBooking(input: NewBookingInput): Promise<Booking> {
-  return request<{ booking: Booking }>("/api/bookings", {
+export interface DispatchSummary {
+  dispatched: boolean;
+  recipients: {
+    customer: "sent" | "failed" | "skipped" | "not_notified";
+    business: "sent" | "failed" | "skipped" | "not_notified";
+  };
+  primary: "customer";
+}
+
+export interface CreateBookingResponse {
+  booking: Booking;
+  /** Honest non-throwing dispatch summary from the booking engine. */
+  notifications: DispatchSummary;
+}
+
+export function apiCreateBooking(input: NewBookingInput): Promise<CreateBookingResponse> {
+  return request<CreateBookingResponse>("/api/bookings", {
     method: "POST",
     body: JSON.stringify(input),
-  }).then((body) => body.booking);
+  });
 }
 
 export function apiRescheduleBooking(

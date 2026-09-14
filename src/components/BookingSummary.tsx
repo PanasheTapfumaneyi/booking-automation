@@ -1,6 +1,11 @@
 import type { Booking } from "@/types/booking";
-import { DEMO_BUSINESS } from "@/lib/demo";
-import { formatLongDate, formatTime, minutesToLabel } from "@/lib/availability";
+import {
+  formatLongDate,
+  formatTime,
+  formatLongDateInZone,
+  formatTimeInZone,
+  minutesToLabel,
+} from "@/lib/availability";
 
 interface BookingSummaryProps {
   booking: Pick<
@@ -10,8 +15,10 @@ interface BookingSummaryProps {
     | "endTime"
     | "servicePrice"
     | "serviceDurationMinutes"
+    | "businessName"
+    | "businessTimezone"
   >;
-  /** Business name shown in the header. Defaults to the demo business. */
+  /** Business name shown in the header (falls back to the booking's own). */
   businessName?: string;
   showPrice?: boolean;
 }
@@ -21,17 +28,27 @@ export default function BookingSummary({
   businessName,
   showPrice = true,
 }: BookingSummaryProps) {
-  const date = formatLongDate(booking.startTime);
-  const endDate = formatLongDate(booking.endTime);
-  const start = formatTime(booking.startTime);
-  const end = formatTime(booking.endTime);
+  const timezone = booking.businessTimezone;
+  const date = timezone
+    ? formatLongDateInZone(booking.startTime, timezone)
+    : formatLongDate(booking.startTime);
+  const endDate = timezone
+    ? formatLongDateInZone(booking.endTime, timezone)
+    : formatLongDate(booking.endTime);
+  const start = timezone
+    ? formatTimeInZone(booking.startTime, timezone)
+    : formatTime(booking.startTime);
+  const end = timezone
+    ? formatTimeInZone(booking.endTime, timezone)
+    : formatTime(booking.endTime);
   const hasDuration = booking.serviceDurationMinutes > 0;
   const multiDay = !hasDuration && date !== endDate;
+  const name = booking.businessName ?? businessName ?? "This business";
 
   return (
     <div className="w-full rounded-xl border border-line bg-card p-5">
       <p className="text-sm font-medium uppercase tracking-wide text-ink-soft">
-        {businessName ?? DEMO_BUSINESS.name}
+        {name}
       </p>
       <div className="mt-3 flex items-start justify-between gap-4">
         <div>

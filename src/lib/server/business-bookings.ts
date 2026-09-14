@@ -29,6 +29,7 @@ import {
   cancelBooking,
   type CreateBookingInput,
 } from "@/lib/server/booking-service";
+import type { NotificationDispatchResult } from "@/lib/server/notifications/service";
 import { toDateKey, getLocalDayInfo, addDaysKey } from "@/lib/availability/time";
 import { computeResourceTotal } from "@/lib/resource-pricing";
 import type { Booking } from "@/types/booking";
@@ -457,6 +458,12 @@ async function resolveBusinessCustomer(
   return { name: input.name, phone: input.phone, email: input.email };
 }
 
+export interface CreateBusinessBookingResult {
+  booking: BusinessBooking;
+  /** Non-throwing dispatch summary from the shared booking core. */
+  notifications: NotificationDispatchResult;
+}
+
 /**
  * Business-side create: verifies every referenced row belongs to the
  * business, then runs the shared createBooking core (constraints, Calendar
@@ -466,7 +473,7 @@ export async function createBusinessBooking(
   business: BusinessRow,
   input: BusinessCreateBookingInput,
   db?: DbLike,
-): Promise<BusinessBooking> {
+): Promise<CreateBusinessBookingResult> {
   await assertServiceBelongs(business.id, input.serviceId);
   if (input.resourceId) {
     const client = serviceDb(db);
@@ -500,9 +507,10 @@ export async function createBusinessBooking(
   });
   // Re-read for authoritative calendar-sync columns; fall back to the
   // sanitized core result if the re-read races the commit.
-  return (
-    (await fetchBusinessBookingById(business.id, created.id, db)) ?? sanitizeBooking(created)
-  );
+  const booking =
+    (await fetchBusinessBookingById(business.id, created.booking.id, db)) ??
+    sanitizeBooking(created.booking);
+  return { booking, notifications: created.notifications };
 }
 
 /** Business-side reschedule: same core, same token, same side effects. */

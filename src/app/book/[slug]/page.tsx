@@ -8,20 +8,31 @@ import { fetchBusinessBySlug } from "@/lib/server/database";
 
 interface BookSlugPageProps {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ vehicle?: string }>;
 }
+
+const MODE_META: Record<string, { verb: string; blurb: string }> = {
+  appointment: { verb: "Book an appointment", blurb: "pick a service and choose a time" },
+  capacity: { verb: "Book a session", blurb: "join a scheduled session" },
+  resource: { verb: "Book a rental", blurb: "reserve an item for your dates" },
+};
 
 export async function generateMetadata({ params }: BookSlugPageProps): Promise<Metadata> {
   const { slug } = await params;
   const business = await fetchBusinessBySlug(slug, getSupabase()).catch(() => null);
-  if (!business || business.is_active === false) return { title: "Business not found — Kivo" };
+  if (!business || business.is_active === false) {
+    return { title: "Booking not found" };
+  }
+  const meta = MODE_META[business.booking_mode] ?? MODE_META.appointment;
   return {
-    title: `Book an appointment — ${business.name}`,
-    description: `Pick a service, choose a time and book at ${business.name} in under a minute.`,
+    title: `${meta.verb} — ${business.name}`,
+    description: `${meta.verb.at(0)?.toUpperCase()}${meta.verb.slice(1)} at ${business.name} — ${meta.blurb} in under a minute.`,
   };
 }
 
-export default async function BookSlugPage({ params }: BookSlugPageProps) {
+export default async function BookSlugPage({ params, searchParams }: BookSlugPageProps) {
   const { slug } = await params;
+  const query = await searchParams;
   const business = await fetchBusinessBySlug(slug, getSupabase()).catch(() => null);
   if (!business || business.is_active === false) notFound();
 
@@ -29,7 +40,10 @@ export default async function BookSlugPage({ params }: BookSlugPageProps) {
     <>
       <Navbar />
       <main className="flex-1">
-        <BookingFlow businessSlug={business.slug ?? slug} />
+        <BookingFlow
+          businessSlug={business.slug ?? slug}
+          initialVehicleId={query.vehicle || undefined}
+        />
       </main>
       <Footer />
     </>
