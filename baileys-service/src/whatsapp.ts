@@ -7,7 +7,9 @@
  *  - Auth persists via `useMultiFileAuthState` under the configured dir;
  *    `creds.update` is always wired to `saveCreds`.
  *  - The QR string from `connection.update` is handed to an injected renderer
- *    (terminal in production). QR data is never exposed over HTTP.
+ *    (in-memory holder in production, served only as a PNG through the
+ *    authenticated GET /qr endpoint). The raw QR string is never logged,
+ *    returned as JSON, or written to disk.
  *  - The WA version is fetched dynamically with `fetchLatestBaileysVersion`
  *    and falls back to Baileys' built-in default when unreachable — no stale
  *    hardcoded version lives here.
@@ -52,6 +54,8 @@ interface WhatsAppConnectionOptions {
   logger?: pino.Logger<string>;
   /** Renders the linking QR (terminal by default). Never logs or stores it. */
   onQr?: (qr: string) => void;
+  /** Fires once the socket reports `open` (linking succeeded). */
+  onConnected?: () => void;
   versionFetcher?: () => Promise<{ version: WAVersion }>;
   socketFactory?: (args: {
     version: WAVersion | undefined;
@@ -188,6 +192,11 @@ export class WhatsAppConnection implements WhatsAppGateway {
     const connection = update.connection;
     if (connection === "open") {
       this.setState("connected");
+      try {
+        this.opts.onConnected?.();
+      } catch {
+        // Post-connect hooks must never break the connection loop.
+      }
       return;
     }
     if (connection !== "close") return;
