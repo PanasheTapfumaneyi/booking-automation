@@ -14,6 +14,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { getDemoById } from "./demo-data.mjs";
+import { applyDemoReservations } from "./demo-reservations.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -93,4 +94,7 @@ for (const demo of demos ?? []) {
   restored++;
 }
 
-console.log(`reset:demo done — removed bookings=${bCount ?? 0} customers=${cCount ?? 0} restored=${restored} (demo businesses only)`);
+// Re-apply canonical demo reservations so the dashboards stay alive.
+const reservations = await applyDemoReservations(db);
+
+console.log(`reset:demo done — removed bookings=${bCount ?? 0} customers=${cCount ?? 0} restored=${restored} reservations=${reservations} (demo businesses only)`);

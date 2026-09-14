@@ -4,12 +4,29 @@ import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 
 export const metadata: Metadata = {
-  title: "Try Kivo — Live Demos",
+  title: "Try the live demos",
   description:
     "See how Kivo works for different business types. Try appointment booking, resource rental, or capacity-based class scheduling.",
 };
 
 const DEMOS = [
+  {
+    slug: "kivo-drive",
+    mode: "Car Rental",
+    title: "Kivo Drive",
+    desc: "Multi-day vehicle rental with per-day pricing and a live fleet.",
+    details: "Car rental &middot; 5 vehicles &middot; daily rates",
+    cta: "Rent a car",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M5 16L6.5 8.5C6.8 7.4 7.8 6.5 8.9 6.5H15.1C16.2 6.5 17.2 7.4 17.5 8.5L19 16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M3.5 16H20.5V18H3.5V16Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+        <circle cx="7.5" cy="19.5" r="1.5" fill="currentColor" />
+        <circle cx="16.5" cy="19.5" r="1.5" fill="currentColor" />
+        <path d="M15 10L16 7M15 10H14.8M12.5 10H11.5M9 10H8.8M8 7H9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    ),
+  },
   {
     slug: "fade-area",
     mode: "Appointments",
@@ -75,7 +92,7 @@ export default function DemoPage() {
             </p>
           </div>
 
-          <div className="mt-12 grid gap-5 sm:grid-cols-3">
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {DEMOS.map((demo) => (
               <div
                 key={demo.slug}

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 const NAV_LINKS = [
@@ -11,6 +12,9 @@ const NAV_LINKS = [
 
 export default function MarketingHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
+  // Off the homepage the fragment targets don't exist, so link to the root.
+  const anchorBase = pathname === "/" ? "" : "/";
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-paper/95 backdrop-blur-sm">
@@ -28,7 +32,7 @@ export default function MarketingHeader() {
           {NAV_LINKS.map((link) => (
             <a
               key={link.href}
-              href={link.href}
+              href={`${anchorBase}${link.href}`}
               className="rounded-lg px-4 py-2 text-[15px] font-medium text-ink-soft transition-colors duration-150 hover:text-ink"
             >
               {link.label}
@@ -85,7 +89,7 @@ export default function MarketingHeader() {
             {NAV_LINKS.map((link) => (
               <a
                 key={link.href}
-                href={link.href}
+                href={`${anchorBase}${link.href}`}
                 className="rounded-lg px-3 py-2.5 text-[15px] font-medium text-ink-soft transition-colors duration-150 hover:bg-surface-muted hover:text-ink"
                 onClick={() => setMenuOpen(false)}
               >

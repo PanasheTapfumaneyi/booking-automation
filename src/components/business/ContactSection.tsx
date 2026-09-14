@@ -9,7 +9,6 @@ interface ContactSectionProps {
 }
 
 export default function ContactSection({
-  name,
   phone,
   email,
   bookHref,

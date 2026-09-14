@@ -135,12 +135,12 @@ export default function Hero() {
               <p className="text-sm font-semibold text-ink">Standard Service</p>
               <p className="text-xs text-ink-soft">45 min · Available today</p>
             </div>
-            <button
-              type="button"
-              className="mt-3 w-full rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white"
+            <Link
+              href="/demo"
+              className="mt-3 block w-full rounded-lg bg-brand px-4 py-2 text-center text-xs font-semibold text-white transition-colors hover:bg-brand-hover"
             >
               Continue
-            </button>
+            </Link>
           </div>
         </div>
       </div>

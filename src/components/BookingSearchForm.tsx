@@ -10,6 +10,7 @@ export default function BookingSearchForm({
   timezone,
   view,
   initialSearch,
+  services,
   serviceId,
   resourceId,
   sessionId,
@@ -20,6 +21,7 @@ export default function BookingSearchForm({
   timezone: string;
   view: string;
   initialSearch: string;
+  services: Array<{ id: string; name: string }>;
   serviceId: string;
   resourceId: string;
   sessionId: string;
@@ -78,13 +80,19 @@ export default function BookingSearchForm({
         </button>
       </div>
       <div className="flex flex-wrap gap-2">
-        <input
-          aria-label="Filter by service id"
-          placeholder="Service ID (optional)"
+        <select
+          aria-label="Filter by service"
           value={service}
           onChange={(e) => setService(e.target.value)}
-          className={`${inputClass} w-40`}
-        />
+          className={`${inputClass} w-44`}
+        >
+          <option value="">All services</option>
+          {services.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
         <input
           aria-label="From date"
           type="date"

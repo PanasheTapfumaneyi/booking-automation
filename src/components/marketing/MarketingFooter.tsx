@@ -20,9 +20,9 @@ export default function MarketingFooter() {
           </div>
 
           <nav className="flex flex-wrap gap-x-8 gap-y-3 text-sm" aria-label="Footer navigation">
-            <a href="#product" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Product</a>
-            <a href="#solutions" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Solutions</a>
-            <a href="#how-it-works" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">How It Works</a>
+            <Link href="/#product" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Product</Link>
+            <Link href="/#solutions" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Solutions</Link>
+            <Link href="/#how-it-works" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">How It Works</Link>
             <Link href="/login" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Sign In</Link>
             <Link href="/signup" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Get Started</Link>
           </nav>

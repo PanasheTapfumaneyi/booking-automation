@@ -29,12 +29,38 @@ export function toApiErrorResponse(error: unknown): NextResponse {
   }
 
   console.error("[api] unexpected error:", error);
+  // Development-only diagnostic category so a failing catalog/slot call
+  // can be attributed (public resolution vs service query vs booked-count
+  // vs schema drift) without exposing anything to production clients.
+  // PostgREST errors carry message/details/hint/code — never credentials —
+  // and this branch never runs when NODE_ENV is production.
+  const devDetail =
+    process.env.NODE_ENV === "production"
+      ? undefined
+      : error instanceof Error
+        ? {
+            devKind: "Error",
+            devMessage: error.message,
+          }
+        : typeof error === "object" && error !== null
+          ? {
+              devKind: "PostgrestLike",
+              devMessage:
+                (error as { message?: unknown }).message != null
+                  ? String((error as { message?: unknown }).message)
+                  : undefined,
+              devDetails: (error as { details?: unknown }).details,
+              devHint: (error as { hint?: unknown }).hint,
+              devCode: (error as { code?: unknown }).code,
+            }
+          : undefined;
   return NextResponse.json(
     {
       error: {
         code: "INTERNAL",
         userMessage:
           "Something went wrong on our side. Please try again in a moment.",
+        ...(devDetail ? { dev: devDetail } : {}),
       },
     },
     { status: 500 },

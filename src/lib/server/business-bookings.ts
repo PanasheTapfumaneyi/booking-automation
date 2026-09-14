@@ -29,7 +29,9 @@ import {
   cancelBooking,
   type CreateBookingInput,
 } from "@/lib/server/booking-service";
+import type { NotificationDispatchResult } from "@/lib/server/notifications/service";
 import { toDateKey, getLocalDayInfo, addDaysKey } from "@/lib/availability/time";
+import { computeResourceTotal } from "@/lib/resource-pricing";
 import type { Booking } from "@/types/booking";
 
 type DbLike = Pick<SupabaseClient, "from">;
@@ -58,7 +60,7 @@ export const BOOKING_ADMIN_SELECT = [
   "updated_at",
   "service:services(id, name, duration_minutes, price)",
   "customer:customers(id, name, phone, email)",
-  "resource:resources(id, name)",
+  "resource:resources(id, name, metadata)",
   "session:booking_sessions(id, start_time, end_time, capacity)",
 ].join(", ");
 
@@ -96,7 +98,7 @@ interface AdminRow {
   updated_at: string;
   service?: { id: string; name: string; duration_minutes: number; price: number | string } | null;
   customer?: { id: string; name: string; phone: string; email: string | null } | null;
-  resource?: { id: string; name: string } | null;
+  resource?: { id: string; name: string; metadata: Record<string, unknown> | null } | null;
   session?: { id: string; start_time: string; end_time: string | null; capacity: number } | null;
 }
 
@@ -110,7 +112,13 @@ function toBusinessBooking(row: AdminRow): BusinessBooking {
     sessionId: row.session_id,
     quantity: row.quantity,
     serviceName: row.service?.name ?? "",
-    servicePrice: Number(row.service?.price ?? 0),
+    // Unit-rate rentals price by days × rate; anything else keeps the price.
+    servicePrice: computeResourceTotal({
+      metadata: row.resource?.metadata ?? null,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      fallbackPrice: Number(row.service?.price ?? 0),
+    }),
     serviceDurationMinutes: row.service?.duration_minutes ?? 0,
     customerName: row.customer?.name ?? "",
     customerPhone: row.customer?.phone ?? "",
@@ -450,6 +458,12 @@ async function resolveBusinessCustomer(
   return { name: input.name, phone: input.phone, email: input.email };
 }
 
+export interface CreateBusinessBookingResult {
+  booking: BusinessBooking;
+  /** Non-throwing dispatch summary from the shared booking core. */
+  notifications: NotificationDispatchResult;
+}
+
 /**
  * Business-side create: verifies every referenced row belongs to the
  * business, then runs the shared createBooking core (constraints, Calendar
@@ -459,7 +473,7 @@ export async function createBusinessBooking(
   business: BusinessRow,
   input: BusinessCreateBookingInput,
   db?: DbLike,
-): Promise<BusinessBooking> {
+): Promise<CreateBusinessBookingResult> {
   await assertServiceBelongs(business.id, input.serviceId);
   if (input.resourceId) {
     const client = serviceDb(db);
@@ -493,9 +507,10 @@ export async function createBusinessBooking(
   });
   // Re-read for authoritative calendar-sync columns; fall back to the
   // sanitized core result if the re-read races the commit.
-  return (
-    (await fetchBusinessBookingById(business.id, created.id, db)) ?? sanitizeBooking(created)
-  );
+  const booking =
+    (await fetchBusinessBookingById(business.id, created.booking.id, db)) ??
+    sanitizeBooking(created.booking);
+  return { booking, notifications: created.notifications };
 }
 
 /** Business-side reschedule: same core, same token, same side effects. */

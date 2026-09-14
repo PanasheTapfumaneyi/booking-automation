@@ -57,7 +57,9 @@ function deterministicUid(event: CalendarEvent): string {
 }
 
 export function generateIcs(event: CalendarEvent): string {
-  const summary = `${event.businessName} - ${event.serviceName}`;
+  const summary = event.resourceName
+    ? `${event.resourceName} - ${event.customerName ?? event.businessName}`
+    : `${event.businessName} - ${event.serviceName}`;
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "PRODID:-//Kivo//Booking//EN",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export interface BookingFormValues {
   name: string;
@@ -44,14 +44,32 @@ export default function BookingForm({
     email: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const nameRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const fieldRefMap: Record<keyof BookingFormValues, React.RefObject<HTMLInputElement | null>> = {
+    name: nameRef,
+    phone: phoneRef,
+    email: emailRef,
+  };
+
+  const canSubmit =
+    !disabled &&
+    values.name.trim().length > 0 &&
+    values.phone.replace(/\D/g, "").length >= 7;
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const nextErrors = validate(values);
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length === 0) {
-      onSubmit(values);
+    const firstInvalid = (["name", "phone", "email"] as const).find(
+      (field) => nextErrors[field],
+    );
+    if (firstInvalid) {
+      fieldRefMap[firstInvalid].current?.focus();
+      return;
     }
+    onSubmit(values);
   }
 
   function update(field: keyof BookingFormValues, value: string) {
@@ -80,14 +98,23 @@ export default function BookingForm({
         </label>
         <input
           id="customer-name"
+          ref={nameRef}
           type="text"
           autoComplete="name"
+          required
+          aria-required="true"
+          aria-invalid={Boolean(errors.name)}
+          aria-describedby={errors.name ? "customer-name-error" : undefined}
           value={values.name}
           onChange={(event) => update("name", event.target.value)}
           className={inputClass("name")}
           placeholder="Jean Smith"
         />
-        {errors.name && <p className="mt-1.5 text-sm text-red-600">{errors.name}</p>}
+        {errors.name && (
+          <p id="customer-name-error" className="mt-1.5 text-sm text-red-600">
+            {errors.name}
+          </p>
+        )}
       </div>
 
       <div>
@@ -96,9 +123,16 @@ export default function BookingForm({
         </label>
         <input
           id="customer-phone"
+          ref={phoneRef}
           type="tel"
           autoComplete="tel"
           inputMode="tel"
+          required
+          aria-required="true"
+          aria-invalid={Boolean(errors.phone)}
+          aria-describedby={
+            errors.phone ? "customer-phone-error" : undefined
+          }
           value={values.phone}
           onChange={(event) => update("phone", event.target.value)}
           className={inputClass("phone")}
@@ -107,7 +141,11 @@ export default function BookingForm({
         <p className="mt-1.5 text-xs text-ink-soft">
           Used for booking confirmations and reminders.
         </p>
-        {errors.phone && <p className="mt-1.5 text-sm text-red-600">{errors.phone}</p>}
+        {errors.phone && (
+          <p id="customer-phone-error" className="mt-1.5 text-sm text-red-600">
+            {errors.phone}
+          </p>
+        )}
       </div>
 
       <div>
@@ -116,20 +154,27 @@ export default function BookingForm({
         </label>
         <input
           id="customer-email"
+          ref={emailRef}
           type="email"
           autoComplete="email"
           inputMode="email"
+          aria-invalid={Boolean(errors.email)}
+          aria-describedby={errors.email ? "customer-email-error" : undefined}
           value={values.email}
           onChange={(event) => update("email", event.target.value)}
           className={inputClass("email")}
           placeholder="you@example.com"
         />
-        {errors.email && <p className="mt-1.5 text-sm text-red-600">{errors.email}</p>}
+        {errors.email && (
+          <p id="customer-email-error" className="mt-1.5 text-sm text-red-600">
+            {errors.email}
+          </p>
+        )}
       </div>
 
       <button
         type="submit"
-        disabled={disabled}
+        disabled={!canSubmit}
         className="mt-2 rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
       >
         {submitLabel}

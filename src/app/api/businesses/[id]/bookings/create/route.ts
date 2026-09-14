@@ -37,7 +37,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     if (!body || typeof body.serviceId !== "string") {
       return NextResponse.json({ error: "A service is required." }, { status: 400 });
     }
-    const booking = await createBusinessBooking(
+    const result = await createBusinessBooking(
       ctx.business,
       {
         serviceId: body.serviceId,
@@ -53,7 +53,10 @@ export async function POST(request: Request, { params }: RouteContext) {
       },
       getSupabase(),
     );
-    return NextResponse.json({ booking }, { status: 201 });
+    return NextResponse.json(
+      { booking: result.booking, notifications: result.notifications },
+      { status: 201 },
+    );
   } catch (error) {
     return toApiErrorResponse(error);
   }

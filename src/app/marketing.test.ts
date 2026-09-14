@@ -35,13 +35,15 @@ describe("marketing — demo page", () => {
     const mod = await import("@/app/demo/page");
     expect(mod.metadata).toBeDefined();
     if (typeof mod.metadata === "object" && mod.metadata !== null && "title" in mod.metadata) {
-      expect(String(mod.metadata.title)).toContain("Kivo");
+      // The root layout template appends "— Kivo", so page titles stay terse
+      // and never duplicate the brand (KIVO-007).
+      expect(mod.metadata.title).not.toContain("Kivo");
     }
   });
 
   it("chooser links business page, booking flow, and demo dashboard per demo", () => {
     const page = src("app/demo/page.tsx");
-    for (const slug of ["fade-area", "island-surf", "blue-lagoon"]) {
+    for (const slug of ["kivo-drive", "fade-area", "island-surf", "blue-lagoon"]) {
       expect(page).toContain(slug);
     }
     expect(page).toContain("/business/${demo.slug}");
@@ -75,7 +77,7 @@ describe("marketing — demo CTAs on the main site", () => {
 });
 
 describe("marketing — demo business slugs", () => {
-  const demoSlugs = ["fade-area", "island-surf", "blue-lagoon"];
+  const demoSlugs = ["kivo-drive", "fade-area", "island-surf", "blue-lagoon"];
 
   for (const slug of demoSlugs) {
     it(`${slug} is a valid demo slug`, () => {

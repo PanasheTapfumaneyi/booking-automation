@@ -4,6 +4,7 @@ import { ApiError } from "@/lib/server/errors";
 import {
   type ServiceRow,
   type BookingRow,
+  type BusinessRow,
   BOOKING_SELECT,
   fetchBusiness,
   fetchService,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/server/strategies/capacity";
 
 import { generateManageToken } from "@/lib/server/token";
+import { computeResourceTotal, formatMauritianRupees } from "@/lib/resource-pricing";
 import {
   assertNewTimeCalendarFree,
   moveCalendarEvent,
@@ -29,7 +31,10 @@ import {
   syncAfterCreate,
 } from "@/lib/server/google-calendar/sync";
 
-import { dispatchBookingEvent } from "@/lib/server/notifications/service";
+import {
+  dispatchBookingEvent,
+  type NotificationDispatchResult,
+} from "@/lib/server/notifications/service";
 
 export { generateManageToken } from "@/lib/server/token";
 
@@ -89,7 +94,14 @@ function mapBooking(row: BookingRow): Booking {
     quantity: row.quantity,
     resourceName: row.resource?.name ?? null,
     serviceName: row.service?.name ?? "",
-    servicePrice: Number(row.service?.price ?? 0),
+    resourceName: row.resource?.name ?? null,
+    // Unit-rate resource bookings (rentals) price by days × resource rate.
+    servicePrice: computeResourceTotal({
+      metadata: row.resource?.metadata ?? null,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      fallbackPrice: Number(row.service?.price ?? 0),
+    }),
     serviceDurationMinutes: row.service?.duration_minutes ?? 0,
     customerName: row.customer?.name ?? "",
     customerPhone: row.customer?.phone ?? "",
@@ -111,6 +123,21 @@ function normalizeBookingRow(
   customer: { name: string; phone: string; email: string | null },
 ): Booking {
   return mapBooking({ ...row, service, customer });
+}
+
+/**
+ * Attaches the real business identity to an API-facing booking so headers,
+ * summaries and timezone formatting never fall back to a hardcoded demo name.
+ */
+function withBusinessContext(
+  booking: Booking,
+  business: Pick<BusinessRow, "name" | "timezone">,
+): Booking {
+  return {
+    ...booking,
+    businessName: business.name,
+    businessTimezone: business.timezone,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -164,7 +191,19 @@ async function insertBooking(rpcArgs: Record<string, unknown>): Promise<BookingR
 
 export type CreateBookingInput = NewBookingInput;
 
-export async function createBooking(input: CreateBookingInput): Promise<Booking> {
+export interface CreateBookingResult {
+  booking: Booking;
+  /**
+   * Non-throwing notification dispatch summary. Lets the UI be honest about
+   * whether a confirmation was actually sent (KIVO-025/040) instead of
+   * promising one unconditionally.
+   */
+  notifications: NotificationDispatchResult;
+}
+
+export async function createBooking(
+  input: CreateBookingInput,
+): Promise<CreateBookingResult> {
   const contact = validateContact(input);
 
   const service = await fetchService(input.serviceId);
@@ -218,7 +257,7 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
 
       // Fire-and-forget: WhatsApp failure never blocks the booking response
       // (notification dispatch is fully non-throwing — §22 failure isolation).
-      await dispatchBookingEvent({
+      const notifications = await dispatchBookingEvent({
         business,
         serviceName: service.name,
         booking: row,
@@ -226,7 +265,7 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
         type: "booking.created",
       });
 
-      return booking;
+      return { booking: withBusinessContext(booking, business), notifications };
     }
 
     case "resource": {
@@ -237,7 +276,7 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
           "Please choose one of the available items.",
         );
       }
-      await validateResourceBooking({
+      const resource = await validateResourceBooking({
         businessId: business.id,
         resourceId: input.resourceId,
       });
@@ -277,15 +316,39 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
         p_manage_token: token,
         p_resource_id: input.resourceId,
       });
+
+      const displayTotal = formatMauritianRupees(
+        computeResourceTotal({
+          metadata: resource.metadata,
+          startTime: startIso,
+          endTime: endIso,
+          fallbackPrice: Number(service.price),
+        }),
+      );
       const bookingResource = normalizeBookingRow(row, service, contact);
-      await dispatchBookingEvent({
+      await syncAfterCreate({
+        business,
+        service,
+        row,
+        customerName: contact.name,
+        customerPhone: contact.phone,
+        customerEmail: contact.email,
+        resourceName: resource.name,
+        displayTotal,
+      });
+      const notifications = await dispatchBookingEvent({
         business,
         serviceName: service.name,
         booking: row,
         customer: contact,
         type: "booking.created",
+        resourceName: resource.name,
+        displayTotal,
       });
-      return bookingResource;
+      return {
+        booking: withBusinessContext(bookingResource, business),
+        notifications,
+      };
     }
 
     case "capacity": {
@@ -317,14 +380,17 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
         p_quantity: quantity,
       });
       const bookingCapacity = normalizeBookingRow(row, service, contact);
-      await dispatchBookingEvent({
+      const notifications = await dispatchBookingEvent({
         business,
         serviceName: service.name,
         booking: row,
         customer: contact,
         type: "booking.created",
       });
-      return bookingCapacity;
+      return {
+        booking: withBusinessContext(bookingCapacity, business),
+        notifications,
+      };
     }
   }
 }
@@ -338,7 +404,8 @@ export async function getBookingByToken(token: string): Promise<Booking> {
       "We couldn't find this appointment. The link may be incorrect.",
     );
   }
-  return mapBooking(found.row);
+  const business = await fetchBusiness(found.row.business_id);
+  return withBusinessContext(mapBooking(found.row), business);
 }
 
 export async function rescheduleBooking(
@@ -499,6 +566,17 @@ export async function rescheduleBooking(
       customerName: row.customer?.name ?? "",
       customerPhone: row.customer?.phone ?? "",
       customerEmail: row.customer?.email ?? null,
+      resourceName: row.resource?.name ?? undefined,
+      displayTotal: row.resource?.metadata
+        ? formatMauritianRupees(
+            computeResourceTotal({
+              metadata: row.resource.metadata,
+              startTime: startIso,
+              endTime: endIso,
+              fallbackPrice: Number(service.price),
+            }),
+          )
+        : undefined,
     },
   });
 
@@ -509,12 +587,16 @@ export async function rescheduleBooking(
     customer: row.customer ?? { name: "", phone: "" },
     type: "booking.rescheduled",
     previous: { startTime: row.start_time, endTime: row.end_time },
+    resourceName: row.resource?.name ?? undefined,
   });
 
-  return normalizeBookingRow(
-    movedRow,
-    service,
-    row.customer ?? { name: "", phone: "", email: null },
+  return withBusinessContext(
+    normalizeBookingRow(
+      movedRow,
+      service,
+      row.customer ?? { name: "", phone: "", email: null },
+    ),
+    business,
   );
 }
 
@@ -583,7 +665,8 @@ export async function cancelBooking(token: string): Promise<Booking> {
     booking: cancelled,
     customer: cancelled.customer ?? { name: "", phone: "" },
     type: "booking.cancelled",
+    resourceName: cancelled.resource?.name ?? undefined,
   });
 
-  return mapBooking(cancelled);
+  return withBusinessContext(mapBooking(cancelled), cancelBusiness);
 }

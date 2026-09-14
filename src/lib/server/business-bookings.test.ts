@@ -526,7 +526,7 @@ describe("business mutations reuse the shared core", () => {
     seedCore(db);
     db.rpcImpl = rpcForBooking();
     const slot = nextBookableSlot();
-    const created = await createBusinessBooking(
+    const { booking: created } = await createBusinessBooking(
       { ...BUSINESS, booking_mode: "appointment" } as never,
       {
         serviceId: "svc-1",
@@ -580,7 +580,7 @@ describe("business mutations reuse the shared core", () => {
     seedCore(db);
     db.rpcImpl = rpcForBooking();
     const slot = nextBookableSlot();
-    const created = await createBusinessBooking({ ...BUSINESS } as never, {
+    const { booking: created } = await createBusinessBooking({ ...BUSINESS } as never, {
       serviceId: "svc-1",
       startTime: slot.startIso,
       endTime: slot.endIso,

@@ -7,4 +7,8 @@ export interface CalendarEvent {
   location?: string;
   description?: string;
   manageUrl?: string;
+  /** Item name for resource bookings (vehicle for rentals). */
+  resourceName?: string;
+  /** Customer name — used for the rental .ics title. */
+  customerName?: string;
 }

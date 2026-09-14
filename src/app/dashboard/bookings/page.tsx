@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BookingSearchForm from "@/components/BookingSearchForm";
 import BusinessBookingForm from "@/components/BusinessBookingForm";
+import CopyBookingLink from "@/components/CopyBookingLink";
 import { formatTimeInZone, formatLongDateInZone } from "@/lib/availability";
 import { getRequestUser, getMyMemberships } from "@/lib/server/auth";
 import { fetchBusiness } from "@/lib/server/database";
@@ -21,8 +22,9 @@ import type { Booking } from "@/types/booking";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Bookings — Kivo",
+  title: "Bookings",
   description: "Search, review and manage bookings.",
+  robots: { index: false, follow: false },
 };
 
 type View = "today" | "upcoming" | "past" | "cancelled" | "all";
@@ -57,14 +59,25 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
   if (memberships.length === 0) redirect("/onboarding");
 
   const params = await searchParams;
-  const selectedId =
-    (params.business && memberships.some((m) => m.business_id === params.business)
-      ? params.business
-      : memberships[0].business_id) as string;
+  // A provided but unowned business id is a 404, never a silent fallback to
+  // another business (KIVO-027: no cross-tenant leakage through the URL).
+  const requestedBusiness =
+    params.business && params.business.trim().length > 0 ? params.business : null;
+  if (requestedBusiness && !memberships.some((m) => m.business_id === requestedBusiness)) {
+    notFound();
+  }
+  const selectedId = (requestedBusiness ? requestedBusiness : memberships[0].business_id) as string;
 
   const db = getSupabase();
   const business = await fetchBusiness(selectedId, db).catch(() => null);
   if (!business) redirect("/onboarding");
+
+  const { data: services } = await db
+    .from("services")
+    .select("id, name")
+    .eq("business_id", business.id)
+    .eq("active", true)
+    .order("name", { ascending: true });
 
   const view = (VIEWS.some((v) => v.key === params.view) ? params.view : "upcoming") as View;
   const search = (params.search ?? "").trim();
@@ -132,12 +145,15 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
                 {business.name} · times in {business.timezone}
               </p>
             </div>
-            <Link
-              href={withQuery({ new: params.new ? "" : "1" })}
-              className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-paper hover:bg-black"
-            >
-              {params.new ? "Close" : "New booking"}
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <CopyBookingLink slug={business.slug} />
+              <Link
+                href={withQuery({ new: params.new ? "" : "1" })}
+                className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-paper hover:bg-black"
+              >
+                {params.new ? "Close" : "New booking"}
+              </Link>
+            </div>
           </div>
 
           {params.new && (
@@ -187,6 +203,7 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
               timezone={business.timezone}
               view={view}
               initialSearch={search}
+              services={services ?? []}
               serviceId={params.serviceId ?? ""}
               resourceId={params.resourceId ?? ""}
               sessionId={params.sessionId ?? ""}

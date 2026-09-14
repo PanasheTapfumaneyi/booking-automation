@@ -2,8 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Skeleton, SlowNotice } from "@/components/LoadingState";
 import type { Booking, TimeSlot as SlotOption } from "@/types/booking";
-import { formatTime, formatLongDate } from "@/lib/availability";
+import {
+  formatTime,
+  formatLongDate,
+  formatTimeInZone,
+  formatLongDateInZone,
+  zonedInstant,
+  DEFAULT_TIMEZONE,
+} from "@/lib/availability";
 import {
   apiGetBooking,
   apiRescheduleBooking,
@@ -94,7 +102,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, retryCount]);
 
   const bookingMode = booking ? detectMode(booking) : "appointment";
   const canReschedule = bookingMode === "appointment" || bookingMode === "resource";
@@ -106,6 +114,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
     let cancelled = false;
     apiGetAvailability({
       serviceId: booking.serviceId,
+      businessId: booking.businessId,
       date: slotQuery,
       excludeBookingToken: booking.manageToken,
     })
@@ -168,8 +177,9 @@ export default function ManageBooking({ token }: ManageBookingProps) {
       if (!resourceNewDate || !resourceNewStart || !resourceNewEnd) return;
       setBusy(true);
       setError(null);
-      const startIso = buildIsoFromDateTime(resourceNewDate, resourceNewStart);
-      const endIso = buildIsoFromDateTime(resourceNewDate, resourceNewEnd);
+      const tz = booking.businessTimezone ?? DEFAULT_TIMEZONE;
+      const startIso = zonedInstant(resourceNewDate, resourceNewStart, tz);
+      const endIso = zonedInstant(resourceNewDate, resourceNewEnd, tz);
       apiRescheduleBooking(token, startIso, endIso)
         .then((updated) => {
           setBooking(updated);
@@ -260,17 +270,36 @@ export default function ManageBooking({ token }: ManageBookingProps) {
 
   if (!booking) {
     return (
-      <div className="mx-auto w-full max-w-xl px-5 py-24 text-center">
+      <div className="mx-auto w-full max-w-xl px-5 py-24">
         {bookingError ? (
-          <p className="text-red-700">{bookingError}</p>
+          <div className="text-center">
+            <p className="text-red-700">{bookingError}</p>
+            <button
+              type="button"
+              onClick={() => setRetryCount((count) => count + 1)}
+              className="mt-4 rounded-full bg-ink px-6 py-3 text-base font-semibold text-paper hover:bg-black"
+            >
+              Retry
+            </button>
+          </div>
         ) : (
-          <p className="text-ink-soft">Loading your booking…</p>
+          <div className="flex flex-col gap-3" aria-hidden="true">
+            <Skeleton className="h-8 w-3/4" />
+            <Skeleton className="h-8 w-1/2" />
+            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <SlowNotice />
+          </div>
         )}
       </div>
     );
   }
 
   const isCancelled = booking.status === "cancelled";
+  const fmtTime = (iso: string) =>
+    booking.businessTimezone ? formatTimeInZone(iso, booking.businessTimezone) : formatTime(iso);
+  const fmtDate = (iso: string) =>
+    booking.businessTimezone ? formatLongDateInZone(iso, booking.businessTimezone) : formatLongDate(iso);
 
   return (
     <div className="mx-auto w-full max-w-xl px-5 py-10">
@@ -292,16 +321,15 @@ export default function ManageBooking({ token }: ManageBookingProps) {
             Booking rescheduled
           </h1>
           <p className="mt-1.5 text-ink-soft">
-            Your booking has moved to the new time below. A confirmation has
-            been sent.
+            Your booking has moved to the new time below.
           </p>
           <div className="mt-8 text-left">
-            {booking.previousStartTime && (
-              <p className="mb-3 flex items-center justify-center gap-3 text-sm text-ink-soft">
-                <s>
-                  {formatLongDate(booking.previousStartTime)} ·{" "}
-                  {formatTime(booking.previousStartTime)}
-                </s>
+{booking.previousStartTime && (
+                <p className="mb-3 flex items-center justify-center gap-3 text-sm text-ink-soft">
+                  <s>
+                    {fmtDate(booking.previousStartTime)} ·{" "}
+                    {fmtTime(booking.previousStartTime)}
+                  </s>
                 <span aria-hidden>→</span>
               </p>
             )}
@@ -371,8 +399,8 @@ export default function ManageBooking({ token }: ManageBookingProps) {
             Choose a new time
           </h1>
           <p className="mt-1.5 text-ink-soft">
-            {booking.serviceName} · move from {formatLongDate(booking.startTime)}{" "}
-            at {formatTime(booking.startTime)}.
+            {booking.serviceName} · move from {fmtDate(booking.startTime)}{" "}
+            at {fmtTime(booking.startTime)}.
           </p>
 
           {rescheduleStep === "date" ? (
@@ -380,6 +408,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
               <BookingCalendar
                 selectedDateKey={newDateKey}
                 onSelectDateKey={handleSelectNewDate}
+                timezone={booking.businessTimezone}
               />
             </div>
           ) : (
@@ -462,8 +491,8 @@ export default function ManageBooking({ token }: ManageBookingProps) {
             Choose a new time
           </h1>
           <p className="mt-1.5 text-ink-soft">
-            {booking.serviceName} · move from {formatLongDate(booking.startTime)}{" "}
-            at {formatTime(booking.startTime)} – {formatTime(booking.endTime)}.
+            {booking.serviceName} · move from {fmtDate(booking.startTime)}{" "}
+            at {fmtTime(booking.startTime)} – {fmtTime(booking.endTime)}.
           </p>
 
           {rescheduleStep === "date" ? (
@@ -476,6 +505,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
                   setResourceNewEnd("");
                   setRescheduleStep("slot");
                 }}
+                timezone={booking.businessTimezone}
               />
             </div>
           ) : (
@@ -644,8 +674,8 @@ export default function ManageBooking({ token }: ManageBookingProps) {
             </span>
             {booking.previousStartTime && booking.status === "rescheduled" && (
               <span className="text-ink-soft">
-                Previously {formatTime(booking.previousStartTime)} on{" "}
-                {formatLongDate(booking.previousStartTime)}
+                Previously {fmtTime(booking.previousStartTime)} on{" "}
+                {fmtDate(booking.previousStartTime)}
               </span>
             )}
           </div>
@@ -720,19 +750,4 @@ export default function ManageBooking({ token }: ManageBookingProps) {
       )}
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Build an ISO timestamp from a YYYY-MM-DD date key and HH:MM time string
- * in UTC (manage page doesn't have business timezone context; the server
- * validates and normalizes).
- */
-function buildIsoFromDateTime(dateKey: string, time: string): string {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const [hours, minutes] = time.split(":").map(Number);
-  return new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0)).toISOString();
 }

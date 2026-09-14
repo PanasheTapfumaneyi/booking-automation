@@ -43,4 +43,4 @@ export {
 
 export { isResourceBlocked } from "./resource";
 
-export { hasRemainingCapacity, remainingCapacity } from "./capacity";
+export { hasRemainingCapacity, remainingCapacity, clampQuantity } from "./capacity";

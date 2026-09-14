@@ -73,11 +73,26 @@ export function apiGetBooking(token: string): Promise<Booking> {
   ).then((body) => body.booking);
 }
 
-export function apiCreateBooking(input: NewBookingInput): Promise<Booking> {
-  return request<{ booking: Booking }>("/api/bookings", {
+export interface DispatchSummary {
+  dispatched: boolean;
+  recipients: {
+    customer: "sent" | "failed" | "skipped" | "not_notified";
+    business: "sent" | "failed" | "skipped" | "not_notified";
+  };
+  primary: "customer";
+}
+
+export interface CreateBookingResponse {
+  booking: Booking;
+  /** Honest non-throwing dispatch summary from the booking engine. */
+  notifications: DispatchSummary;
+}
+
+export function apiCreateBooking(input: NewBookingInput): Promise<CreateBookingResponse> {
+  return request<CreateBookingResponse>("/api/bookings", {
     method: "POST",
     body: JSON.stringify(input),
-  }).then((body) => body.booking);
+  });
 }
 
 export function apiRescheduleBooking(
@@ -106,6 +121,9 @@ export interface ApiAvailabilityParams {
   date: string;
   excludeBookingToken?: string;
   businessId?: string;
+  /** Interval search (rentals): ISO instants bounding the requested range. */
+  rangeStart?: string;
+  rangeEnd?: string;
 }
 
 interface AvailabilityBase {
@@ -127,7 +145,18 @@ export interface AppointmentAvailability extends AvailabilityBase {
 
 export interface ResourceAvailability extends AvailabilityBase {
   kind: "resource";
-  resources: Array<{ id: string; name: string; resourceType: string; active: boolean }>;
+  resources: Array<{
+    id: string;
+    name: string;
+    resourceType: string;
+    active: boolean;
+    imageUrl?: string | null;
+    metadata?: Record<string, unknown>;
+    available?: boolean;
+  }>;
+  /** Present for interval (rental) searches. */
+  startIso?: string;
+  endIso?: string;
 }
 
 export interface CapacityAvailability extends AvailabilityBase {
@@ -157,6 +186,12 @@ export function apiGetAvailability(
   }
   if (params.businessId) {
     query.set("businessId", params.businessId);
+  }
+  if (params.rangeStart) {
+    query.set("rangeStart", params.rangeStart);
+  }
+  if (params.rangeEnd) {
+    query.set("rangeEnd", params.rangeEnd);
   }
   return request<ApiAvailability>(`/api/availability?${query.toString()}`);
 }

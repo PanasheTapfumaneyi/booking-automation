@@ -11,7 +11,7 @@ interface DemoDashboardPageProps {
 export async function generateMetadata({ params }: DemoDashboardPageProps): Promise<Metadata> {
   const { slug } = await params;
   const data = await getDemoDashboardData(slug, getSupabase()).catch(() => null);
-  if (!data) return { title: "Demo not found — Kivo" };
+  if (!data) return { title: "Demo not found" };
   return {
     title: `${data.business.name} demo workspace — Kivo`,
     description: `Explore a read-only demo of the Kivo business dashboard for ${data.business.name}.`,

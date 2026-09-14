@@ -94,7 +94,7 @@ export default function BookingActions({
       if (!response.ok) {
         throw new Error(body?.error?.userMessage ?? "We couldn't reschedule. Please try again.");
       }
-      setDone("Rescheduled — the customer gets the usual confirmation.");
+      setDone("Rescheduled.");
       setMode("idle");
       router.refresh();
     } catch (submitError: unknown) {
@@ -118,7 +118,7 @@ export default function BookingActions({
       if (!response.ok) {
         throw new Error(body?.error?.userMessage ?? "We couldn't cancel. Please try again.");
       }
-      setDone("Cancelled — the customer gets the usual cancellation message.");
+      setDone("Cancelled.");
       setMode("idle");
       router.refresh();
     } catch (submitError: unknown) {
@@ -190,6 +190,7 @@ export default function BookingActions({
                 setError(null);
               }}
               hours={hours}
+              timezone={timezone}
             />
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
@@ -231,6 +232,7 @@ export default function BookingActions({
               selectedDateKey={dateKey}
               onSelectDateKey={loadSlots}
               hours={hours}
+              timezone={timezone}
             />
           </div>
           {dateKey && slots === null && !error && (

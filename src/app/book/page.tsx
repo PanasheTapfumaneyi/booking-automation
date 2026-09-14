@@ -4,9 +4,9 @@ import Footer from "@/components/Footer";
 import BookingFlow from "@/components/BookingFlow";
 
 export const metadata: Metadata = {
-  title: "Book an appointment — Fade District",
+  title: "Book",
   description:
-    "Pick a service, choose a time and book your appointment at Fade District in under a minute.",
+    "Choose a business and book your appointment, rental or session online in under a minute.",
 };
 
 export default function BookPage() {

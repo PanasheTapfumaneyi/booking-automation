@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import {
   BOOKING_WINDOW_DAYS,
   isDateKeyAvailable,
-  isoToDateKey,
+  toDateKey,
+  DEFAULT_TIMEZONE,
   type BusinessHours,
 } from "@/lib/availability";
 
@@ -15,6 +16,8 @@ interface BookingCalendarProps {
   onSelectDateKey: (dateKey: string) => void;
   /** Per-business hours; omitted → platform defaults. */
   hours?: BusinessHours | null;
+  /** IANA timezone for the "today" basis; defaults to the platform default. */
+  timezone?: string;
 }
 
 function daysInMonth(year: number, month: number): number {
@@ -33,8 +36,12 @@ export default function BookingCalendar({
   selectedDateKey,
   onSelectDateKey,
   hours,
+  timezone,
 }: BookingCalendarProps) {
-  const todayKey = useMemo(() => isoToDateKey(new Date().toISOString()), []);
+  const todayKey = useMemo(
+    () => toDateKey(new Date(), timezone ?? DEFAULT_TIMEZONE),
+    [timezone],
+  );
   const [monthKey, setMonthKey] = useState(() => todayKey.slice(0, 7));
 
   const horizonKey = useMemo(() => {
@@ -47,9 +54,8 @@ export default function BookingCalendar({
   }, [todayKey]);
 
   const canGoPrevious = monthKey > todayKey.slice(0, 7);
-  const canGoNext = monthKey < horizonKey.slice(0, 7);
 
-  const { cells, monthLabel } = useMemo(() => {
+  const { cells, monthLabel, lastDayOfMonthKey } = useMemo(() => {
     const [year, month] = monthKey.split("-").map(Number);
     const count = daysInMonth(year, month);
     const firstDow = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
@@ -66,8 +72,16 @@ export default function BookingCalendar({
       { month: "long", year: "numeric", timeZone: "UTC" },
     );
 
-    return { cells: result, monthLabel: label };
+    return {
+      cells: result,
+      monthLabel: label,
+      lastDayOfMonthKey: `${monthKey}-${String(count).padStart(2, "0")}`,
+    };
   }, [monthKey]);
+
+  // Next stays enabled while the displayed month still contains any in-window
+  // day, so dates early in the following month remain reachable (KIVO-005).
+  const canGoNext = lastDayOfMonthKey < horizonKey;
 
   return (
     <div className="w-full">

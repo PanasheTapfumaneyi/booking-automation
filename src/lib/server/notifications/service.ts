@@ -86,6 +86,13 @@ export interface BookingNotificationDispatchInput {
   /** Populated only for `booking.rescheduled`. */
   previous?: { startTime: string; endTime: string };
   /**
+   * Item name for resource bookings (vehicle name for rentals). Absent for
+   * appointment/capacity bookings — templates stay unchanged for them.
+   */
+  resourceName?: string;
+  /** Pre-formatted total price ("Rs 4,200") for rental/unit-rate bookings. */
+  displayTotal?: string;
+  /**
    * Optional override for the notification event id (used in tests and
    * idempotency-replay scenarios). When omitted a fresh UUID is generated.
    */
@@ -285,6 +292,8 @@ export async function dispatchBookingEvent(
       manageUrl,
       calendarUrl,
       previousStartIso: input.previous?.startTime,
+      resourceName: input.resourceName,
+      displayTotal: input.displayTotal,
     };
 
     const customerPromise = (async () => {

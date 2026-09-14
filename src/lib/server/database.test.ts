@@ -295,6 +295,7 @@ describe("fetchBookingByToken", () => {
 describe("getBookingByToken", () => {
   beforeEach(() => {
     holder.db = createFakeDb();
+    holder.db.tables.businesses = [{ ...BIZ }];
     holder.db.tables.bookings = [
       bookingRow({ id: "b-A", manage_token: "tok-A", status: "confirmed" }),
       bookingRow({ id: "b-C", manage_token: "tok-C", status: "cancelled" }),
@@ -305,6 +306,12 @@ describe("getBookingByToken", () => {
     const booking = await getBookingByToken("tok-A");
     expect(booking.id).toBe("b-A");
     expect(booking.manageToken).toBe("tok-A");
+  });
+
+  it("carries the real business identity (KIVO-004: never a demo fallback)", async () => {
+    const booking = await getBookingByToken("tok-A");
+    expect(booking.businessName).toBe("Fade District");
+    expect(booking.businessTimezone).toBe("Indian/Mauritius");
   });
 
   it("an invalid token returns the safe not-found error", async () => {

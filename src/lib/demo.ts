@@ -49,6 +49,7 @@ export const DEMO_SERVICES: Service[] = [
 ];
 
 export function formatPrice(price: number): string {
+  if (price <= 0) return "Free";
   return `Rs ${price.toLocaleString("en-MU")}`;
 }
 

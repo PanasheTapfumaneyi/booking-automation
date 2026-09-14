@@ -6,7 +6,10 @@ import {
   fetchBookingByToken,
 } from "@/lib/server/database";
 import { appointmentAvailability } from "@/lib/server/strategies/appointment";
-import { resourceAvailability } from "@/lib/server/strategies/resource";
+import {
+  resourceAvailability,
+  resourceIntervalAvailability,
+} from "@/lib/server/strategies/resource";
 import { capacityAvailability } from "@/lib/server/strategies/capacity";
 
 export interface GetAvailabilityArgs {
@@ -22,11 +25,21 @@ export interface GetAvailabilityArgs {
    * client input. A booking UUID is not an authorization capability.
    */
   excludeBookingId?: string;
+
+  /**
+   * Interval search (rentals). When both instants are present and the business
+   * is resource-mode, availability flips to the interval payload: every active
+   * resource is returned with an `available` flag. A date string is still
+   * required for endpoint compatibility but unused for the interval payload.
+   */
+  startIso?: string;
+  endIso?: string;
 }
 
 export type AvailabilityResponse =
   | Awaited<ReturnType<typeof appointmentAvailability>>
   | Awaited<ReturnType<typeof resourceAvailability>>
+  | Awaited<ReturnType<typeof resourceIntervalAvailability>>
   | Awaited<ReturnType<typeof capacityAvailability>>;
 
 const DEMO_BUSINESS_ID = "00000000-0000-4000-8000-000000000001";
@@ -73,6 +86,15 @@ export async function getAvailability(
         ignoreGoogleEventId: ignoredGoogleEventId,
       });
     case "resource":
+      if (args.startIso && args.endIso) {
+        return resourceIntervalAvailability({
+          business,
+          service,
+          startIso: args.startIso,
+          endIso: args.endIso,
+          excludeBookingId,
+        });
+      }
       return resourceAvailability({ business, service, date: args.date });
     case "capacity":
       return capacityAvailability({

@@ -1,10 +1,75 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import HoursEditor from "@/components/HoursEditor";
 import type { BusinessHours } from "@/lib/availability";
 import type { BookingMode } from "@/types/booking";
+
+/** Curated fallback when `Intl.supportedValuesOf` is unavailable. */
+const FALLBACK_TIMEZONES = [
+  "Africa/Abidjan",
+  "Africa/Accra",
+  "Africa/Nairobi",
+  "Africa/Johannesburg",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Toronto",
+  "America/Sao_Paulo",
+  "Asia/Dubai",
+  "Asia/Kolkata",
+  "Asia/Singapore",
+  "Asia/Hong_Kong",
+  "Asia/Tokyo",
+  "Asia/Seoul",
+  "Atlantic/Canary",
+  "Australia/Sydney",
+  "Australia/Perth",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Amsterdam",
+  "Europe/Madrid",
+  "Europe/Istanbul",
+  "Europe/Moscow",
+  "Pacific/Auckland",
+  "Indian/Mauritius",
+  "Indian/Reunion",
+];
+
+function supportedTimezones(): string[] {
+  if (typeof Intl !== "undefined" && typeof (Intl as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf === "function") {
+    try {
+      return (Intl as { supportedValuesOf: (k: string) => string[] }).supportedValuesOf("timeZone");
+    } catch {
+      return FALLBACK_TIMEZONES;
+    }
+  }
+  return FALLBACK_TIMEZONES;
+}
+
+function isValidTimezone(tz: string): boolean {
+  const clean = tz.trim();
+  if (!clean) return false;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: clean });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isValidHttpUrl(value: string): boolean {
+  if (!value.trim()) return true;
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 export interface SettingsBundle {
   business: {
@@ -77,6 +142,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+/** "Unsaved changes" hint announced politely when a section is dirty. */
+function DirtyHint({ dirty }: { dirty: boolean }) {
+  if (!dirty) return null;
+  return (
+    <p role="status" className="text-xs font-medium text-gold-strong">
+      Unsaved changes
+    </p>
+  );
+}
+
 const inputClass =
   "rounded-xl border border-line bg-paper px-4 py-2.5 text-sm outline-none focus:border-gold disabled:opacity-40";
 const buttonClass =
@@ -129,6 +204,19 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
 
   const [whatsapp, setWhatsapp] = useState<{ ok: boolean } | null>(null);
 
+  const timezoneOptions = useMemo(() => supportedTimezones(), []);
+
+  const hasUnsavedEdits = editingServiceId !== null || editingResourceId !== null || editingSessionId !== null;
+  useEffect(() => {
+    if (!hasUnsavedEdits) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsavedEdits]);
+
   async function refresh() {
     const data = (await requestJson(`/api/businesses/${business.id}`, undefined, "GET")) as {
       services: SettingsBundle["services"];
@@ -156,6 +244,9 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
   }
 
   async function run(key: string, work: () => Promise<unknown>, doneMessage?: string) {
+    // Double-submit guard: a second submit (Enter key, double click) while
+    // any request is in flight is ignored — buttons are also disabled.
+    if (busy !== null) return;
     setBusy(key);
     setError(null);
     setSaved(null);
@@ -170,10 +261,78 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
     }
   }
 
-  const saveProfile = () =>
+  // --- Dirty tracking: Save enables only when the section differs from the
+  // last server-confirmed snapshot (`live`). Failed values are preserved in
+  // state (never reset on error) and the error stays until the next submit.
+  const liveBusiness = live.business;
+  const profileDirty =
+    name !== liveBusiness.name ||
+    phone !== (liveBusiness.phone ?? "") ||
+    timezone !== liveBusiness.timezone ||
+    tagline !== (liveBusiness.tagline ?? "") ||
+    description !== (liveBusiness.description ?? "") ||
+    coverImageUrl !== (liveBusiness.cover_image_url ?? "") ||
+    logoUrl !== (liveBusiness.logo_url ?? "") ||
+    address !== (liveBusiness.address ?? "") ||
+    latitude !== (liveBusiness.latitude != null ? String(liveBusiness.latitude) : "") ||
+    longitude !== (liveBusiness.longitude != null ? String(liveBusiness.longitude) : "");
+  const hoursDirty =
+    JSON.stringify(hours ?? null) !== JSON.stringify(liveBusiness.availability ?? null);
+  const notificationsDirty =
+    notifyPhone !== (live.notifications.business_notification_phone ?? "") ||
+    customerAlerts !== live.notifications.customer_notifications_enabled ||
+    businessAlerts !== live.notifications.business_notifications_enabled;
+  const addServiceDirty =
+    newServiceName.trim() !== "" || newDuration !== "45" || newPrice !== "500";
+  const addResourceDirty = newResourceName.trim() !== "";
+  const addSessionDirty =
+    newSessionService !== "" || newSessionDate !== "" || newSessionTime !== "09:00" || newCapacity !== "10";
+
+  function submitHandler(work: () => void) {
+    return (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      work();
+    };
+  }
+
+  const saveProfile = () => {
+    if (!name.trim()) {
+      setError("Please enter a business name.");
+      return;
+    }
+    if (!isValidTimezone(timezone)) {
+      setError("Please choose a valid IANA timezone (for example Indian/Mauritius).");
+      return;
+    }
+    if (!isValidHttpUrl(coverImageUrl)) {
+      setError("Cover image must be an http(s) URL.");
+      return;
+    }
+    if (!isValidHttpUrl(logoUrl)) {
+      setError("Logo must be an http(s) URL.");
+      return;
+    }
+    if (tagline.length > 200) {
+      setError("Tagline must be 200 characters or fewer.");
+      return;
+    }
+    if (description.length > 2000) {
+      setError("Description must be 2,000 characters or fewer.");
+      return;
+    }
+    const lat = latitude !== "" ? Number(latitude) : null;
+    const lng = longitude !== "" ? Number(longitude) : null;
+    if (lat !== null && (Number.isNaN(lat) || lat < -90 || lat > 90)) {
+      setError("Latitude must be between -90 and 90.");
+      return;
+    }
+    if (lng !== null && (Number.isNaN(lng) || lng < -180 || lng > 180)) {
+      setError("Longitude must be between -180 and 180.");
+      return;
+    }
     run("profile", () =>
       requestJson(`/api/businesses/${business.id}`, {
-        name,
+        name: name.trim(),
         phone,
         timezone,
         tagline,
@@ -181,11 +340,12 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
         cover_image_url: coverImageUrl,
         logo_url: logoUrl,
         address,
-        latitude: latitude !== "" ? Number(latitude) : null,
-        longitude: longitude !== "" ? Number(longitude) : null,
+        latitude: lat,
+        longitude: lng,
       }, "PATCH"),
       "Profile saved.",
     );
+  };
 
   const saveHours = () =>
     run(
@@ -351,10 +511,18 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
 
       <div className="mt-6 flex flex-col gap-4">
         <Section title="Business profile">
-          <div className="flex flex-col gap-3">
+          <form onSubmit={submitHandler(saveProfile)} className="flex flex-col gap-3">
+            <DirtyHint dirty={profileDirty} />
             <label className="flex flex-col gap-1 text-sm font-medium">
               Name
-              <input value={name} onChange={(e) => setName(e.target.value)} disabled={busy !== null} className={inputClass} />
+              <input
+                required
+                maxLength={200}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={busy !== null}
+                className={inputClass}
+              />
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium">
               Phone
@@ -362,37 +530,54 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium">
               Timezone
-              <input value={timezone} onChange={(e) => setTimezone(e.target.value)} disabled={busy !== null} className={inputClass} />
+              <input
+                list="kivo-timezone-options"
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                disabled={busy !== null}
+                placeholder="Indian/Mauritius"
+                className={inputClass}
+              />
+              <datalist id="kivo-timezone-options">
+                {timezoneOptions.map((tz) => (
+                  <option key={tz} value={tz} />
+                ))}
+              </datalist>
             </label>
             <p className="text-xs text-ink-soft">Booking type ({mode}) can&apos;t be changed after setup.</p>
             <div>
-              <button type="button" disabled={busy !== null} onClick={saveProfile} className={buttonClass}>
+              <button type="submit" disabled={busy !== null || !profileDirty} className={buttonClass}>
                 {busy === "profile" ? "Saving…" : "Save profile"}
               </button>
             </div>
-          </div>
+          </form>
         </Section>
 
         <Section title="Opening hours">
-          <HoursEditor value={hours} onChange={setHours} disabled={busy !== null} />
-          <div className="mt-4">
-            <button type="button" disabled={busy !== null} onClick={saveHours} className={buttonClass}>
-              {busy === "hours" ? "Saving…" : "Save hours"}
-            </button>
-          </div>
+          <form onSubmit={submitHandler(saveHours)} className="flex flex-col gap-3">
+            <DirtyHint dirty={hoursDirty} />
+            <HoursEditor value={hours} onChange={setHours} disabled={busy !== null} />
+            <div className="mt-1">
+              <button type="submit" disabled={busy !== null || !hoursDirty} className={buttonClass}>
+                {busy === "hours" ? "Saving…" : "Save hours"}
+              </button>
+            </div>
+          </form>
         </Section>
 
         <Section title="Public page">
           <p className="mb-4 text-sm text-ink-soft">
             Customize how your business appears on <span className="font-medium text-ink">/business/{business.slug ?? "..."}</span>. All fields are optional.
           </p>
-          <div className="flex flex-col gap-3">
+          <form onSubmit={submitHandler(saveProfile)} className="flex flex-col gap-3">
+            <DirtyHint dirty={profileDirty} />
             <label className="flex flex-col gap-1 text-sm font-medium">
               Tagline
               <input
                 value={tagline}
                 onChange={(e) => setTagline(e.target.value)}
                 placeholder="Simple booking, without the back-and-forth."
+                maxLength={200}
                 disabled={busy !== null}
                 className={inputClass}
               />
@@ -405,6 +590,7 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Tell customers what makes your business special..."
                 rows={4}
+                maxLength={2000}
                 disabled={busy !== null}
                 className={`${inputClass} resize-y`}
               />
@@ -414,6 +600,7 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
               <label className="flex flex-col gap-1 text-sm font-medium">
                 Cover image URL
                 <input
+                  type="url"
                   value={coverImageUrl}
                   onChange={(e) => setCoverImageUrl(e.target.value)}
                   placeholder="https://example.com/hero.jpg"
@@ -433,6 +620,7 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
               <label className="flex flex-col gap-1 text-sm font-medium">
                 Logo URL
                 <input
+                  type="url"
                   value={logoUrl}
                   onChange={(e) => setLogoUrl(e.target.value)}
                   placeholder="https://example.com/logo.png"
@@ -468,6 +656,8 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                 <input
                   type="number"
                   step="any"
+                  min={-90}
+                  max={90}
                   value={latitude}
                   onChange={(e) => setLatitude(e.target.value)}
                   placeholder="-20.2417"
@@ -481,6 +671,8 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                 <input
                   type="number"
                   step="any"
+                  min={-180}
+                  max={180}
                   value={longitude}
                   onChange={(e) => setLongitude(e.target.value)}
                   placeholder="57.4781"
@@ -491,11 +683,11 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
               </label>
             </div>
             <div>
-              <button type="button" disabled={busy !== null} onClick={saveProfile} className={buttonClass}>
+              <button type="submit" disabled={busy !== null || !profileDirty} className={buttonClass}>
                 {busy === "profile" ? "Saving…" : "Save public page"}
               </button>
             </div>
-          </div>
+          </form>
         </Section>
 
         <Section title={mode === "resource" ? "Rental items" : mode === "capacity" ? "Services & sessions" : "Services"}>
@@ -511,6 +703,10 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                       type="button"
                       disabled={busy !== null}
                       onClick={() => {
+                        if (editingServiceId === service.id) {
+                          setEditingServiceId(null);
+                          return;
+                        }
                         setEditingServiceId(service.id);
                         setEditName(service.name);
                         setEditDuration(String(service.duration_minutes));
@@ -519,7 +715,7 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                       }}
                       className="font-medium text-ink-soft hover:text-ink"
                     >
-                      Edit
+                      {editingServiceId === service.id ? "Close" : "Edit"}
                     </button>
                     <button
                       type="button"
@@ -532,11 +728,14 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                   </span>
                 </div>
                 {editingServiceId === service.id && (
-                  <div className="mt-2.5 flex flex-col gap-2">
+                  <form
+                    onSubmit={submitHandler(() => saveServiceEdit(service.id))}
+                    className="mt-2.5 flex flex-col gap-2"
+                  >
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <input aria-label="Service name" value={editName} onChange={(e) => setEditName(e.target.value)} disabled={busy !== null} className={`${inputClass} flex-1`} />
-                      <input aria-label="Duration in minutes" value={editDuration} onChange={(e) => setEditDuration(e.target.value)} disabled={busy !== null} inputMode="numeric" className={`${inputClass} w-24`} />
-                      <input aria-label="Price in rupees" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} disabled={busy !== null} inputMode="decimal" className={`${inputClass} w-24`} />
+                      <input aria-label="Duration in minutes" type="number" min={5} max={1440} step={5} value={editDuration} onChange={(e) => setEditDuration(e.target.value)} disabled={busy !== null} className={`${inputClass} w-24`} />
+                      <input aria-label="Price in rupees" type="number" min={0} max={1000000} step="any" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} disabled={busy !== null} className={`${inputClass} w-24`} />
                     </div>
                     <textarea
                       aria-label="Service description"
@@ -547,17 +746,26 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                       disabled={busy !== null}
                       className={`${inputClass} resize-y`}
                     />
-                    <div>
-                      <button type="button" disabled={busy !== null} onClick={() => saveServiceEdit(service.id)} className={buttonClass}>
-                        Save
+                    <div className="flex gap-2">
+                      <button type="submit" disabled={busy !== null} className={buttonClass}>
+                        {busy === `service-${service.id}` ? "Saving…" : "Save"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() => setEditingServiceId(null)}
+                        className="rounded-full border border-line px-5 py-2.5 text-sm font-medium text-ink-soft hover:text-ink"
+                      >
+                        Cancel
                       </button>
                     </div>
-                  </div>
+                  </form>
                 )}
               </div>
             ))}
           </div>
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <form onSubmit={submitHandler(addService)} className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <DirtyHint dirty={addServiceDirty} />
             <input
               aria-label={mode === "resource" ? "New service name" : "New service name"}
               placeholder="Service name"
@@ -569,25 +777,31 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
             <input
               aria-label="Duration in minutes"
               placeholder="45 min"
+              type="number"
+              min={5}
+              max={1440}
+              step={5}
               value={newDuration}
               onChange={(e) => setNewDuration(e.target.value)}
               disabled={busy !== null}
-              inputMode="numeric"
               className={`${inputClass} w-24`}
             />
             <input
               aria-label="Price in rupees"
               placeholder="Rs"
+              type="number"
+              min={0}
+              max={1000000}
+              step="any"
               value={newPrice}
               onChange={(e) => setNewPrice(e.target.value)}
               disabled={busy !== null}
-              inputMode="decimal"
               className={`${inputClass} w-24`}
             />
-            <button type="button" disabled={busy !== null} onClick={addService} className={buttonClass}>
+            <button type="submit" disabled={busy !== null} className={buttonClass}>
               {busy === "service-add" ? "…" : "Add"}
             </button>
-          </div>
+          </form>
 
 
           {mode === "resource" && (
@@ -602,12 +816,16 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                           type="button"
                           disabled={busy !== null}
                           onClick={() => {
+                            if (editingResourceId === resource.id) {
+                              setEditingResourceId(null);
+                              return;
+                            }
                             setEditingResourceId(resource.id);
                             setEditResourceName(resource.name);
                           }}
                           className="font-medium text-ink-soft hover:text-ink"
                         >
-                          Edit
+                          {editingResourceId === resource.id ? "Close" : "Edit"}
                         </button>
                         <button
                           type="button"
@@ -620,17 +838,29 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                       </span>
                     </div>
                     {editingResourceId === resource.id && (
-                      <div className="mt-2.5 flex gap-2">
+                      <form
+                        onSubmit={submitHandler(() => saveResourceEdit(resource.id))}
+                        className="mt-2.5 flex gap-2"
+                      >
                         <input aria-label="Resource name" value={editResourceName} onChange={(e) => setEditResourceName(e.target.value)} disabled={busy !== null} className={`${inputClass} flex-1`} />
-                        <button type="button" disabled={busy !== null} onClick={() => saveResourceEdit(resource.id)} className={buttonClass}>
-                          Save
+                        <button type="submit" disabled={busy !== null} className={buttonClass}>
+                          {busy === `resource-${resource.id}` ? "Saving…" : "Save"}
                         </button>
-                      </div>
+                        <button
+                          type="button"
+                          disabled={busy !== null}
+                          onClick={() => setEditingResourceId(null)}
+                          className="rounded-full border border-line px-5 py-2.5 text-sm font-medium text-ink-soft hover:text-ink"
+                        >
+                          Cancel
+                        </button>
+                      </form>
                     )}
                   </div>
                 ))}
               </div>
-              <div className="mt-3 flex gap-2">
+              <form onSubmit={submitHandler(addResource)} className="mt-3 flex gap-2">
+                <DirtyHint dirty={addResourceDirty} />
                 <input
                   aria-label="New rental item name"
                   placeholder="New rental item"
@@ -639,10 +869,10 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                   disabled={busy !== null}
                   className={`${inputClass} flex-1`}
                 />
-                <button type="button" disabled={busy !== null} onClick={addResource} className={buttonClass}>
+                <button type="submit" disabled={busy !== null} className={buttonClass}>
                   {busy === "resource-add" ? "…" : "Add"}
                 </button>
-              </div>
+              </form>
             </>
           )}
 
@@ -660,6 +890,10 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                           type="button"
                           disabled={busy !== null}
                           onClick={() => {
+                            if (editingSessionId === session.id) {
+                              setEditingSessionId(null);
+                              return;
+                            }
                             setEditingSessionId(session.id);
                             setEditSessionCapacity(String(session.capacity));
                             setEditSessionDate("");
@@ -667,7 +901,7 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                           }}
                           className="font-medium text-ink-soft hover:text-ink"
                         >
-                          Edit
+                          {editingSessionId === session.id ? "Close" : "Edit"}
                         </button>
                         <button
                           type="button"
@@ -680,21 +914,34 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                       </span>
                     </div>
                     {editingSessionId === session.id && (
-                      <div className="mt-2.5 grid grid-cols-2 gap-2">
+                      <form
+                        onSubmit={submitHandler(() => saveSessionEdit(session.id))}
+                        className="mt-2.5 grid grid-cols-2 gap-2"
+                      >
                         <input aria-label="Session capacity" value={editSessionCapacity} onChange={(e) => setEditSessionCapacity(e.target.value)} disabled={busy !== null} inputMode="numeric" className={inputClass} placeholder="Guests" />
                         <input aria-label="Session date" type="date" value={editSessionDate} onChange={(e) => setEditSessionDate(e.target.value)} disabled={busy !== null} className={inputClass} />
                         <input aria-label="Session start time" type="time" value={editSessionTime} onChange={(e) => setEditSessionTime(e.target.value)} disabled={busy !== null} className={inputClass} />
-                        <div>
-                          <button type="button" disabled={busy !== null} onClick={() => saveSessionEdit(session.id)} className={buttonClass}>
-                            Save
+                        <div className="flex gap-2">
+                          <button type="submit" disabled={busy !== null} className={buttonClass}>
+                            {busy === `session-${session.id}` ? "Saving…" : "Save"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy !== null}
+                            onClick={() => setEditingSessionId(null)}
+                            className="rounded-full border border-line px-5 py-2.5 text-sm font-medium text-ink-soft hover:text-ink"
+                          >
+                            Cancel
                           </button>
                         </div>
-                      </div>
+                      </form>
                     )}
                   </div>
                 ))}
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <form onSubmit={submitHandler(addSession)} className="mt-3">
+                <DirtyHint dirty={addSessionDirty} />
+                <div className="grid grid-cols-2 gap-2">
                 <select
                   aria-label="Session service"
                   value={newSessionService}
@@ -709,18 +956,20 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                 <input aria-label="Guests" value={newCapacity} onChange={(e) => setNewCapacity(e.target.value)} disabled={busy !== null} inputMode="numeric" className={inputClass} placeholder="Guests" />
                 <input aria-label="Session date" type="date" value={newSessionDate} onChange={(e) => setNewSessionDate(e.target.value)} disabled={busy !== null} className={inputClass} />
                 <input aria-label="Session start time" type="time" value={newSessionTime} onChange={(e) => setNewSessionTime(e.target.value)} disabled={busy !== null} className={inputClass} />
-              </div>
-              <div className="mt-3">
-                <button type="button" disabled={busy !== null} onClick={addSession} className={buttonClass}>
-                  {busy === "session-add" ? "…" : "Add session"}
-                </button>
-              </div>
+                </div>
+                <div className="mt-3">
+                  <button type="submit" disabled={busy !== null} className={buttonClass}>
+                    {busy === "session-add" ? "…" : "Add session"}
+                  </button>
+                </div>
+              </form>
             </>
           )}
         </Section>
 
         <Section title="Notifications">
-          <div className="flex flex-col gap-3 text-sm">
+          <form onSubmit={submitHandler(saveNotifications)} className="flex flex-col gap-3 text-sm">
+            <DirtyHint dirty={notificationsDirty} />
             <label className="flex flex-col gap-1 font-medium">
               Your WhatsApp number
               <input value={notifyPhone} onChange={(e) => setNotifyPhone(e.target.value)} disabled={busy !== null} className={inputClass} placeholder="+230 …" />
@@ -734,11 +983,11 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
               Owner WhatsApp alerts
             </label>
             <div>
-              <button type="button" disabled={busy !== null} onClick={saveNotifications} className={buttonClass}>
+              <button type="submit" disabled={busy !== null || !notificationsDirty} className={buttonClass}>
                 {busy === "notifications" ? "Saving…" : "Save notifications"}
               </button>
             </div>
-          </div>
+          </form>
         </Section>
 
         <Section title="Integrations">

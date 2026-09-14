@@ -10,6 +10,23 @@
 
 export const DEMO_BUSINESSES = [
   {
+    id: "10000000-0000-4000-8000-000000000004",
+    slug: "kivo-drive",
+    name: "Kivo Drive",
+    phone: "+230 5744 4444",
+    email: "demo@kivodrive.mu",
+    timezone: "Indian/Mauritius",
+    booking_mode: "resource",
+    tagline: "Rent a car, hit the road. Book by the day in two minutes.",
+    description: "Kivo Drive makes car rental in Mauritius effortless. Choose your car, pick your dates, and drive away — all booked online with transparent daily rates. Every vehicle is serviced, insured, and ready at the coast.",
+    cover_image_url: "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?fm=jpg&q=80&w=1600&auto=format&fit=crop",
+    logo_url: null,
+    theme_config: { primary: "#1B2A33", accent: "#C19A5B", background: "#F4F2EE", surface: "#FEFDFB", foreground: "#16212A", muted: "#5F6B74" },
+    address: "Quay Street, Port Louis, Mauritius",
+    latitude: -20.1604,
+    longitude: 57.5044,
+  },
+  {
     id: "10000000-0000-4000-8000-000000000001",
     slug: "fade-area",
     name: "Fade Area",

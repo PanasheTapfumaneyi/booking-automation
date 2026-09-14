@@ -15,9 +15,15 @@ const WEEKDAY_LABEL: Record<string, string> = {
   sun: "Sunday",
 };
 
-function getTodayIndex(): number {
-  const jsDay = new Date().getDay();
-  return jsDay === 0 ? 6 : jsDay - 1;
+function getTodayIndex(timezone: string): number {
+  const weekday = new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    timeZone: timezone,
+  }).format(new Date());
+  const map: Record<string, number> = {
+    Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6,
+  };
+  return map[weekday] ?? new Date().getDay();
 }
 
 function formatTime(time: string): string {
@@ -33,7 +39,7 @@ function getNextOpenInfo(
   timezone: string,
 ): string | null {
   const now = new Date();
-  const todayKey = WEEKDAY_KEYS[getTodayIndex()];
+  const todayKey = WEEKDAY_KEYS[getTodayIndex(timezone)];
   const todayHours = hours[todayKey];
 
   if (todayHours) {
@@ -51,7 +57,7 @@ function getNextOpenInfo(
   }
 
   for (let i = 1; i <= 7; i++) {
-    const idx = (getTodayIndex() + i) % 7;
+    const idx = (getTodayIndex(timezone) + i) % 7;
     const key = WEEKDAY_KEYS[idx];
     const day = hours[key];
     if (day) {
@@ -66,7 +72,7 @@ function getNextOpenInfo(
 export default function OpeningHours({ hours, timezone }: OpeningHoursProps) {
   if (!hours) return null;
 
-  const todayIdx = getTodayIndex();
+  const todayIdx = getTodayIndex(timezone);
   const statusText = getNextOpenInfo(hours as BusinessHours, timezone);
 
   return (

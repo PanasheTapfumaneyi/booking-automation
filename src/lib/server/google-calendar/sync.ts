@@ -68,6 +68,10 @@ export interface SyncAfterCreateArgs {
   customerName: string;
   customerPhone: string;
   customerEmail?: string | null;
+  /** Item name for resource bookings (vehicle title in the event). */
+  resourceName?: string;
+  /** Pre-formatted total ("Rs 4,200") for unit-rate resource bookings. */
+  displayTotal?: string;
   db?: SupabaseClient;
   /** Test seam: a prebuilt CalendarApi (fake) to run against instead of Google. */
   api?: ReturnType<typeof createCalendarApiClient>["api"];
@@ -147,6 +151,8 @@ export async function syncAfterCreate(
         customerEmail: args.customerEmail,
         startIso: args.row.start_time,
         endIso: args.row.end_time,
+        resourceName: args.resourceName,
+        displayTotal: args.displayTotal,
       }),
       timeoutMs,
     });
@@ -248,6 +254,10 @@ export interface SyncRescheduleMoveArgs {
     customerName: string;
     customerPhone: string;
     customerEmail?: string | null;
+    /** Item name for resource bookings (vehicle title in the event). */
+    resourceName?: string;
+    /** Pre-formatted total ("Rs 4,200") for unit-rate resource bookings. */
+    displayTotal?: string;
   };
 }
 
@@ -278,6 +288,8 @@ async function recreateMovedEvent(
         customerEmail: args.recreate.customerEmail,
         startIso: args.newStartIso,
         endIso: args.newEndIso,
+        resourceName: args.recreate.resourceName,
+        displayTotal: args.recreate.displayTotal,
       }),
       timeoutMs: googleApiTimeoutMs(),
     });
