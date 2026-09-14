@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 
 const BENEFITS = [
-  { title: "Bookings 24/7", desc: "Customers can book even when you\u2019re closed." },
+  { title: "Bookings 24/7", desc: "Customers can book even when you're closed." },
   { title: "Less back-and-forth", desc: "Reduce calls and messages just to find an available time." },
-  { title: "Your own booking page", desc: "Give customers a professional place to make reservations." },
-  { title: "Simple management", desc: "Keep bookings, availability and services organised in one dashboard." },
-  { title: "Built to grow with you", desc: "Suitable for individual operators as well as growing businesses." },
+  { title: "Setup handled for you", desc: "No technical setup. No complicated software to maintain." },
+  { title: "WhatsApp confirmations", desc: "Customers receive automatic booking confirmations and reminders." },
+  { title: "Google Calendar sync", desc: "Bookings flow straight into your calendar." },
+  { title: "Ongoing support", desc: "We help you manage bookings, update services and keep things running." },
 ];
 
 export default function WhyKivo() {
@@ -31,9 +32,7 @@ export default function WhyKivo() {
         <div className="max-w-xl">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Why Kivo</p>
           <h2 className="mt-4 text-[clamp(1.75rem,3.5vw,2.75rem)] font-bold leading-[1.08] tracking-tight text-ink">
-            The booking flow should feel simple&mdash;for
-            <br className="hidden sm:block" />
-            {" "}you and your customers.
+            Focus on your business. We handle the bookings.
           </h2>
         </div>
 
@@ -43,9 +42,7 @@ export default function WhyKivo() {
           {BENEFITS.map((b, i) => (
             <div
               key={b.title}
-              className={`rounded-2xl border border-line bg-card p-6 ${
-                i === BENEFITS.length - 1 && BENEFITS.length % 3 !== 0 ? "sm:col-span-2 lg:col-span-1" : ""
-              }`}
+              className={`rounded-2xl border border-line bg-card p-6`}
               style={{ transitionDelay: `${150 + i * 80}ms`, transitionDuration: "500ms" }}
             >
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft">

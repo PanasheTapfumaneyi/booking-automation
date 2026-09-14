@@ -62,17 +62,17 @@ describe("marketing — demo CTAs on the main site", () => {
     expect(header).toContain('href="/login"');
   });
 
-  it("hero exposes View Demo as the secondary action", () => {
+  it("hero exposes See how it works as the secondary action", () => {
     const hero = src("components/marketing/Hero.tsx");
     expect(hero).toContain('href="/demo"');
-    expect(hero).toContain("View Demo");
+    expect(hero).toContain("See how it works");
     expect(hero).toContain('href="/signup"');
   });
 
-  it("final CTA links to the demo", () => {
+  it("final CTA links to the signup and demo", () => {
     const cta = src("components/marketing/FinalCTA.tsx");
-    expect(cta).toContain('href="/demo"');
     expect(cta).toContain('href="/signup"');
+    expect(cta).toContain('Start your free month');
   });
 });
 

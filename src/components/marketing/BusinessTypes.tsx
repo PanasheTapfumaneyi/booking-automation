@@ -7,7 +7,7 @@ const TYPES = [
     num: "01",
     title: "Appointments",
     desc: "For barbers, salons, beauty professionals, consultants and service businesses.",
-    footer: "Time-based services",
+    footer: "Time-based bookings",
     icon: (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
         <rect x="2" y="4" width="18" height="16" rx="3" stroke="currentColor" strokeWidth="1.5" />
@@ -18,7 +18,7 @@ const TYPES = [
   {
     num: "02",
     title: "Rentals",
-    desc: "For vehicles, equipment and other reservable resources.",
+    desc: "For vehicles, surfboards, equipment and other reservable resources.",
     footer: "Resource availability",
     icon: (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
@@ -32,7 +32,7 @@ const TYPES = [
   {
     num: "03",
     title: "Tours & Activities",
-    desc: "For tours, classes, experiences and other capacity-based bookings.",
+    desc: "For tours, classes, experiences and other group bookings with limited spaces.",
     footer: "Capacity scheduling",
     icon: (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
@@ -68,7 +68,8 @@ export default function BusinessTypes() {
             Built for different businesses.
           </h2>
           <p className="mt-4 text-lg leading-relaxed text-ink-soft">
-            One adaptable booking foundation&mdash;shaped around how your business makes time available.
+            One adaptable booking foundation — shaped around how your business
+            makes time available.
           </p>
         </div>
 

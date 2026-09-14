@@ -4,18 +4,20 @@ import MarketingFooter from "@/components/marketing/MarketingFooter";
 import Hero from "@/components/marketing/Hero";
 import HowItWorks from "@/components/marketing/HowItWorks";
 import BusinessTypes from "@/components/marketing/BusinessTypes";
+import FeaturedBusinesses from "@/components/marketing/FeaturedBusinesses";
 import ProductPreview from "@/components/marketing/ProductPreview";
+import Pricing from "@/components/marketing/Pricing";
 import WhyKivo from "@/components/marketing/WhyKivo";
 import FinalCTA from "@/components/marketing/FinalCTA";
 
 export const metadata: Metadata = {
-  title: "Kivo — Simple digital booking for businesses",
+  title: "Kivo — Managed booking for your business",
   description:
-    "Kivo gives your customers a simple way to book online while giving you one place to manage your availability, services and reservations.",
+    "A professional booking system for your business — set up and managed for you. Accept bookings online, keep your calendar organised and keep customers updated automatically.",
   openGraph: {
-    title: "Kivo — Simple digital booking for businesses",
+    title: "Kivo — Managed booking for your business",
     description:
-      "Bookings, without the back-and-forth. One place for bookings, availability, customers and resources.",
+      "Bookings, without the back-and-forth. First month free, then Rs 1,000/month. Setup and support included.",
     type: "website",
   },
 };
@@ -28,7 +30,9 @@ export default function HomePage() {
         <Hero />
         <HowItWorks />
         <BusinessTypes />
+        <FeaturedBusinesses />
         <ProductPreview />
+        <Pricing />
         <WhyKivo />
         <FinalCTA />
       </main>

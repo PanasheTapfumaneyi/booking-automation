@@ -5,18 +5,18 @@ import { useEffect, useRef, useState } from "react";
 const STEPS = [
   {
     num: "01",
-    title: "Set up your business",
-    desc: "Add your services, availability, resources or booking options.",
+    title: "Tell us about your business",
+    desc: "Share your services, availability, pricing and how you'd like bookings to work.",
   },
   {
     num: "02",
-    title: "Share your booking page",
-    desc: "Give customers a simple link they can access from your website, Instagram, WhatsApp or anywhere else.",
+    title: "We set everything up",
+    desc: "Your booking page, services, calendar integration and WhatsApp notifications — configured for you.",
   },
   {
     num: "03",
-    title: "Manage everything in one place",
-    desc: "View upcoming bookings, customer information and availability from your Kivo dashboard.",
+    title: "Start taking bookings",
+    desc: "Share your booking link with customers. Manage everything from your dashboard.",
   },
 ];
 
@@ -42,10 +42,12 @@ export default function HowItWorks() {
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">How it works</p>
           <h2 className="mt-4 text-[clamp(1.75rem,3.5vw,2.75rem)] font-bold leading-[1.08] tracking-tight text-ink">
-            A clear path from availability
-            <br className="hidden sm:block" />
-            {" "}to confirmed.
+            Setup handled for you.
           </h2>
+          <p className="mt-4 text-lg leading-relaxed text-ink-soft">
+            You don&apos;t need to learn another complicated platform. Tell us how
+            your business works and we&apos;ll configure Kivo around it.
+          </p>
         </div>
 
         {/* Right — timeline */}

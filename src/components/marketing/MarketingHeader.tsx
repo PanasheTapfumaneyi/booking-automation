@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { whatsappUrl } from "@/lib/marketing-config";
 
 const NAV_LINKS = [
   { label: "Product", href: "#product" },
   { label: "Solutions", href: "#solutions" },
+  { label: "Pricing", href: "#pricing" },
   { label: "How It Works", href: "#how-it-works" },
 ];
 
@@ -15,6 +17,8 @@ export default function MarketingHeader() {
   const pathname = usePathname();
   // Off the homepage the fragment targets don't exist, so link to the root.
   const anchorBase = pathname === "/" ? "" : "/";
+
+  const wa = whatsappUrl();
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-paper/95 backdrop-blur-sm">
@@ -53,6 +57,16 @@ export default function MarketingHeader() {
           >
             View Demo
           </Link>
+          {wa && (
+            <a
+              href={wa}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg px-4 py-2.5 text-[15px] font-medium text-ink-soft transition-colors duration-150 hover:text-ink"
+            >
+              Contact
+            </a>
+          )}
           <Link
             href="/signup"
             className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-[15px] font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
@@ -112,6 +126,17 @@ export default function MarketingHeader() {
             >
               View Demo
             </Link>
+            {wa && (
+              <a
+                href={wa}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg px-3 py-2.5 text-center text-[15px] font-medium text-ink-soft transition-colors duration-150 hover:bg-surface-muted hover:text-ink"
+                onClick={() => setMenuOpen(false)}
+              >
+                Contact on WhatsApp
+              </a>
+            )}
             <Link
               href="/signup"
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-3 text-[15px] font-semibold text-white transition-all duration-150 hover:bg-brand-hover"

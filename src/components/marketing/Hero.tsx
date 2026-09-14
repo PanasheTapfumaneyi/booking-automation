@@ -21,25 +21,24 @@ export default function Hero() {
           }`}
         >
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">
-            A simpler way to take bookings
+            Managed booking for your business
           </p>
           <h1 className="mt-5 text-[clamp(2.5rem,5vw,3.75rem)] font-bold leading-[1.02] tracking-tight text-ink">
             Bookings,
             <br />
-            without the back-
-            <br />
-            and-forth.
+            without the back-and-forth.
           </h1>
           <p className="mt-6 max-w-md text-lg leading-relaxed text-ink-soft">
-            Kivo gives your customers a simple way to book online while giving
-            you one place to manage your availability, services and reservations.
+            A professional booking system for your business &mdash; set up and
+            managed for you. Accept bookings online, keep your calendar
+            organised and keep customers updated automatically.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
               href="/signup"
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-7 py-3.5 text-base font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
             >
-              Get Started
+              Start free for 1 month
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                 <path d="M2 7H12M8 3L12 7L8 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -48,27 +47,24 @@ export default function Hero() {
               href="/demo"
               className="inline-flex items-center justify-center rounded-lg border border-line bg-card px-7 py-3.5 text-base font-medium text-ink-soft transition-all duration-150 hover:border-line-strong hover:text-ink"
             >
-              View Demo
+              See how it works
             </Link>
           </div>
           <p className="mt-4 text-sm text-muted">
-            <a href="#how-it-works" className="font-medium underline-offset-4 hover:underline">
-              See how it works
-            </a>{" "}
-            — from availability to confirmed in three steps.
+            No setup fee &middot; First month free &middot; Then Rs 1,000/month
           </p>
           <ul className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted">
             <li className="flex items-center gap-1.5">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-brand" aria-hidden="true"><path d="M2.5 7.5L5.5 10.5L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              No account needed
+              No technical setup needed
             </li>
             <li className="flex items-center gap-1.5">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-brand" aria-hidden="true"><path d="M2.5 7.5L5.5 10.5L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              Instant confirmation
+              WhatsApp confirmations
             </li>
             <li className="flex items-center gap-1.5">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-brand" aria-hidden="true"><path d="M2.5 7.5L5.5 10.5L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              Free rescheduling
+              Support included
             </li>
           </ul>
         </div>
@@ -133,7 +129,7 @@ export default function Hero() {
             <p className="mt-2.5 text-sm font-bold text-ink">Choose a service</p>
             <div className="mt-2.5 rounded-xl border border-line bg-paper px-3.5 py-3">
               <p className="text-sm font-semibold text-ink">Standard Service</p>
-              <p className="text-xs text-ink-soft">45 min · Available today</p>
+              <p className="text-xs text-ink-soft">45 min &middot; Available today</p>
             </div>
             <Link
               href="/demo"
