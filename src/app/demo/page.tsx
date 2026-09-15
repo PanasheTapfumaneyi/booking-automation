@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
+import { TrackMarketingPageView } from "@/components/marketing/TrackedLink";
 import { FEATURED_BUSINESSES } from "@/lib/marketing-config";
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default function DemoPage() {
   return (
     <>
       <MarketingHeader />
+      <TrackMarketingPageView />
       <main className="flex-1">
         <section className="mx-auto max-w-[1200px] px-6 py-20 sm:py-28">
           <div className="max-w-xl">

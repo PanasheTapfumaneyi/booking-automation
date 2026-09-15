@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { trackMarketingEvent } from "@/lib/marketing-analytics";
 
 export default function Hero() {
   const [loaded, setLoaded] = useState(false);
@@ -36,6 +37,12 @@ export default function Hero() {
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
               href="/signup"
+              onClick={() =>
+                trackMarketingEvent("start_free_clicked", {
+                  cta_location: "hero",
+                  cta_label: "Start free for 1 month",
+                })
+              }
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-7 py-3.5 text-base font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
             >
               Start free for 1 month
@@ -45,6 +52,12 @@ export default function Hero() {
             </Link>
             <Link
               href="/demo"
+              onClick={() =>
+                trackMarketingEvent("see_how_it_works_clicked", {
+                  cta_location: "hero",
+                  cta_label: "See how it works",
+                })
+              }
               className="inline-flex items-center justify-center rounded-lg border border-line bg-card px-7 py-3.5 text-base font-medium text-ink-soft transition-all duration-150 hover:border-line-strong hover:text-ink"
             >
               See how it works

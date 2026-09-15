@@ -60,9 +60,12 @@ export default async function LeadsPage() {
   return (
     <div className="min-h-screen bg-paper">
       <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:py-10">
-        <p className="text-sm text-ink-soft">
+        <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-soft">
           <a href="/admin/operations" className="font-medium hover:text-ink">
             ‹ Operations
+          </a>
+          <a href="/admin/analytics" className="font-medium hover:text-ink">
+            Marketing analytics
           </a>
         </p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">

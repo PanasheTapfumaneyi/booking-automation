@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { FEATURED_BUSINESSES, type FeaturedBusiness } from "@/lib/marketing-config";
+import { trackMarketingEvent } from "@/lib/marketing-analytics";
 
 const MODE_ICONS: Record<string, React.JSX.Element> = {
   appointment: (
@@ -68,6 +69,14 @@ function BusinessCard({ business, index }: { business: FeaturedBusiness; index: 
       <div className="flex flex-col gap-2 px-6 pb-6">
         <Link
           href={`/book/${business.slug}`}
+          onClick={() =>
+            trackMarketingEvent("featured_business_clicked", {
+              business_slug: business.slug,
+              category: business.category,
+              booking_mode: business.mode,
+              action: "book_now",
+            })
+          }
           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
         >
           Book now
@@ -77,6 +86,14 @@ function BusinessCard({ business, index }: { business: FeaturedBusiness; index: 
         </Link>
         <Link
           href={`/business/${business.slug}`}
+          onClick={() =>
+            trackMarketingEvent("featured_business_clicked", {
+              business_slug: business.slug,
+              category: business.category,
+              booking_mode: business.mode,
+              action: "view_business",
+            })
+          }
           className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-line px-4 py-2.5 text-sm font-semibold text-ink transition-all duration-150 hover:border-brand hover:text-brand"
         >
           View business

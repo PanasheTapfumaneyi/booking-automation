@@ -9,6 +9,7 @@ import ProductPreview from "@/components/marketing/ProductPreview";
 import Pricing from "@/components/marketing/Pricing";
 import WhyKivo from "@/components/marketing/WhyKivo";
 import FinalCTA from "@/components/marketing/FinalCTA";
+import { TrackMarketingPageView } from "@/components/marketing/TrackedLink";
 
 export const metadata: Metadata = {
   title: "Kivo — Managed booking for your business",
@@ -26,6 +27,7 @@ export default function HomePage() {
   return (
     <>
       <MarketingHeader />
+      <TrackMarketingPageView />
       <main>
         <Hero />
         <FeaturedBusinesses />

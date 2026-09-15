@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { whatsappUrl, telUrl, PRICING } from "@/lib/marketing-config";
+import { trackMarketingEvent } from "@/lib/marketing-analytics";
 
 export default function FinalCTA() {
   const ref = useRef<HTMLDivElement>(null);
@@ -42,6 +43,12 @@ export default function FinalCTA() {
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Link
                   href="/signup"
+                  onClick={() =>
+                    trackMarketingEvent("start_free_clicked", {
+                      cta_location: "final_cta",
+                      cta_label: "Start your free month",
+                    })
+                  }
                   className="inline-flex items-center gap-2 rounded-lg bg-white px-7 py-3.5 text-[15px] font-semibold text-blue transition-all duration-150 hover:bg-white/90"
                 >
                   Start your free month
@@ -54,6 +61,12 @@ export default function FinalCTA() {
                     href={wa}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() =>
+                      trackMarketingEvent("contact_clicked", {
+                        contact_type: "whatsapp",
+                        cta_location: "final_cta",
+                      })
+                    }
                     className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/30 px-7 py-3.5 text-[15px] font-medium text-white transition-all duration-150 hover:border-white/60 hover:text-white"
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">

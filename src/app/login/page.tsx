@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import LoginForm from "@/components/LoginForm";
+import { TrackMarketingPageView } from "@/components/marketing/TrackedLink";
 
 export const metadata: Metadata = {
   title: "Business login",
@@ -13,6 +14,7 @@ export default function LoginPage() {
   return (
     <>
       <Navbar />
+      <TrackMarketingPageView />
       <main className="flex-1">
         <Suspense>
           <LoginForm mode="login" />

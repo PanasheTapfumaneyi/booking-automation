@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BookingMode } from "@/types/booking";
+import { getMarketingSession } from "@/lib/marketing-analytics";
 
 const MODES: Array<{ mode: BookingMode; title: string; blurb: string }> = [
   {
@@ -86,6 +87,7 @@ export default function BasicsForm() {
           phone: phone.trim(),
           timezone,
           booking_mode: mode,
+          sessionId: getMarketingSession()?.id ?? undefined,
         }),
       });
       const data = (await response.json().catch(() => null)) as {

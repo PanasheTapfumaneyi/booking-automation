@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { TrackedLink } from "@/components/marketing/TrackedLink";
 import { getRequestUser, getMyMemberships } from "@/lib/server/auth";
 import { getSupabase } from "@/lib/supabase/server";
 import { fetchBusiness } from "@/lib/server/database";
@@ -67,14 +68,16 @@ export default async function SetupSuccessPage() {
 
           <div className="mx-auto mt-8 flex max-w-sm flex-col gap-3">
             {wa && (
-              <a
+              <TrackedLink
                 href={wa}
                 target="_blank"
                 rel="noopener noreferrer"
+                eventName="contact_clicked"
+                eventProps={{ contact_type: "whatsapp", cta_location: "onboarding_success" }}
                 className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
               >
                 Message Kivo on WhatsApp
-              </a>
+              </TrackedLink>
             )}
             <Link
               href="/dashboard"

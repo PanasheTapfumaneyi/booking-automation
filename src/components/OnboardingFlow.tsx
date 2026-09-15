@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import HoursEditor from "@/components/HoursEditor";
 import type { BusinessHours } from "@/lib/availability";
 import type { BookingMode } from "@/types/booking";
+import { getMarketingSession } from "@/lib/marketing-analytics";
 
 type Step = "basics" | "offering" | "hours" | "notifications" | "integrations";
 
@@ -221,7 +222,10 @@ export default function OnboardingFlow({
     }
     const done = await run(async () => {
       if (markCompleteUrl) {
-        await postJson(markCompleteUrl, { businessId });
+        await postJson(markCompleteUrl, {
+          businessId,
+          sessionId: getMarketingSession()?.id ?? undefined,
+        });
       }
     });
     if (done !== null) router.push(completionHref);

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserAuthClient } from "@/lib/supabase/browser";
+import { trackMarketingEvent } from "@/lib/marketing-analytics";
 
 /** Shared email+password form for /login and /signup. */
 export default function LoginForm({ mode }: { mode: "login" | "signup" }) {
@@ -24,11 +25,15 @@ export default function LoginForm({ mode }: { mode: "login" | "signup" }) {
     try {
       const supabase = createBrowserAuthClient();
       if (mode === "signup") {
+        trackMarketingEvent("signup_started", {});
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
         });
         if (signUpError) throw signUpError;
+        // Account created in both branches: immediate session, or pending
+        // email confirmation (Supabase created the user row).
+        trackMarketingEvent("signup_completed", {});
         if (!data.session) {
           // Email confirmation is on — the owner finishes via inbox link.
           setEmailed(true);

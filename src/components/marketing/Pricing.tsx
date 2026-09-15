@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { whatsappUrl, PRICING } from "@/lib/marketing-config";
+import { trackMarketingEvent, useViewedOnce } from "@/lib/marketing-analytics";
 
 const INCLUDED = [
   "Your own professional booking website",
@@ -36,10 +37,11 @@ export default function Pricing() {
   }, []);
 
   const wa = whatsappUrl();
+  const viewedRef = useViewedOnce("pricing_viewed", { cta_location: "pricing" });
 
   return (
     <section id="pricing" ref={ref} className="bg-paper">
-      <div className="mx-auto max-w-[1200px] px-6 py-24 sm:py-32">
+      <div ref={viewedRef} className="mx-auto max-w-[1200px] px-6 py-24 sm:py-32">
         <div className="max-w-xl">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Pricing</p>
           <h2 className="mt-4 text-[clamp(1.75rem,3.5vw,2.75rem)] font-bold leading-[1.08] tracking-tight text-ink">
@@ -67,6 +69,12 @@ export default function Pricing() {
             <div className="mt-8 flex flex-col gap-3">
               <Link
                 href="/signup"
+                onClick={() =>
+                  trackMarketingEvent("start_free_clicked", {
+                    cta_location: "pricing",
+                    cta_label: "Start your free month",
+                  })
+                }
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-7 py-3.5 text-base font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
               >
                 Start your free month
@@ -79,6 +87,12 @@ export default function Pricing() {
                   href={wa}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() =>
+                    trackMarketingEvent("contact_clicked", {
+                      contact_type: "whatsapp",
+                      cta_location: "pricing",
+                    })
+                  }
                   className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-card px-7 py-3.5 text-base font-medium text-ink-soft transition-all duration-150 hover:border-line-strong hover:text-ink"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">

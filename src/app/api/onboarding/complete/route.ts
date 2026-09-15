@@ -8,6 +8,7 @@ import {
   trackSetupEvent,
   updateSetupRequest,
 } from "@/lib/server/onboarding";
+import { recordServerMarketingEvent } from "@/lib/server/marketing-analytics";
 import { fetchBusiness } from "@/lib/server/database";
 import { toApiErrorResponse } from "@/lib/server/route-helper";
 
@@ -27,6 +28,7 @@ export async function POST(request: Request) {
 
     const body = (await request.json().catch(() => null)) as {
       businessId?: unknown;
+      sessionId?: unknown;
     } | null;
     if (!body || typeof body.businessId !== "string" || !body.businessId) {
       return NextResponse.json({ error: "Missing business." }, { status: 400 });
@@ -60,6 +62,15 @@ export async function POST(request: Request) {
       db,
     );
     trackSetupEvent("self_config_completed", body.businessId, {});
+
+    // Marketing funnel (server-recorded): the self path completes here.
+    // Only on the actual transition — re-completion returns early above.
+    void recordServerMarketingEvent({
+      eventName: "onboarding_completed",
+      sessionId: typeof body.sessionId === "string" ? body.sessionId : undefined,
+      pathname: "/onboarding",
+      metadata: { setup_preference: "self" },
+    });
 
     const business = await fetchBusiness(body.businessId, db).catch(() => null);
     const operatorNotified = await notifyOperatorOfSetupRequest({

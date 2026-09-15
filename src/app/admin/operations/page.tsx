@@ -29,7 +29,15 @@ export default async function OperationsDashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-6xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">
+        <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-soft">
+          <a href="/admin/analytics" className="font-medium hover:text-ink">
+            Marketing analytics
+          </a>
+          <a href="/admin/leads" className="font-medium hover:text-ink">
+            Setup requests
+          </a>
+        </p>
+        <h1 className="mt-2 text-2xl font-bold text-gray-900 mb-6">
           Operations Dashboard
         </h1>
 

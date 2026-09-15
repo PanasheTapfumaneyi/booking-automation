@@ -12,6 +12,7 @@ import {
   trackSetupEvent,
   updateSetupRequest,
 } from "@/lib/server/onboarding";
+import { recordServerMarketingEvent } from "@/lib/server/marketing-analytics";
 import { fetchBusiness } from "@/lib/server/database";
 import { toApiErrorResponse } from "@/lib/server/route-helper";
 
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
       phone?: unknown;
       timezone?: unknown;
       booking_mode?: unknown;
+      sessionId?: unknown;
     } | null;
     if (!body) {
       return NextResponse.json({ error: "Missing request body." }, { status: 400 });
@@ -87,6 +89,16 @@ export async function POST(request: Request) {
     trackSetupEvent("onboarding.basics_completed", created.id, {
       bookingMode,
       ...(businessType ? { businessType } : {}),
+    });
+
+    // Marketing funnel (server-recorded: survives ad-blockers). Only on
+    // fresh creation — the existing-business short-circuit above is a
+    // refresh/retry, not a new submission.
+    void recordServerMarketingEvent({
+      eventName: "business_details_submitted",
+      sessionId: typeof body.sessionId === "string" ? body.sessionId : undefined,
+      pathname: "/onboarding",
+      metadata: { booking_mode: bookingMode },
     });
 
     return NextResponse.json(

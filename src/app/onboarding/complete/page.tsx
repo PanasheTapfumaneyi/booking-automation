@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { TrackedLink } from "@/components/marketing/TrackedLink";
 import { getRequestUser, getMyMemberships } from "@/lib/server/auth";
 import { getSupabase } from "@/lib/supabase/server";
 import { fetchBusiness } from "@/lib/server/database";
@@ -69,12 +70,14 @@ export default async function SetupCompletePage() {
 
           <div className="mx-auto mt-8 flex max-w-sm flex-col gap-3">
             {business.slug && (
-              <Link
+              <TrackedLink
                 href={`/business/${business.slug}`}
+                eventName="temporary_business_page_viewed"
+                eventProps={{ cta_location: "complete_page" }}
                 className="inline-flex min-h-[52px] items-center justify-center rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
               >
                 View my booking page
-              </Link>
+              </TrackedLink>
             )}
             <Link
               href="/dashboard"
@@ -83,14 +86,16 @@ export default async function SetupCompletePage() {
               Open dashboard
             </Link>
             {wa && (
-              <a
+              <TrackedLink
                 href={wa}
                 target="_blank"
                 rel="noopener noreferrer"
+                eventName="contact_clicked"
+                eventProps={{ contact_type: "whatsapp", cta_location: "complete_page" }}
                 className="text-sm font-medium text-ink-soft hover:text-ink"
               >
                 Message Kivo
-              </a>
+              </TrackedLink>
             )}
           </div>
         </div>

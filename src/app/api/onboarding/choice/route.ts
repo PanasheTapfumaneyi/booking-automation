@@ -12,6 +12,7 @@ import {
   updateSetupRequest,
   type SetupPreference,
 } from "@/lib/server/onboarding";
+import { recordServerMarketingEvent } from "@/lib/server/marketing-analytics";
 import { toApiErrorResponse } from "@/lib/server/route-helper";
 
 /**
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
       preference?: unknown;
       contactPhone?: unknown;
       businessType?: unknown;
+      sessionId?: unknown;
     } | null;
     if (!body || typeof body.businessId !== "string" || !body.businessId) {
       return NextResponse.json({ error: "Missing business." }, { status: 400 });
@@ -97,10 +99,28 @@ export async function POST(request: Request) {
 
     trackSetupEvent("setup_choice_made", business.id, { preference });
 
-    // Operator alert only on first choice or a changed choice.
-    let operatorNotified = false;
-    if (firstChoice || previous.preference !== preference) {
-      operatorNotified = await notifyOperatorOfSetupRequest({
+    // First or changed choice only — repeating the same choice is a
+    // refresh, not a conversion. The managed path completes here (it has
+    // no further completion step), so it also records onboarding_completed.
+    const choiceIsNew = firstChoice || previous.preference !== preference;
+    if (choiceIsNew) {
+      const sessionId =
+        typeof body.sessionId === "string" ? body.sessionId : undefined;
+      void recordServerMarketingEvent({
+        eventName: preference === "managed" ? "managed_setup_selected" : "self_setup_selected",
+        sessionId,
+        pathname: "/onboarding",
+        metadata: { setup_preference: preference },
+      });
+      if (preference === "managed") {
+        void recordServerMarketingEvent({
+          eventName: "onboarding_completed",
+          sessionId,
+          pathname: "/onboarding",
+          metadata: { setup_preference: preference },
+        });
+      }
+      const operatorNotified = await notifyOperatorOfSetupRequest({
         businessId: business.id,
         businessName: business.name,
         businessType: updated.business_type,
@@ -111,12 +131,17 @@ export async function POST(request: Request) {
         preference,
         operatorNotified,
       });
+      return NextResponse.json({
+        setupStatus: updated.status,
+        preference: updated.preference,
+        operatorNotified,
+      });
     }
 
     return NextResponse.json({
       setupStatus: updated.status,
       preference: updated.preference,
-      operatorNotified,
+      operatorNotified: false,
     });
   } catch (error) {
     return toApiErrorResponse(error);

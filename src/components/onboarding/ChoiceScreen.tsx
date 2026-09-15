@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getMarketingSession, trackMarketingEvent } from "@/lib/marketing-analytics";
 
 /**
  * "How would you like to get started?" — managed (recommended) vs
@@ -23,6 +24,10 @@ export default function ChoiceScreen({
   const [busy, setBusy] = useState<"managed" | "self" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    trackMarketingEvent("setup_choice_viewed", {});
+  }, []);
+
   async function choose(preference: "managed" | "self") {
     if (busy) return;
     setBusy(preference);
@@ -35,6 +40,7 @@ export default function ChoiceScreen({
           businessId,
           preference,
           contactPhone: contact.trim(),
+          sessionId: getMarketingSession()?.id ?? undefined,
         }),
       });
       const data = (await response.json().catch(() => null)) as {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { whatsappUrl } from "@/lib/marketing-config";
+import { trackMarketingEvent } from "@/lib/marketing-analytics";
 
 const NAV_LINKS = [
   { label: "Product", href: "#product" },
@@ -61,12 +62,24 @@ export default function MarketingHeader() {
             href={wa || `${anchorBase}#contact`}
             target={wa ? "_blank" : undefined}
             rel={wa ? "noopener noreferrer" : undefined}
+            onClick={() =>
+              trackMarketingEvent("contact_clicked", {
+                contact_type: wa ? "whatsapp" : "section",
+                cta_location: "header",
+              })
+            }
             className="rounded-lg px-4 py-2.5 text-[15px] font-medium text-ink-soft transition-colors duration-150 hover:text-ink"
           >
             Contact
           </a>
           <Link
             href="/signup"
+            onClick={() =>
+              trackMarketingEvent("start_free_clicked", {
+                cta_location: "header",
+                cta_label: "Get Started",
+              })
+            }
             className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-[15px] font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
           >
             Get Started
@@ -129,14 +142,26 @@ export default function MarketingHeader() {
               target={wa ? "_blank" : undefined}
               rel={wa ? "noopener noreferrer" : undefined}
               className="rounded-lg px-3 py-2.5 text-center text-[15px] font-medium text-ink-soft transition-colors duration-150 hover:bg-surface-muted hover:text-ink"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                trackMarketingEvent("contact_clicked", {
+                  contact_type: wa ? "whatsapp" : "section",
+                  cta_location: "header",
+                });
+                setMenuOpen(false);
+              }}
             >
               Contact on WhatsApp
             </a>
             <Link
               href="/signup"
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-3 text-[15px] font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                trackMarketingEvent("start_free_clicked", {
+                  cta_location: "header",
+                  cta_label: "Get Started",
+                });
+                setMenuOpen(false);
+              }}
             >
               Get Started
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
