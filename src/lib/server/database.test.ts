@@ -193,10 +193,24 @@ afterEach(() => {
 const BIZ = {
   id: "biz-1",
   name: "Fade District",
+  slug: "fade-area",
   phone: null,
   email: null,
   timezone: "Indian/Mauritius",
   booking_mode: "appointment",
+  calendar_id: null,
+  created_at: "2026-01-01T00:00:00.000Z",
+  updated_at: "2026-01-01T00:00:00.000Z",
+};
+
+const BIZ_LAGOON = {
+  id: "biz-2",
+  name: "Blue Lagoon",
+  slug: "blue-lagoon",
+  phone: null,
+  email: null,
+  timezone: "Indian/Mauritius",
+  booking_mode: "capacity",
   calendar_id: null,
   created_at: "2026-01-01T00:00:00.000Z",
   updated_at: "2026-01-01T00:00:00.000Z",
@@ -312,6 +326,22 @@ describe("getBookingByToken", () => {
     const booking = await getBookingByToken("tok-A");
     expect(booking.businessName).toBe("Fade District");
     expect(booking.businessTimezone).toBe("Indian/Mauritius");
+    expect(booking.businessSlug).toBe("fade-area");
+  });
+
+  it("a Blue Lagoon booking resolves the Blue Lagoon slug (no cross-tenant leak)", async () => {
+    holder.db = createFakeDb();
+    holder.db.tables.businesses = [{ ...BIZ }, { ...BIZ_LAGOON }];
+    holder.db.tables.bookings = [
+      bookingRow({ id: "b-A", business_id: "biz-1", manage_token: "tok-A", status: "confirmed" }),
+      bookingRow({ id: "b-L", business_id: "biz-2", manage_token: "tok-L", status: "confirmed" }),
+    ];
+    const lagoon = await getBookingByToken("tok-L");
+    expect(lagoon.id).toBe("b-L");
+    expect(lagoon.businessName).toBe("Blue Lagoon");
+    expect(lagoon.businessSlug).toBe("blue-lagoon");
+    const fade = await getBookingByToken("tok-A");
+    expect(fade.businessSlug).toBe("fade-area");
   });
 
   it("an invalid token returns the safe not-found error", async () => {

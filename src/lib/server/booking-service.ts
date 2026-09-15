@@ -9,9 +9,11 @@ import {
   fetchBusiness,
   fetchService,
   fetchBookingByToken,
+  fetchBookingSession,
   fetchBlocks,
   findOrCreateCustomer,
   normalizePhone,
+  revertBookingSession,
 } from "@/lib/server/database";
 import { requireAppointmentSlot } from "@/lib/server/strategies/appointment";
 import {
@@ -20,6 +22,7 @@ import {
 } from "@/lib/server/strategies/resource";
 import {
   validateCapacityBooking,
+  fetchSessionBookedQuantity,
 } from "@/lib/server/strategies/capacity";
 
 import { generateManageToken } from "@/lib/server/token";
@@ -131,16 +134,18 @@ function normalizeBookingRow(
 
 /**
  * Attaches the real business identity to an API-facing booking so headers,
- * summaries and timezone formatting never fall back to a hardcoded demo name.
+ * summaries and timezone formatting never fall back to a hardcoded demo name,
+ * and re-booking links resolve to the booking's OWN business page.
  */
 function withBusinessContext(
   booking: Booking,
-  business: Pick<BusinessRow, "name" | "timezone">,
+  business: Pick<BusinessRow, "name" | "timezone"> & { slug?: string | null },
 ): Booking {
   return {
     ...booking,
     businessName: business.name,
     businessTimezone: business.timezone,
+    businessSlug: business.slug ?? null,
   };
 }
 
@@ -695,6 +700,256 @@ export async function rescheduleBooking(
   );
 }
 
+export interface CapacityRescheduleInput {
+  /** Target departure. Defaults to the booking's current session. */
+  sessionId?: string;
+  /** New guest count. Defaults to the booking's current quantity. */
+  quantity?: number;
+}
+
+/**
+ * Capacity reschedule: change the guest count on the current departure,
+ * move to another departure, or both — atomically.
+ *
+ * Capacity math never double-counts the customer's own seats: the
+ * pre-flight check excludes this booking, and the authoritative
+ * `update_booking_session` RPC re-checks inside the transaction with the
+ * session row locked. Friendly validation errors are explicit; the
+ * quantity is never silently clamped.
+ */
+export async function rescheduleCapacityBooking(
+  token: string,
+  input: CapacityRescheduleInput,
+): Promise<Booking> {
+  const db = getSupabase();
+  const attemptId = generateAttemptId();
+  const found = await fetchBookingByToken(token);
+  if (!found) {
+    throw new ApiError(
+      404,
+      "BOOKING_NOT_FOUND",
+      "We couldn't find this appointment. The link may be incorrect.",
+    );
+  }
+  const { row } = found;
+
+  if (row.status === "cancelled") {
+    throw new ApiError(
+      409,
+      "BOOKING_CANCELLED",
+      "This appointment has already been cancelled.",
+    );
+  }
+
+  const service = await fetchService(row.service_id);
+  if (!service) {
+    throw new ApiError(500, "INTERNAL", "We couldn't load this service.");
+  }
+  const business = await fetchBusiness(row.business_id);
+
+  if (business.booking_mode !== "capacity" || !row.session_id) {
+    throw new ApiError(
+      400,
+      "VALIDATION",
+      "Guest changes are only available for session bookings.",
+    );
+  }
+
+  let quantity = row.quantity;
+  if (input.quantity !== undefined) {
+    if (typeof input.quantity !== "number" || !Number.isInteger(input.quantity)) {
+      throw new ApiError(
+        400,
+        "VALIDATION",
+        "Please choose a whole number of guests.",
+      );
+    }
+    if (input.quantity < 1) {
+      throw new ApiError(
+        400,
+        "VALIDATION",
+        "You need at least 1 guest. To remove everyone, cancel the booking instead.",
+      );
+    }
+    quantity = input.quantity;
+  }
+
+  const targetSessionId =
+    typeof input.sessionId === "string" && input.sessionId.length > 0
+      ? input.sessionId
+      : row.session_id;
+  if (typeof input.sessionId === "string" && input.sessionId.length === 0) {
+    throw new ApiError(400, "VALIDATION", "Please choose a departure.");
+  }
+  const session = await fetchBookingSession(targetSessionId);
+  if (!session || !session.active) {
+    throw new ApiError(
+      400,
+      "SESSION_NOT_FOUND",
+      "That departure isn't available right now.",
+    );
+  }
+  if (session.business_id !== business.id) {
+    throw new ApiError(
+      400,
+      "VALIDATION",
+      "That departure belongs to another business.",
+    );
+  }
+  if (session.service_id !== row.service_id) {
+    throw new ApiError(
+      400,
+      "VALIDATION",
+      "You can only move within departures of the same service.",
+    );
+  }
+  if (new Date(session.start_time).getTime() <= Date.now()) {
+    throw new ApiError(
+      400,
+      "VALIDATION",
+      "That departure has already started. Please choose another.",
+    );
+  }
+  if (quantity > session.capacity) {
+    throw new ApiError(
+      400,
+      "VALIDATION",
+      `That departure fits ${session.capacity} guest${session.capacity === 1 ? "" : "s"} at most.`,
+    );
+  }
+
+  // Friendly pre-flight: effective capacity excludes this booking's own
+  // seats, so 2 -> 3 is judged on (capacity - others), not (capacity -
+  // others - 2). The RPC re-checks authoritatively.
+  const bookedOthers = await fetchSessionBookedQuantity({
+    sessionId: session.id,
+    excludeBookingId: row.id,
+  });
+  if (quantity > session.capacity - bookedOthers) {
+    const remaining = Math.max(session.capacity - bookedOthers, 0);
+    throw new ApiError(
+      409,
+      "CAPACITY_FULL",
+      remaining === 0
+        ? CAPACITY_FULL_MESSAGE
+        : `Only ${remaining} spot${remaining === 1 ? "" : "s"} still available on that departure.`,
+    );
+  }
+
+  void recordFunnelEvent("reschedule_attempted", attemptId, business.id, row.id, {
+    mode: "capacity",
+    sessionId: session.id,
+    quantity,
+  });
+
+  const { data, error } = await db.rpc("update_booking_session", {
+    p_booking_id: row.id,
+    p_session_id: session.id,
+    p_quantity: quantity,
+  });
+
+  if (error) {
+    void recordFailure(
+      "reschedule_failed",
+      "DATABASE_ERROR",
+      "technical",
+      attemptId,
+      row.business_id,
+      row.id,
+    );
+    throw new ApiError(
+      500,
+      "INTERNAL",
+      "We couldn't update your booking. Please try again.",
+    );
+  }
+
+  const result = data as { ok: boolean; code?: string; booking?: BookingRow };
+
+  if (!result.ok) {
+    switch (result.code) {
+      case "CAPACITY_FULL":
+        throw new ApiError(409, "CAPACITY_FULL", CAPACITY_FULL_MESSAGE);
+      case "SESSION_NOT_FOUND":
+        throw new ApiError(
+          400,
+          "SESSION_NOT_FOUND",
+          "That departure isn't available right now.",
+        );
+      case "BOOKING_INVALID": {
+        // The booking may have been cancelled concurrently.
+        const latest = await fetchBookingByToken(token);
+        if (latest && latest.row.status === "cancelled") {
+          throw new ApiError(
+            409,
+            "BOOKING_CANCELLED",
+            "This appointment has already been cancelled.",
+          );
+        }
+        throw new ApiError(409, "SLOT_UNAVAILABLE", SLOT_UNAVAILABLE_MESSAGE);
+      }
+      default:
+        throw new ApiError(400, "VALIDATION", "Please check your booking details.");
+    }
+  }
+
+  const movedRow = result.booking as unknown as BookingRow;
+
+  // Move the existing Google event when the times changed (no duplicate).
+  // Guest-count-only edits skip the calendar API entirely. On failure the
+  // session move is reverted atomically, mirroring the time-move revert.
+  if (
+    movedRow.start_time !== row.start_time ||
+    movedRow.end_time !== row.end_time
+  ) {
+    try {
+      await moveCalendarEvent({
+        business,
+        row,
+        newStartIso: movedRow.start_time,
+        newEndIso: movedRow.end_time,
+        previousStartIso: row.start_time,
+        previousEndIso: row.end_time,
+        recreate: {
+          service,
+          customerName: row.customer?.name ?? "",
+          customerPhone: row.customer?.phone ?? "",
+          customerEmail: row.customer?.email ?? null,
+        },
+      });
+    } catch (calendarError) {
+      await revertBookingSession(row.id, row.session_id, row.quantity).catch(
+        () => false,
+      );
+      throw calendarError;
+    }
+  }
+
+  await dispatchBookingEvent({
+    business,
+    serviceName: service.name,
+    booking: movedRow,
+    customer: row.customer ?? { name: "", phone: "" },
+    type: "booking.rescheduled",
+    previous: { startTime: row.start_time, endTime: row.end_time },
+  });
+
+  void recordFunnelEvent("reschedule_completed", attemptId, business.id, movedRow.id, {
+    mode: "capacity",
+    sessionId: session.id,
+    quantity,
+  });
+
+  return withBusinessContext(
+    normalizeBookingRow(
+      movedRow,
+      service,
+      row.customer ?? { name: "", phone: "", email: null },
+    ),
+    business,
+  );
+}
+
 export async function cancelBooking(token: string): Promise<Booking> {
   const db = getSupabase();
   const cancelAttemptId = generateAttemptId();
@@ -751,10 +1006,11 @@ export async function cancelBooking(token: string): Promise<Booking> {
   // Load the business so the cancellation message renders with its real name
   // and timezone. This is notification bookkeeping — a failure here must never
   // break the cancellation, which is already committed.
-  let cancelBusiness: { id: string; name: string; timezone: string; phone?: string | null } = {
+  let cancelBusiness: { id: string; name: string; timezone: string; phone?: string | null; slug?: string | null } = {
     id: cancelled.business_id,
     name: "",
     timezone: "",
+    slug: null,
   };
   try {
     cancelBusiness = await fetchBusiness(cancelled.business_id);

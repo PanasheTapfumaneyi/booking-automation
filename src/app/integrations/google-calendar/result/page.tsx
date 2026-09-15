@@ -6,7 +6,7 @@ interface ResultPageProps {
 }
 
 export const metadata: Metadata = {
-  title: "Calendar connection — Fade District",
+  title: "Google Calendar connection",
   description: "Google Calendar connection result.",
 };
 
@@ -35,7 +35,7 @@ export default async function CalendarResultPage({ searchParams }: ResultPagePro
         </h1>
         <p className="mt-2 text-sm text-neutral-600">
           {success
-            ? "Fade District is now connected. New bookings will appear on the business calendar automatically, and manual calendar events will block the booking times they overlap."
+            ? "Your business calendar is now connected. New bookings will appear on the business calendar automatically, and manual calendar events will block the booking times they overlap."
             : message}
         </p>
         <Link

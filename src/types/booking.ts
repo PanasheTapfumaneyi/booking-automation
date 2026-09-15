@@ -102,6 +102,13 @@ export interface Booking {
   businessName?: string;
   /** IANA timezone of the booking business — enriched server-side on token-scoped fetches. */
   businessTimezone?: string;
+  /**
+   * Public slug of the booking business — enriched server-side on
+   * token-scoped fetches so "book again" links resolve to the booking's
+   * OWN business page and never a hard-coded demo tenant. Null when the
+   * business has no public slug (then no deep link is rendered).
+   */
+  businessSlug?: string | null;
 }
 
 export interface Customer {

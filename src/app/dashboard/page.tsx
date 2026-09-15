@@ -170,7 +170,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     selectedDay === bounds.todayKey && nextBooking ? nextBooking.id : undefined;
 
   const todayCount = byDay.get(bounds.todayKey)?.length ?? 0;
-  const attentionCount = counts.failedNotifications + counts.calendarIssues;
 
   return (
     <>
@@ -226,7 +225,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             </div>
           )}
 
-          <div className="mt-6 grid grid-cols-3 gap-2.5 sm:gap-3">
+          <div className="mt-6 grid grid-cols-2 gap-2.5 sm:gap-3">
             <StatCard
               label="Today"
               value={String(counts.today)}
@@ -236,12 +235,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               label="Upcoming"
               value={String(counts.upcoming)}
               href={`/dashboard/bookings?business=${business.id}&view=upcoming`}
-            />
-            <StatCard
-              label="Needs attention"
-              value={String(attentionCount)}
-              tone={attentionCount > 0 ? "warn" : undefined}
-              href={attentionCount > 0 ? `/settings?business=${business.id}` : undefined}
             />
           </div>
 

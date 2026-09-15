@@ -9,6 +9,7 @@ import {
   formatLongDate,
   formatTimeInZone,
   formatLongDateInZone,
+  isoToDateKey,
   zonedInstant,
   DEFAULT_TIMEZONE,
 } from "@/lib/availability";
@@ -18,10 +19,12 @@ import {
   apiCancelBooking,
   apiGetAvailability,
   BookingApiError,
+  type CapacityAvailability,
 } from "@/lib/booking-api";
 import BookingSummary from "@/components/BookingSummary";
 import BookingCalendar from "@/components/BookingCalendar";
 import TimeSlot from "@/components/TimeSlot";
+import CapacityRescheduleSection from "@/components/CapacityRescheduleSection";
 
 type Mode = "view" | "reschedule" | "cancel" | "cancelled" | "rescheduled" | "rebook";
 
@@ -72,6 +75,13 @@ export default function ManageBooking({ token }: ManageBookingProps) {
   const [resourceNewStart, setResourceNewStart] = useState("");
   const [resourceNewEnd, setResourceNewEnd] = useState("");
 
+  // Capacity reschedule state (guest count and/or departure change)
+  const [capacityDateKey, setCapacityDateKey] = useState<string | null>(null);
+  const [capacitySessions, setCapacitySessions] = useState<CapacityAvailability["sessions"] | null>(null);
+  const [capacitySessionsError, setCapacitySessionsError] = useState<string | null>(null);
+  const [capacitySessionId, setCapacitySessionId] = useState<string | null>(null);
+  const [capacityQuantity, setCapacityQuantity] = useState(1);
+
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -106,6 +116,11 @@ export default function ManageBooking({ token }: ManageBookingProps) {
 
   const bookingMode = booking ? detectMode(booking) : "appointment";
   const canReschedule = bookingMode === "appointment" || bookingMode === "resource";
+  // Re-booking always stays on the booking's OWN business page, resolved
+  // from the manage-token-scoped booking (never a hard-coded tenant).
+  // When the business has no public slug there is no safe destination, so
+  // no link is rendered instead of leaking into another tenant's flow.
+  const bookAgainHref = booking?.businessSlug ? `/book/${booking.businessSlug}` : null;
   const slotsLoading = !slotsError && slotQuery !== null && slots === null;
 
   useEffect(() => {
@@ -142,6 +157,42 @@ export default function ManageBooking({ token }: ManageBookingProps) {
     };
   }, [slotQuery, booking, retryCount, bookingMode]);
 
+  // Capacity: load departures for the chosen date, excluding this booking
+  // so the listed remaining seats already include the customer's own seats
+  // back (effective capacity for increases).
+  useEffect(() => {
+    if (mode !== "reschedule" || !booking || bookingMode !== "capacity" || !capacityDateKey) {
+      return;
+    }
+    let cancelled = false;
+    apiGetAvailability({
+      serviceId: booking.serviceId,
+      date: capacityDateKey,
+      excludeBookingToken: token,
+      businessId: booking.businessId,
+    })
+      .then((availability) => {
+        if (cancelled) return;
+        if (availability.kind === "capacity") {
+          setCapacitySessions(availability.sessions);
+        } else {
+          setCapacitySessions([]);
+        }
+      })
+      .catch((fetchError: unknown) => {
+        if (cancelled) return;
+        setCapacitySessions([]);
+        setCapacitySessionsError(
+          fetchError instanceof BookingApiError
+            ? fetchError.message
+            : "We couldn't load departures. Please try again.",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, booking, bookingMode, capacityDateKey, token, retryCount]);
+
   function startReschedule() {
     setMode("reschedule");
     setRescheduleStep("date");
@@ -153,6 +204,14 @@ export default function ManageBooking({ token }: ManageBookingProps) {
     setResourceNewDate(null);
     setResourceNewStart("");
     setResourceNewEnd("");
+    if (booking && detectMode(booking) === "capacity" && booking.sessionId) {
+      const tz = booking.businessTimezone ?? DEFAULT_TIMEZONE;
+      setCapacityDateKey(isoToDateKey(booking.startTime, tz));
+      setCapacitySessionId(booking.sessionId);
+      setCapacityQuantity(booking.quantity);
+      setCapacitySessions(null);
+      setCapacitySessionsError(null);
+    }
     setError(null);
   }
 
@@ -219,6 +278,29 @@ export default function ManageBooking({ token }: ManageBookingProps) {
       .finally(() => setBusy(false));
   }
 
+  function handleConfirmCapacity() {
+    if (!booking || !capacitySessionId) return;
+    setBusy(true);
+    setError(null);
+    apiRescheduleBooking(token, undefined, undefined, {
+      sessionId: capacitySessionId,
+      quantity: capacityQuantity,
+    })
+      .then((updated) => {
+        setBooking(updated);
+        setMode("rescheduled");
+      })
+      .catch((rescheduleError: unknown) => {
+        setMode("view");
+        setError(
+          rescheduleError instanceof BookingApiError
+            ? rescheduleError.message
+            : "We couldn't update your booking. Please try again.",
+        );
+      })
+      .finally(() => setBusy(false));
+  }
+
   function handleConfirmCancel() {
     if (!booking) return;
 
@@ -259,10 +341,10 @@ export default function ManageBooking({ token }: ManageBookingProps) {
           the booking may have been removed.
         </p>
         <Link
-          href="/book"
+          href="/"
           className="mt-6 inline-block rounded-full bg-blue px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
         >
-          Book again
+          Back to home
         </Link>
       </div>
     );
@@ -364,12 +446,14 @@ export default function ManageBooking({ token }: ManageBookingProps) {
             Your booking has been cancelled. We hope to see you again soon.
           </p>
           <div className="mt-8 flex flex-col gap-3">
-            <Link
-              href="/book"
-              className="rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
-            >
-              Book again
-            </Link>
+            {bookAgainHref && (
+              <Link
+                href={bookAgainHref}
+                className="rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
+              >
+                Book again
+              </Link>
+            )}
             <Link
               href="/"
               className="text-sm font-medium text-ink-soft hover:text-ink"
@@ -558,49 +642,36 @@ export default function ManageBooking({ token }: ManageBookingProps) {
       )}
 
       {/* ================================================================ */}
-      {/* RESCHEDULE — capacity mode (not supported: cancel + rebook)      */}
+      {/* RESCHEDULE — capacity mode (guests and/or departure)            */}
       {/* ================================================================ */}
-      {mode === "reschedule" && bookingMode === "capacity" && (
-        <section>
-          <button
-            type="button"
-            onClick={() => {
-              setMode("view");
-              setError(null);
-            }}
-            className="mb-5 text-sm font-medium text-ink-soft hover:text-ink"
-          >
-            ‹ Back to booking
-          </button>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Reschedule not available
-          </h1>
-          <p className="mt-1.5 text-ink-soft">
-            Session bookings can&apos;t be rescheduled directly. Cancel this
-            booking and book a new session.
-          </p>
-          <div className="mt-6">
-            <BookingSummary booking={booking} />
-          </div>
-          <div className="mt-8 flex flex-col gap-3">
-            <Link
-              href="/book"
-              className="rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
-            >
-              Book a new session
-            </Link>
-            <button
-              type="button"
-              onClick={() => {
-                setMode("view");
-                setError(null);
-              }}
-              className="rounded-full border border-line bg-card px-6 py-3.5 text-base font-medium text-ink-soft hover:text-ink"
-            >
-              Go back
-            </button>
-          </div>
-        </section>
+      {mode === "reschedule" && bookingMode === "capacity" && booking && (
+        <CapacityRescheduleSection
+          booking={booking}
+          dateKey={capacityDateKey}
+          onDateKeyChange={(key) => {
+            setCapacityDateKey(key);
+            setCapacitySessionId(null);
+            setCapacitySessions(null);
+            setCapacitySessionsError(null);
+          }}
+          sessions={capacitySessions}
+          sessionsError={capacitySessionsError}
+          sessionId={capacitySessionId}
+          onSessionChange={(id, remaining) => {
+            setCapacitySessionId(id);
+            // Keep the stepper within the newly selected departure's
+            // effective capacity (visible immediately, enforced server-side).
+            setCapacityQuantity((current) => Math.max(1, Math.min(current, Math.max(remaining, 1))));
+          }}
+          quantity={capacityQuantity}
+          onQuantityChange={setCapacityQuantity}
+          busy={busy}
+          onBack={() => {
+            setMode("view");
+            setError(null);
+          }}
+          onConfirm={handleConfirmCapacity}
+        />
       )}
 
       {mode === "cancel" && (
@@ -686,12 +757,14 @@ export default function ManageBooking({ token }: ManageBookingProps) {
               <p className="mt-1 text-sm text-ink-soft">
                 Need to book again? It only takes a moment.
               </p>
-              <Link
-                href="/book"
-                className="mt-5 inline-block rounded-full bg-blue px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
-              >
-                Book again
-              </Link>
+              {bookAgainHref && (
+                <Link
+                  href={bookAgainHref}
+                  className="mt-5 inline-block rounded-full bg-blue px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
+                >
+                  Book again
+                </Link>
+              )}
             </div>
           ) : (
             <>
@@ -706,8 +779,17 @@ export default function ManageBooking({ token }: ManageBookingProps) {
                   </button>
                 )}
                 {bookingMode === "capacity" && !isCancelled && (
+                  <button
+                    type="button"
+                    onClick={startReschedule}
+                    className="rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
+                  >
+                    Change guests or session
+                  </button>
+                )}
+                {bookingMode === "capacity" && !isCancelled && bookAgainHref && (
                   <Link
-                    href="/book"
+                    href={bookAgainHref}
                     className="rounded-full bg-blue px-6 py-3.5 text-center text-base font-semibold text-white transition-colors hover:bg-blue-strong"
                   >
                     Book a different session

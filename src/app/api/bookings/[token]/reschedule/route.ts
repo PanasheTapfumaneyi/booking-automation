@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { rescheduleBooking } from "@/lib/server/booking-service";
+import { rescheduleBooking, rescheduleCapacityBooking } from "@/lib/server/booking-service";
 import { toApiErrorResponse } from "@/lib/server/route-helper";
 import { ApiError } from "@/lib/server/errors";
 
@@ -10,6 +10,10 @@ interface RouteContext {
 interface RescheduleRequestBody {
   startTime?: string;
   endTime?: string;
+  /** Capacity path: target departure (defaults to the current session). */
+  sessionId?: string;
+  /** Capacity path: new guest count (defaults to the current quantity). */
+  quantity?: unknown;
 }
 
 export async function POST(request: Request, { params }: RouteContext) {
@@ -22,6 +26,17 @@ export async function POST(request: Request, { params }: RouteContext) {
     }
 
     const { token } = await params;
+
+    // Capacity bookings (session move and/or guest-count change) carry
+    // sessionId and/or quantity instead of start/end times.
+    if (typeof body?.sessionId === "string" || body?.quantity !== undefined) {
+      const booking = await rescheduleCapacityBooking(decodeURIComponent(token), {
+        sessionId: typeof body?.sessionId === "string" ? body.sessionId : undefined,
+        quantity: body?.quantity as number | undefined,
+      });
+      return NextResponse.json({ booking });
+    }
+
     if (!body?.startTime) {
       throw new ApiError(400, "VALIDATION", "Please choose a new time.");
     }

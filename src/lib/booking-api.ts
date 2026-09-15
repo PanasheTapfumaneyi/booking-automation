@@ -95,16 +95,29 @@ export function apiCreateBooking(input: NewBookingInput): Promise<CreateBookingR
   });
 }
 
+export interface CapacityRescheduleOptions {
+  /** Target departure (defaults server-side to the current session). */
+  sessionId?: string;
+  /** New guest count (defaults server-side to the current quantity). */
+  quantity?: number;
+}
+
 export function apiRescheduleBooking(
   token: string,
-  startTime: string,
+  startTime?: string,
   endTime?: string,
+  capacity?: CapacityRescheduleOptions,
 ): Promise<Booking> {
   return request<{ booking: Booking }>(
     `/api/bookings/${encodeURIComponent(token)}/reschedule`,
     {
       method: "POST",
-      body: JSON.stringify({ startTime, endTime }),
+      body: JSON.stringify({
+        startTime,
+        endTime,
+        sessionId: capacity?.sessionId,
+        quantity: capacity?.quantity,
+      }),
     },
   ).then((body) => body.booking);
 }

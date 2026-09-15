@@ -21,8 +21,7 @@ export default function DashboardLoading() {
           <div className="h-4 w-48 animate-pulse rounded bg-ink/10" />
           <div className="mt-2 h-8 w-64 animate-pulse rounded-lg bg-ink/10" />
           <div className="mt-2 h-4 w-80 max-w-full animate-pulse rounded bg-ink/10" />
-          <div className="mt-6 grid grid-cols-3 gap-2.5">
-            <div className="h-[88px] animate-pulse rounded-2xl bg-ink/10" />
+          <div className="mt-6 grid grid-cols-2 gap-2.5">
             <div className="h-[88px] animate-pulse rounded-2xl bg-ink/10" />
             <div className="h-[88px] animate-pulse rounded-2xl bg-ink/10" />
           </div>

@@ -417,6 +417,28 @@ export async function cancelBookingById(
 }
 
 /**
+ * Reverses an update_booking_session call (used to undo a capacity session
+ * move when the Google event cannot move). Restores the original session
+ * and quantity atomically; the RPC re-checks capacity, so it returns false
+ * when the original seats were taken meanwhile.
+ */
+export async function revertBookingSession(
+  bookingId: string,
+  sessionId: string,
+  quantity: number,
+  db?: Pick<SupabaseClient, "from">,
+): Promise<boolean> {
+  const client = (db ?? getSupabase()) as SupabaseClient;
+  const { data, error } = await client.rpc("update_booking_session", {
+    p_booking_id: bookingId,
+    p_session_id: sessionId,
+    p_quantity: quantity,
+  });
+  if (error) return false;
+  return Boolean((data as { ok?: boolean } | null)?.ok);
+}
+
+/**
  * Reverses an update_booking_time call (used to undo a reschedule when the
  * Google event cannot move). Returns false if the revert conflicts (e.g. the
  * original slot was taken meanwhile).

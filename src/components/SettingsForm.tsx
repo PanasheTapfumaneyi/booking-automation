@@ -446,6 +446,15 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
         business_notification_phone: notifyPhone.trim().length > 0 ? notifyPhone.trim() : null,
         customer_notifications_enabled: customerAlerts,
         business_notifications_enabled: businessAlerts,
+      }, "PATCH").catch((err: unknown) => {
+        // The shared fetch helper falls back to a generic message when the
+        // server gives no user-facing one (network failure, unexpected
+        // status). Scope it to this section — server validation messages
+        // (e.g. unusable phone number) pass through untouched.
+        if (err instanceof Error && err.message === "Something went wrong. Please try again.") {
+          throw new Error("We couldn't save your notification settings. Please try again.");
+        }
+        throw err;
       }),
       "Notification settings saved.",
     );
