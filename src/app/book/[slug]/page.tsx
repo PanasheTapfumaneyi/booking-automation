@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BookingFlow from "@/components/BookingFlow";
 import { getSupabase } from "@/lib/supabase/server";
+import { getMyBusinessIds } from "@/lib/server/auth";
 import { fetchBusinessBySlug } from "@/lib/server/database";
 
 interface BookSlugPageProps {
@@ -22,8 +23,13 @@ export async function generateMetadata({ params }: BookSlugPageProps): Promise<M
   const business = await fetchBusinessBySlug(slug, getSupabase()).catch(() => null);
   // 404 here (not just in the page): generateMetadata resolves before the
   // loading.tsx suspense shell flushes, so the 404 status is committed.
-  if (!business || business.is_active === false) {
+  if (!business) {
     notFound();
+  }
+  // Owners testing an inactive business still get metadata (no 404).
+  if (business.is_active === false) {
+    const memberIds: string[] = await getMyBusinessIds().catch(() => []);
+    if (!memberIds.includes(business.id)) notFound();
   }
   const meta = MODE_META[business.booking_mode] ?? MODE_META.appointment;
   return {
@@ -36,7 +42,13 @@ export default async function BookSlugPage({ params, searchParams }: BookSlugPag
   const { slug } = await params;
   const query = await searchParams;
   const business = await fetchBusinessBySlug(slug, getSupabase()).catch(() => null);
-  if (!business || business.is_active === false) notFound();
+  if (!business) notFound();
+  // Inactive businesses stay hidden — except to their own members, who
+  // need to test the booking flow before go-live.
+  if (business.is_active === false) {
+    const memberIds: string[] = await getMyBusinessIds().catch(() => []);
+    if (!memberIds.includes(business.id)) notFound();
+  }
 
   return (
     <>

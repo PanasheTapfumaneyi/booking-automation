@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase/server";
+import { getMyBusinessIds } from "@/lib/server/auth";
 import { fetchBusinessBySlug } from "@/lib/server/database";
 import { toApiErrorResponse } from "@/lib/server/route-helper";
 import { fetchSessionBookedQuantity } from "@/lib/server/strategies/capacity";
@@ -16,8 +17,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     const { slug } = await params;
     const db = getSupabase();
     const business = await fetchBusinessBySlug(slug, db);
-    if (!business || business.is_active === false) {
+    if (!business) {
       return NextResponse.json({ error: "Business not found." }, { status: 404 });
+    }
+    // Inactive businesses stay hidden — except to their own members, who
+    // need the catalog to test the booking flow before go-live.
+    if (business.is_active === false) {
+      const memberIds: string[] = await getMyBusinessIds().catch(() => []);
+      if (!memberIds.includes(business.id)) {
+        return NextResponse.json({ error: "Business not found." }, { status: 404 });
+      }
     }
     const [services, resources, sessions] = await Promise.all([
       db

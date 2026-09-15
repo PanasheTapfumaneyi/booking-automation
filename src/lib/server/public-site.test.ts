@@ -216,4 +216,51 @@ describe("getBusinessSiteData", () => {
     expect(data?.business.cover_image_url).toBeNull();
     expect(data?.business.logo_url).toBeNull();
   });
+
+  it("active businesses are never flagged as preview", async () => {
+    const db = makeDb({
+      businesses: [{ ...BASE_BUSINESS, is_active: true }],
+      services: [],
+      resources: [],
+      booking_sessions: [],
+      bookings: [],
+    });
+    const data = await getBusinessSiteData("fade-area", db as never, {
+      previewBusinessIds: ["biz-1"],
+    });
+    expect(data?.preview).toBe(false);
+  });
+});
+
+describe("getBusinessSiteData — inactive member preview", () => {
+  function inactiveDb() {
+    return makeDb({
+      businesses: [{ ...BASE_BUSINESS, is_active: false }],
+      services: [],
+      resources: [],
+      booking_sessions: [],
+      bookings: [],
+    });
+  }
+
+  it("inactive businesses stay hidden from the public", async () => {
+    const db = inactiveDb();
+    await expect(getBusinessSiteData("fade-area", db as never)).resolves.toBeNull();
+  });
+
+  it("inactive businesses stay hidden from other members", async () => {
+    const db = inactiveDb();
+    await expect(
+      getBusinessSiteData("fade-area", db as never, { previewBusinessIds: ["biz-other"] }),
+    ).resolves.toBeNull();
+  });
+
+  it("inactive businesses render for their own members with the preview flag", async () => {
+    const db = inactiveDb();
+    const data = await getBusinessSiteData("fade-area", db as never, {
+      previewBusinessIds: ["biz-1"],
+    });
+    expect(data?.business.id).toBe("biz-1");
+    expect(data?.preview).toBe(true);
+  });
 });

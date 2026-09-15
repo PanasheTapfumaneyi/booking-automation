@@ -67,17 +67,34 @@ async function patchJson(url: string, body: unknown) {
 }
 
 /** First-run setup: business → offering → hours → notifications → calendar. */
-export default function OnboardingFlow() {
+export default function OnboardingFlow({
+  businessId: existingBusinessId,
+  bookingMode: existingMode,
+  markCompleteUrl,
+  completionHref = "/dashboard",
+}: {
+  /** When set, the business already exists: basics is skipped entirely. */
+  businessId?: string;
+  /** Booking mode of the existing business (defaults to appointment). */
+  bookingMode?: BookingMode;
+  /** Optional endpoint marking self-configuration finished before redirect. */
+  markCompleteUrl?: string;
+  /** Where the final button leads after optional completion marking. */
+  completionHref?: string;
+} = {}) {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("basics");
+  const visibleSteps = STEP_ORDER.filter(
+    (item) => item !== "basics" || !existingBusinessId,
+  );
+  const [step, setStep] = useState<Step>(existingBusinessId ? "offering" : "basics");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [timezone, setTimezone] = useState("Indian/Mauritius");
-  const [mode, setMode] = useState<BookingMode>("appointment");
-  const [businessId, setBusinessId] = useState<string | null>(null);
+  const [mode, setMode] = useState<BookingMode>(existingMode ?? "appointment");
+  const [businessId, setBusinessId] = useState<string | null>(existingBusinessId ?? null);
 
   const [serviceName, setServiceName] = useState("");
   const [duration, setDuration] = useState("45");
@@ -197,6 +214,19 @@ export default function OnboardingFlow() {
     }
   }
 
+  async function handleFinish() {
+    if (!businessId) {
+      router.push(completionHref);
+      return;
+    }
+    const done = await run(async () => {
+      if (markCompleteUrl) {
+        await postJson(markCompleteUrl, { businessId });
+      }
+    });
+    if (done !== null) router.push(completionHref);
+  }
+
   const inputClass =
     "rounded-xl border border-line bg-card px-4 py-3 text-base outline-none focus:border-blue disabled:opacity-40";
 
@@ -204,22 +234,22 @@ export default function OnboardingFlow() {
     <div className="mx-auto w-full max-w-xl px-5 py-8">
       <nav aria-label="Setup progress" className="mb-8">
         <ol className="flex items-center gap-2 text-xs font-medium">
-          {STEP_ORDER.map((item, index) => (
+          {visibleSteps.map((item, index) => (
             <li key={item} className="flex flex-1 items-center gap-2">
               <span
                 className={[
                   "flex h-6 w-6 items-center justify-center rounded-full border text-[11px]",
                   step === item
                     ? "border-blue bg-blue text-white"
-                    : index < stepIndex
+                    : STEP_ORDER.indexOf(item) < stepIndex
                       ? "border-blue bg-blue-mist text-blue-strong"
                       : "border-line bg-card text-ink-soft",
                 ].join(" ")}
               >
-                {index < stepIndex ? "✓" : index + 1}
+                {STEP_ORDER.indexOf(item) < stepIndex ? "✓" : index + 1}
               </span>
               <span className="hidden sm:inline text-ink-soft">{STEP_LABELS[item]}</span>
-              {index < STEP_ORDER.length - 1 && <span className="h-px flex-1 bg-line" />}
+              {index < visibleSteps.length - 1 && <span className="h-px flex-1 bg-line" />}
             </li>
           ))}
         </ol>
@@ -407,10 +437,11 @@ export default function OnboardingFlow() {
             )}
             <button
               type="button"
-              onClick={() => router.push("/dashboard")}
-              className="rounded-full border border-line bg-card px-6 py-3.5 text-base font-medium hover:text-ink"
+              disabled={busy}
+              onClick={handleFinish}
+              className="rounded-full border border-line bg-card px-6 py-3.5 text-base font-medium hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {calendar?.connected ? "Finish — go to dashboard" : "Skip for now"}
+              {busy ? "Saving…" : calendar?.connected ? "Finish — review my page" : "Skip for now"}
             </button>
           </div>
         </section>

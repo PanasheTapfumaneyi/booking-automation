@@ -27,18 +27,28 @@ export interface BusinessSiteData {
   resources: ResourceSummary[];
   /** Active future sessions only, soonest first. */
   sessions: SessionSummary[];
+  /**
+   * True when an INACTIVE business is shown to its own owner for testing.
+   * Inactive businesses stay hidden from everyone else.
+   */
+  preview: boolean;
 }
 
 export async function getBusinessSiteData(
   slug: string,
   db: DbLike,
+  opts?: { previewBusinessIds?: string[] },
 ): Promise<BusinessSiteData | null> {
   const clean = slug.trim().toLowerCase();
   if (!clean) return null;
   const business = await fetchBusinessBySlug(clean, db as never).catch(() => null);
   if (!business) return null;
-  // Pre-launch businesses stay hidden until the owner activates them.
-  if (business.is_active === false) return null;
+  // Pre-launch businesses stay hidden until activated — except to their
+  // own members, who need to preview and test the page before go-live.
+  const preview =
+    business.is_active === false &&
+    (opts?.previewBusinessIds ?? []).includes(business.id);
+  if (business.is_active === false && !preview) return null;
 
   const client = db as never;
   const [services, resources, sessions] = await Promise.all([
@@ -50,6 +60,7 @@ export async function getBusinessSiteData(
   const now = Date.now();
   return {
     business,
+    preview,
     services: services.filter((s) => s.active),
     resources: resources.filter((r) => r.active),
     sessions: sessions

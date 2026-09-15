@@ -6,6 +6,7 @@ import Footer from "@/components/Footer";
 import CopyBookingLink from "@/components/CopyBookingLink";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import Schedule from "@/components/dashboard/Schedule";
+import SetupStatusBanner from "@/components/onboarding/SetupStatusBanner";
 import {
   EmptyState,
   SectionHeading,
@@ -224,6 +225,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               ))}
             </div>
           )}
+
+          <SetupStatusBanner businessId={business.id} />
 
           <div className="mt-6 grid grid-cols-2 gap-2.5 sm:gap-3">
             <StatCard

@@ -12,6 +12,7 @@ import {
 } from "@/components/business";
 import MobileStickyCta from "@/components/business/MobileStickyCta";
 import { getSupabase } from "@/lib/supabase/server";
+import { getMyBusinessIds } from "@/lib/server/auth";
 import { getBusinessSiteData } from "@/lib/server/public-site";
 import { parseTheme, themeToCssVars } from "@/lib/server/business-theme";
 import { minutesToLabel } from "@/lib/availability";
@@ -70,7 +71,11 @@ function getDemoReviews(slug: string): Array<{ name: string; text: string; ratin
 
 export async function generateMetadata({ params }: BusinessPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const data = await getBusinessSiteData(slug, getSupabase()).catch(() => null);
+  // Owners previewing an inactive business still get metadata (no 404).
+  const previewIds = await getMyBusinessIds().catch(() => []);
+  const data = await getBusinessSiteData(slug, getSupabase(), {
+    previewBusinessIds: previewIds,
+  }).catch(() => null);
   // 404 here (not just in the page): generateMetadata resolves before the
   // loading.tsx suspense shell flushes, so the 404 status is committed.
   // A page-only notFound() fires after the shell streams with status 200.
@@ -85,10 +90,13 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
 
 export default async function BusinessPage({ params }: BusinessPageProps) {
   const { slug } = await params;
-  const data = await getBusinessSiteData(slug, getSupabase()).catch(() => null);
+  const previewIds = await getMyBusinessIds().catch(() => []);
+  const data = await getBusinessSiteData(slug, getSupabase(), {
+    previewBusinessIds: previewIds,
+  }).catch(() => null);
   if (!data) notFound();
 
-  const { business, services, resources, sessions } = data;
+  const { business, services, resources, sessions, preview } = data;
   const mode = business.booking_mode;
   const bookHref = `/book/${business.slug ?? slug}`;
   const hours = (business.availability ?? null) as BusinessHours | null;
@@ -100,6 +108,16 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   return (
     <div className="min-h-screen bg-paper text-ink pb-16 sm:pb-0" style={cssVars}>
       <main className="flex-1">
+        {preview && (
+          <div role="status" className="border-b border-blue/30 bg-blue-mist">
+            <p className="mx-auto max-w-[1200px] px-6 py-3 text-center text-sm">
+              <span className="font-semibold text-blue-ink">Preview — this page isn&apos;t public yet.</span>{" "}
+              <span className="text-ink-soft">
+                Test bookings freely; Kivo activates the page once your setup is finalized.
+              </span>
+            </p>
+          </div>
+        )}
         <BusinessHero
           name={business.name}
           tagline={tagline}
