@@ -30,7 +30,15 @@ export interface Membership {
 /** Minimal structural type for the session client (real or fake). */
 export interface SessionClientLike {
   auth: {
-    getUser: () => Promise<{ data: { user: { id: string; email?: string | null } | null } }>;
+    getUser: () => Promise<{
+      data: {
+        user: {
+          id: string;
+          email?: string | null;
+          app_metadata?: Record<string, unknown>;
+        } | null;
+      };
+    }>;
   };
 }
 
@@ -173,4 +181,48 @@ export async function requireBusinessOwner(
     );
   }
   return ctx;
+}
+
+// ---------------------------------------------------------------------------
+// Platform administrator gate (for cross-business operational pages)
+// ---------------------------------------------------------------------------
+
+/**
+ * Checks whether the authenticated user is a Kivo platform administrator.
+ *
+ * Platform-admin status is stored in the user's Supabase Auth
+ * `app_metadata.platform_admin` claim. This is a JWT-level claim set by
+ * the platform operator (via Supabase Dashboard → Auth → Users → Edit User
+ * → App Metadata → add `platform_admin: true`).
+ *
+ * This is NOT a business membership role. It is a platform-level privilege
+ * that grants read access to cross-business operational data.
+ */
+export async function isPlatformAdmin(
+  client?: SessionClientLike,
+): Promise<boolean> {
+  const session = client ?? (await defaultSessionClient());
+  const { data } = await session.auth.getUser();
+  if (!data.user) return false;
+  const meta = data.user.app_metadata;
+  return meta != null && (meta as Record<string, unknown>).platform_admin === true;
+}
+
+/**
+ * 401 when anonymous, 403 when not a platform administrator.
+ * Use for cross-business operational pages (operations dashboard, etc.).
+ */
+export async function requirePlatformAdmin(
+  client?: SessionClientLike,
+): Promise<AuthUser> {
+  const user = await requireAuthenticatedUser(client);
+  const admin = await isPlatformAdmin(client);
+  if (!admin) {
+    throw new ApiError(
+      403,
+      "FORBIDDEN",
+      "Platform administrator access required.",
+    );
+  }
+  return user;
 }

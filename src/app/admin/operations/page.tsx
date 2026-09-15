@@ -1,4 +1,4 @@
-import { requireAuthenticatedUser, getMyMemberships } from "@/lib/server/auth";
+import { requirePlatformAdmin } from "@/lib/server/auth";
 import { getSupabase } from "@/lib/supabase/server";
 import {
   getOperationsSummary,
@@ -6,21 +6,14 @@ import {
   getBusinessHealth,
   getBookingFunnel,
 } from "@/lib/server/operations/dashboard";
-import { ApiError } from "@/lib/server/errors";
 
 export const dynamic = "force-dynamic";
 
 export default async function OperationsDashboardPage() {
-  // Require authentication.
-  const user = await requireAuthenticatedUser();
+  // PLATFORM-ADMIN ONLY: cross-business operational data.
+  // Requires app_metadata.platform_admin = true in Supabase Auth.
+  await requirePlatformAdmin();
   const db = getSupabase();
-
-  // Check the user owns at least one business.
-  const memberships = await getMyMemberships(user.id, db);
-  const ownerMembership = memberships.find((m) => m.role === "owner");
-  if (!ownerMembership) {
-    throw new ApiError(403, "FORBIDDEN", "Only business owners can access this page.");
-  }
 
   const [summary, failures, healthArr, funnel] = await Promise.all([
     getOperationsSummary(db),
@@ -29,8 +22,9 @@ export default async function OperationsDashboardPage() {
     getBookingFunnel(db),
   ]);
 
-  // Find this business's health from the array.
-  const health = healthArr.find((h) => h.businessId === ownerMembership.business_id);
+  // Note: healthArr contains all businesses; the page shows aggregate only.
+  // No per-business data is exposed to the platform admin unless explicitly
+  // filtered (which we don't do here for the global view).
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -91,29 +85,35 @@ export default async function OperationsDashboardPage() {
           </div>
         </section>
 
-        {/* Business Health */}
-        {health && (
+        {/* Aggregate Business Health */}
+        {healthArr.length > 0 && (
           <section className="bg-white rounded-lg shadow p-6 mb-8">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">
-              Your Business Health
+              Aggregate Business Health ({healthArr.length} businesses)
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <HealthStat label="Attempts" value={health.bookingAttempts} />
-              <HealthStat label="Completed" value={health.completed} />
+              <HealthStat
+                label="Attempts"
+                value={healthArr.reduce((s, h) => s + h.bookingAttempts, 0)}
+              />
+              <HealthStat
+                label="Completed"
+                value={healthArr.reduce((s, h) => s + h.completed, 0)}
+              />
               <HealthStat
                 label="Technical Failures"
-                value={health.technicalFailures}
-                alert={health.technicalFailures > 0}
+                value={healthArr.reduce((s, h) => s + h.technicalFailures, 0)}
+                alert={healthArr.some((h) => h.technicalFailures > 0)}
               />
               <HealthStat
                 label="Notification Failures"
-                value={health.notificationFailures}
-                alert={health.notificationFailures > 0}
+                value={healthArr.reduce((s, h) => s + h.notificationFailures, 0)}
+                alert={healthArr.some((h) => h.notificationFailures > 0)}
               />
               <HealthStat
                 label="Calendar Failures"
-                value={health.calendarFailures}
-                alert={health.calendarFailures > 0}
+                value={healthArr.reduce((s, h) => s + h.calendarFailures, 0)}
+                alert={healthArr.some((h) => h.calendarFailures > 0)}
               />
             </div>
           </section>

@@ -32,10 +32,7 @@
  */
 import { getSupabase } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type {
-  BookingReminderType,
-  NotificationProvider,
-} from "@/lib/notifications/types";
+import type { NotificationProvider } from "@/lib/notifications/types";
 import { toE164 } from "@/lib/notifications/phone";
 import {
   buildReminderMessage,

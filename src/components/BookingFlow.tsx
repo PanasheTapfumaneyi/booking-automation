@@ -37,6 +37,7 @@ import BookingCalendar from "@/components/BookingCalendar";
 import TimeSlot from "@/components/TimeSlot";
 import BookingForm, { type BookingFormValues } from "@/components/BookingForm";
 import BookingSummary from "@/components/BookingSummary";
+import { trackFunnelEvent, getAttemptId } from "@/lib/tracking";
 
 // ---------------------------------------------------------------------------
 // Step machine — mode-aware
@@ -183,6 +184,16 @@ export default function BookingFlow({
     window.scrollTo({ top: 0 });
   }, [step]);
 
+  // Track when the user reaches the customer details step.
+  useEffect(() => {
+    if (step === "details") {
+      trackFunnelEvent({
+        eventName: "customer_details_started",
+        businessId: service?.businessId,
+      });
+    }
+  }, [step, service?.businessId]);
+
   // -----------------------------------------------------------------------
   // Load catalog
   // -----------------------------------------------------------------------
@@ -269,6 +280,12 @@ export default function BookingFlow({
           })),
         });
         setCatalogError(null);
+
+        // Track page view (fire-and-forget).
+        trackFunnelEvent({
+          eventName: "business_page_viewed",
+          businessId: data.business.id,
+        });
 
         // Resource mode: auto-select the single rental service and land on the
         // availability search (no separate service picker needed).
@@ -358,6 +375,15 @@ export default function BookingFlow({
   function handleSelectService(nextService: Service) {
     setService(nextService);
     setError(null);
+    trackFunnelEvent({
+      eventName: "booking_started",
+      businessId: nextService.businessId,
+    });
+    trackFunnelEvent({
+      eventName: "offering_selected",
+      businessId: nextService.businessId,
+      metadata: { serviceId: nextService.id, type: "service" },
+    });
     if (mode === "capacity") {
       setStep("session");
     } else if (mode === "resource") {
@@ -376,6 +402,11 @@ export default function BookingFlow({
     setSelectedSlot(null);
     setSlots(null);
     setSlotsError(null);
+    trackFunnelEvent({
+      eventName: "date_selected",
+      businessId: service?.businessId,
+      metadata: { dateKey },
+    });
     if (service) {
       setSlotQuery((current) => {
         if (current?.serviceId === service.id && current.dateKey === dateKey) {
@@ -391,6 +422,11 @@ export default function BookingFlow({
   function handleSelectSlot(slot: SlotOption) {
     setSelectedSlot(slot);
     setError(null);
+    trackFunnelEvent({
+      eventName: "time_selected",
+      businessId: service?.businessId,
+      metadata: { slotStart: slot.startTime },
+    });
     setStep("details");
   }
 
@@ -401,6 +437,11 @@ export default function BookingFlow({
   function handleSelectResource(resource: Resource) {
     setSelectedResource(resource);
     setError(null);
+    trackFunnelEvent({
+      eventName: "offering_selected",
+      businessId: resource.businessId,
+      metadata: { resourceId: resource.id, type: "resource" },
+    });
     setStep("date");
   }
 
@@ -409,6 +450,11 @@ export default function BookingFlow({
     setResourceStartTime("");
     setResourceEndTime("");
     setError(null);
+    trackFunnelEvent({
+      eventName: "date_selected",
+      businessId: service?.businessId,
+      metadata: { dateKey, mode: "resource" },
+    });
     setStep("time");
   }
 
@@ -497,6 +543,11 @@ export default function BookingFlow({
     setSelectedSession(session);
     setQuantity(1);
     setError(null);
+    trackFunnelEvent({
+      eventName: "offering_selected",
+      businessId: session.businessId,
+      metadata: { sessionId: session.id, type: "session" },
+    });
     setStep("quantity");
   }
 

@@ -263,6 +263,15 @@ export async function createBooking(
         p_start_time: startIso,
         p_end_time: endIso,
         p_manage_token: token,
+      }).catch((err) => {
+        void recordFailure(
+          "booking_failed",
+          "DATABASE_ERROR",
+          "technical",
+          attemptId,
+          business.id,
+        );
+        throw err;
       });
 
       const booking = normalizeBookingRow(row, service, contact);
@@ -342,6 +351,15 @@ export async function createBooking(
         p_end_time: endIso,
         p_manage_token: token,
         p_resource_id: input.resourceId,
+      }).catch((err) => {
+        void recordFailure(
+          "booking_failed",
+          "DATABASE_ERROR",
+          "technical",
+          attemptId,
+          business.id,
+        );
+        throw err;
       });
 
       const displayTotal = formatMauritianRupees(
@@ -414,6 +432,15 @@ export async function createBooking(
         p_manage_token: token,
         p_session_id: session.id,
         p_quantity: quantity,
+      }).catch((err) => {
+        void recordFailure(
+          "booking_failed",
+          "DATABASE_ERROR",
+          "technical",
+          attemptId,
+          business.id,
+        );
+        throw err;
       });
       const bookingCapacity = normalizeBookingRow(row, service, contact);
       const notifications = await dispatchBookingEvent({
@@ -459,6 +486,7 @@ export async function rescheduleBooking(
   endTimeRaw?: string,
 ): Promise<Booking> {
   const db = getSupabase();
+  const attemptId = generateAttemptId();
   const found = await fetchBookingByToken(token);
   if (!found) {
     throw new ApiError(
@@ -569,6 +597,14 @@ export async function rescheduleBooking(
   });
 
   if (error) {
+    void recordFailure(
+      "reschedule_failed",
+      "DATABASE_ERROR",
+      "technical",
+      attemptId,
+      row.business_id,
+      row.id,
+    );
     throw new ApiError(
       500,
       "INTERNAL",
@@ -625,7 +661,6 @@ export async function rescheduleBooking(
     },
   });
 
-  const attemptId = generateAttemptId();
   void recordFunnelEvent(
     "reschedule_attempted",
     attemptId,
@@ -681,6 +716,12 @@ export async function cancelBooking(token: string): Promise<Booking> {
     .maybeSingle();
 
   if (error) {
+    void recordFailure(
+      "cancellation_failed",
+      "DATABASE_ERROR",
+      "technical",
+      cancelAttemptId,
+    );
     throw new ApiError(
       500,
       "INTERNAL",

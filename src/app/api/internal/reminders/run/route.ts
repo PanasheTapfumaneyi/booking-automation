@@ -4,7 +4,8 @@ import { notificationProvider } from "@/lib/server/notifications/config";
 import { toApiErrorResponse } from "@/lib/server/route-helper";
 
 function cronSecret(): string | null {
-  const raw = (process.env.REMINDER_CRON_SECRET ?? "").trim();
+  // Support both custom REMINDER_CRON_SECRET and Vercel's built-in CRON_SECRET.
+  const raw = (process.env.REMINDER_CRON_SECRET ?? process.env.CRON_SECRET ?? "").trim();
   return raw.length > 0 ? raw : null;
 }
 

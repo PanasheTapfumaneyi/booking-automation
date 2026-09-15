@@ -19,7 +19,6 @@ import {
   formatLongDateInZone,
   formatTimeInZone,
 } from "@/lib/availability/time";
-import type { BookingReminderType } from "./types";
 
 export type NotificationTemplateType =
   | "booking.created"
