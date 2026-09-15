@@ -60,6 +60,7 @@ export default function BusinessHero({
             <img
               src={logoUrl}
               alt={`${name} logo`}
+              decoding="async"
               className="mb-5 h-16 w-16 rounded-xl object-contain bg-white/90 p-1.5 shadow-sm"
             />
           )}

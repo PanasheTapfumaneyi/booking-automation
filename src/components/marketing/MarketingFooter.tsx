@@ -51,9 +51,10 @@ export default function MarketingFooter() {
             <Link href="/#solutions" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Solutions</Link>
             <Link href="/#pricing" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Pricing</Link>
             <Link href="/#how-it-works" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">How It Works</Link>
-            <Link href="/demo" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Demos</Link>
-            <Link href="/login" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Sign In</Link>
+            <Link href="/demo" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Live sites</Link>
+            <Link href="/login" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Business login</Link>
             <Link href="/signup" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Get Started</Link>
+            <a href={wa || "/#contact"} target={wa ? "_blank" : undefined} rel={wa ? "noopener noreferrer" : undefined} className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Contact</a>
           </nav>
         </div>
 

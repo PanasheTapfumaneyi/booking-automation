@@ -16,7 +16,12 @@ import {
   getBusinessDayBounds,
   type BookingListFilters,
 } from "@/lib/server/business-bookings";
-import { StatusPill, EmptyState } from "@/app/dashboard/page";
+import DashboardShell from "@/components/dashboard/DashboardShell";
+import {
+  EmptyState,
+  StatusBadge,
+  primaryActionClass,
+} from "@/components/dashboard/ui";
 import type { Booking } from "@/types/booking";
 
 export const dynamic = "force-dynamic";
@@ -137,9 +142,13 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
     <>
       <Navbar />
       <main className="flex-1">
-        <div className="mx-auto w-full max-w-3xl px-5 py-10">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
+        <DashboardShell
+          businessId={business.id}
+          businessName={business.name}
+          businessSlug={business.slug}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
               <h1 className="text-2xl font-semibold tracking-tight">Bookings</h1>
               <p className="mt-1 text-sm text-ink-soft">
                 {business.name} · times in {business.timezone}
@@ -149,7 +158,7 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
               <CopyBookingLink slug={business.slug} />
               <Link
                 href={withQuery({ new: params.new ? "" : "1" })}
-                className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-paper hover:bg-black"
+                className={primaryActionClass}
               >
                 {params.new ? "Close" : "New booking"}
               </Link>
@@ -157,7 +166,7 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
           </div>
 
           {params.new && (
-            <div className="mt-6 rounded-2xl border border-gold/60 bg-card p-6">
+            <div className="mt-6 rounded-2xl border border-blue/40 bg-card p-5 sm:p-6">
               <BusinessBookingForm
                 businessId={business.id}
                 bookingMode={business.booking_mode}
@@ -174,9 +183,9 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
                 href={withQuery({ view: tab.key === "upcoming" ? "" : tab.key })}
                 aria-current={view === tab.key ? "page" : undefined}
                 className={[
-                  "rounded-full border px-4 py-1.5 text-sm",
+                  "rounded-full border px-4 py-1.5 text-sm transition-colors",
                   view === tab.key
-                    ? "border-gold bg-gold-soft font-semibold text-gold-strong"
+                    ? "border-blue bg-blue-soft font-semibold text-blue-strong"
                     : "border-line bg-card text-ink-soft hover:text-ink",
                 ].join(" ")}
               >
@@ -234,28 +243,28 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
           ) : (
             <ul className="mt-4 flex flex-col gap-2.5">
               {bookings.map((booking) => (
-                <li key={booking.id}>
-                  <Link
-                    href={`/dashboard/bookings/${booking.id}?business=${business.id}`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 hover:border-gold/60"
-                  >
-                    <span>
-                      <span className="font-semibold">
-                        {formatLongDateInZone(booking.startTime, business.timezone)} ·{" "}
-                        <span className="tabular-nums">
-                          {formatTimeInZone(booking.startTime, business.timezone)}
+                  <li key={booking.id}>
+                    <Link
+                      href={`/dashboard/bookings/${booking.id}?business=${business.id}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 transition-colors hover:border-blue/50"
+                    >
+                      <span className="min-w-0">
+                        <span className="font-semibold">
+                          {formatLongDateInZone(booking.startTime, business.timezone)} ·{" "}
+                          <span className="tabular-nums">
+                            {formatTimeInZone(booking.startTime, business.timezone)}
+                          </span>
+                        </span>
+                        <span className="block truncate text-sm text-ink-soft">
+                          {booking.serviceName}
+                          {booking.resourceName ? ` · ${booking.resourceName}` : ""}
+                          {booking.sessionId ? ` · ${booking.quantity} guest${booking.quantity === 1 ? "" : "s"}` : ""}{" "}
+                          · {booking.customerName} · {booking.customerPhone}
                         </span>
                       </span>
-                      <span className="block text-sm text-ink-soft">
-                        {booking.serviceName}
-                        {booking.resourceName ? ` · ${booking.resourceName}` : ""}
-                        {booking.sessionId ? ` · ${booking.quantity} guest${booking.quantity === 1 ? "" : "s"}` : ""}{" "}
-                        · {booking.customerName} · {booking.customerPhone}
-                      </span>
-                    </span>
-                    <StatusPill status={booking.status} />
-                  </Link>
-                </li>
+                      <StatusBadge status={booking.status} />
+                    </Link>
+                  </li>
               ))}
             </ul>
           )}
@@ -265,7 +274,7 @@ export default async function BookingsPage({ searchParams }: BookingsPageProps) 
               ‹ Back to dashboard
             </Link>
           </div>
-        </div>
+        </DashboardShell>
       </main>
       <Footer />
     </>

@@ -21,10 +21,10 @@ export default function ServiceCard({
       onClick={() => onSelect(service)}
       aria-pressed={selected}
       className={[
-        "w-full rounded-xl border p-5 text-left transition-all",
+        "w-full rounded-xl border p-5 text-left transition-all duration-150",
         selected
-          ? "border-gold bg-gold-soft ring-1 ring-gold"
-          : "border-line bg-card hover:border-gold/60",
+          ? "border-blue bg-blue-mist ring-1 ring-blue"
+          : "border-line bg-card hover:border-blue/50 hover:bg-blue-mist/40",
       ].join(" ")}
     >
       <div className="flex items-start justify-between gap-4">
@@ -32,8 +32,8 @@ export default function ServiceCard({
           <span
             aria-hidden
             className={[
-              "flex h-5 w-5 items-center justify-center rounded-full border",
-              selected ? "border-gold bg-gold" : "border-ink-soft/50",
+              "flex h-5 w-5 items-center justify-center rounded-full border transition-colors duration-150",
+              selected ? "border-blue bg-blue" : "border-ink-soft/50",
             ].join(" ")}
           >
             {selected && <span className="h-2 w-2 rounded-full bg-white" />}

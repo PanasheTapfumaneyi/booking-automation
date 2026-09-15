@@ -40,7 +40,7 @@ export default function AuthLinks() {
       href="/login"
       className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:text-ink"
     >
-      Log in
+      Business login
     </Link>
   );
 }

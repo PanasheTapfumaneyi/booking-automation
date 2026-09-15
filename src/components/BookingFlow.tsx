@@ -670,11 +670,11 @@ export default function BookingFlow({
               <li key={item} className="flex flex-1 items-center gap-2" aria-current={active ? "step" : undefined}>
                 <span
                   className={[
-                    "flex h-6 w-6 items-center justify-center rounded-full border text-[11px]",
+                    "flex h-6 w-6 items-center justify-center rounded-full border text-[11px] transition-colors",
                     active
-                      ? "border-gold bg-gold text-white"
+                      ? "border-blue bg-blue text-white"
                       : done
-                        ? "border-gold bg-gold-soft text-gold-strong"
+                        ? "border-blue/40 bg-blue-soft text-blue-strong"
                         : "border-line bg-card text-ink-soft",
                   ].join(" ")}
                 >
@@ -706,6 +706,9 @@ export default function BookingFlow({
         </div>
       )}
 
+      {/* Step content animates subtly on step change (key remount).
+          Short 220ms entrance; collapsed under prefers-reduced-motion. */}
+      <div key={step} className="animate-step-in">
       {/* ================================================================ */}
       {/* SERVICE STEP (all modes)                                         */}
       {/* ================================================================ */}
@@ -720,7 +723,7 @@ export default function BookingFlow({
               <button
                 type="button"
                 onClick={() => setCatalogRetry((count) => count + 1)}
-                className="mt-3 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-paper hover:bg-black"
+                className="mt-3 rounded-full bg-blue px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-strong"
               >
                 Retry
               </button>
@@ -776,7 +779,7 @@ export default function BookingFlow({
                 min={localToday()}
                 value={pickupDate}
                 onChange={(e) => setPickupDate(e.target.value)}
-                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-gold"
+                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-blue"
               />
               <label htmlFor="pickup-time" className="mb-1.5 mt-4 block text-sm font-medium text-ink">
                 Pick-up time
@@ -786,7 +789,7 @@ export default function BookingFlow({
                 type="time"
                 value={pickupTime}
                 onChange={(e) => setPickupTime(e.target.value)}
-                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-gold"
+                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-blue"
               />
             </div>
             <div>
@@ -799,7 +802,7 @@ export default function BookingFlow({
                 min={pickupDate || localToday()}
                 value={returnDate}
                 onChange={(e) => setReturnDate(e.target.value)}
-                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-gold"
+                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-blue"
               />
               <label htmlFor="return-time" className="mb-1.5 mt-4 block text-sm font-medium text-ink">
                 Return time
@@ -809,7 +812,7 @@ export default function BookingFlow({
                 type="time"
                 value={returnTime}
                 onChange={(e) => setReturnTime(e.target.value)}
-                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-gold"
+                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-blue"
               />
             </div>
           </div>
@@ -830,7 +833,7 @@ export default function BookingFlow({
             type="button"
             disabled={rentalSearchDisabled || rentalLoading}
             onClick={handleCheckRentalDates}
-            className="mt-6 w-full rounded-full bg-ink px-6 py-3 text-sm font-semibold text-paper transition-colors hover:bg-black disabled:opacity-40"
+            className="mt-6 w-full rounded-full bg-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-strong disabled:opacity-40"
           >
             {rentalLoading ? "Checking…" : "Check availability"}
           </button>
@@ -914,7 +917,7 @@ export default function BookingFlow({
                       className={[
                         "w-full overflow-hidden rounded-xl border text-left transition-colors",
                         available
-                          ? "border-line bg-card hover:border-gold/60"
+                          ? "border-line bg-card hover:border-blue/60"
                           : "border-line bg-card opacity-55",
                       ].join(" ")}
                     >
@@ -1009,8 +1012,8 @@ export default function BookingFlow({
                   className={[
                     "w-full rounded-xl border p-4 text-left transition-colors",
                     selectedResource?.id === resource.id
-                      ? "border-gold bg-gold-soft"
-                      : "border-line bg-card hover:border-gold/50",
+                      ? "border-blue bg-blue-mist"
+                      : "border-line bg-card hover:border-blue/50",
                   ].join(" ")}
                 >
                   <span className="font-medium">{resource.name}</span>
@@ -1076,7 +1079,7 @@ export default function BookingFlow({
                 type="time"
                 value={resourceStartTime}
                 onChange={(e) => setResourceStartTime(e.target.value)}
-                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-gold"
+                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-blue"
               />
             </div>
             <div>
@@ -1088,7 +1091,7 @@ export default function BookingFlow({
                 type="time"
                 value={resourceEndTime}
                 onChange={(e) => setResourceEndTime(e.target.value)}
-                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-gold"
+                className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-blue"
               />
             </div>
           </div>
@@ -1104,7 +1107,7 @@ export default function BookingFlow({
               setError(null);
               setStep("details");
             }}
-            className="mt-6 w-full rounded-full bg-ink px-6 py-3 text-sm font-semibold text-paper transition-colors hover:bg-black disabled:opacity-40"
+            className="mt-6 w-full rounded-full bg-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-strong disabled:opacity-40"
           >
             Continue
           </button>
@@ -1151,8 +1154,8 @@ export default function BookingFlow({
                       session.remaining <= 0
                         ? "opacity-50 cursor-not-allowed border-line bg-card"
                         : selectedSession?.id === session.id
-                          ? "border-gold bg-gold-soft"
-                          : "border-line bg-card hover:border-gold/50",
+                          ? "border-blue bg-blue-mist"
+                          : "border-line bg-card hover:border-blue/50",
                     ].join(" ")}
                   >
                     <div className="flex items-start justify-between">
@@ -1218,7 +1221,7 @@ export default function BookingFlow({
               aria-label="Decrease guests"
               disabled={quantity <= 1}
               onClick={() => setQuantity((q) => clampQuantity(q - 1, quantityRemaining))}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-lg font-medium hover:border-gold disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-lg font-medium hover:border-blue disabled:cursor-not-allowed disabled:opacity-40"
             >
               −
             </button>
@@ -1230,7 +1233,7 @@ export default function BookingFlow({
               aria-label="Increase guests"
               disabled={quantityRemaining >= 1 && quantity >= quantityRemaining}
               onClick={() => setQuantity((q) => clampQuantity(q + 1, quantityRemaining))}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-lg font-medium hover:border-gold disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-lg font-medium hover:border-blue disabled:cursor-not-allowed disabled:opacity-40"
             >
               +
             </button>
@@ -1249,7 +1252,7 @@ export default function BookingFlow({
               setError(null);
               setStep("details");
             }}
-            className="mt-6 w-full rounded-full bg-ink px-6 py-3 text-sm font-semibold text-paper transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-6 w-full rounded-full bg-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-strong disabled:cursor-not-allowed disabled:opacity-40"
           >
             Continue
           </button>
@@ -1308,7 +1311,7 @@ export default function BookingFlow({
               <button
                 type="button"
                 onClick={() => setRetryCount((c) => c + 1)}
-                className="mt-5 rounded-full border border-ink px-5 py-2.5 text-sm font-medium hover:bg-ink hover:text-paper"
+                className="mt-5 rounded-full border border-blue/40 px-5 py-2.5 text-sm font-medium text-blue-strong transition-colors hover:bg-blue-mist"
               >
                 Try again
               </button>
@@ -1322,7 +1325,7 @@ export default function BookingFlow({
               <button
                 type="button"
                 onClick={() => selectStep("date")}
-                className="mt-5 rounded-full border border-ink px-5 py-2.5 text-sm font-medium hover:bg-ink hover:text-paper"
+                className="mt-5 rounded-full border border-blue/40 px-5 py-2.5 text-sm font-medium text-blue-strong transition-colors hover:bg-blue-mist"
               >
                 Choose another date
               </button>
@@ -1390,7 +1393,7 @@ export default function BookingFlow({
       {/* ================================================================ */}
       {step === "confirmation" && booking && (
         <section className="text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gold text-white">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue text-white">
             <span className="text-2xl font-bold">✓</span>
           </div>
           <h1 className="mt-5 text-2xl font-semibold tracking-tight">
@@ -1415,7 +1418,7 @@ export default function BookingFlow({
           <div className="mt-8 flex flex-col gap-3">
             <Link
               href={`/manage/${booking.manageToken}`}
-              className="rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper transition-colors hover:bg-black"
+              className="rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
             >
               Manage booking
             </Link>
@@ -1495,6 +1498,7 @@ export default function BookingFlow({
           )}
         </section>
       )}
+      </div>
     </div>
   );
 

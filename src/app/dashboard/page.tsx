@@ -4,7 +4,27 @@ import { notFound, redirect } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CopyBookingLink from "@/components/CopyBookingLink";
-import { formatTimeInZone } from "@/lib/availability";
+import DashboardShell from "@/components/dashboard/DashboardShell";
+import Schedule from "@/components/dashboard/Schedule";
+import {
+  EmptyState,
+  SectionHeading,
+  StatCard,
+  StatusBadge,
+  primaryActionClass,
+} from "@/components/dashboard/ui";
+import {
+  addDaysKey,
+  formatLongDateInZone,
+  formatTimeInZone,
+  getLocalDayInfo,
+  isoToDateKey,
+} from "@/lib/availability";
+import {
+  displayNameFromEmail,
+  getDaypartInZone,
+  greetingForDaypart,
+} from "@/lib/greeting";
 import { getRequestUser, getMyMemberships } from "@/lib/server/auth";
 import { fetchBusiness } from "@/lib/server/database";
 import { getSupabase } from "@/lib/supabase/server";
@@ -14,7 +34,6 @@ import {
   getBusinessDayBounds,
 } from "@/lib/server/business-bookings";
 import { listResources, listSessions } from "@/lib/server/businesses";
-import WorkspaceShell from "@/components/WorkspaceShell";
 
 export const dynamic = "force-dynamic";
 
@@ -25,13 +44,13 @@ export const metadata: Metadata = {
 };
 
 interface DashboardPageProps {
-  searchParams: Promise<{ business?: string }>;
+  searchParams: Promise<{ business?: string; day?: string }>;
 }
 
 /**
- * Operational homepage: today's bookings first, then what's next, plus
- * small bounded counts. No analytics — everything here answers "what needs
- * my attention right now".
+ * Operational homepage: greeting, today's overview, an interactive
+ * week schedule, what's next, and mode-specific panels. Everything here
+ * answers "what needs my attention right now" — no analytics.
  */
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const user = await getRequestUser().catch(() => null);
@@ -62,22 +81,32 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   }
 
   const now = new Date();
-  const bounds = getBusinessDayBounds(business.timezone, now);
+  const tz = business.timezone;
+  const bounds = getBusinessDayBounds(tz, now);
   const todayLabel = new Intl.DateTimeFormat("en-GB", {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
-    timeZone: business.timezone,
+    timeZone: tz,
   }).format(now);
-  const [today, upcoming, counts] = await Promise.all([
+
+  // Server-computed greeting in the business timezone — deterministic per
+  // request, so there is no server/client hydration mismatch.
+  const greeting = greetingForDaypart(getDaypartInZone(tz, now));
+  const displayName = displayNameFromEmail(user.email);
+
+  // One bounded 7-day query feeds the week strip and the selected-day
+  // timeline (live bookings only).
+  const weekEndUtc = getLocalDayInfo(addDaysKey(bounds.todayKey, 7), tz).dayStartUtc;
+  const [weekBookings, upcoming, counts] = await Promise.all([
     listBusinessBookings(
       business.id,
       {
         statuses: ["confirmed", "rescheduled"],
         fromIso: bounds.dayStartUtc,
-        toIso: bounds.dayEndUtc,
-        limit: 50,
+        toIso: weekEndUtc,
+        limit: 200,
       },
       db,
     ),
@@ -98,30 +127,79 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const bookingHref = (bookingId: string) =>
     `/dashboard/bookings/${bookingId}?business=${business.id}`;
 
+  const byDay = new Map<string, typeof weekBookings>();
+  for (const booking of weekBookings) {
+    const key = isoToDateKey(booking.startTime, tz);
+    const list = byDay.get(key) ?? [];
+    list.push(booking);
+    byDay.set(key, list);
+  }
+
+  const weekKeys = Array.from({ length: 7 }, (_, i) => addDaysKey(bounds.todayKey, i));
+  const requestedDay = params.day && params.day.trim().length > 0 ? params.day.trim() : null;
+  const selectedDay = requestedDay && weekKeys.includes(requestedDay) ? requestedDay : bounds.todayKey;
+  const selectedBookings = (byDay.get(selectedDay) ?? [])
+    .slice()
+    .sort((a, b) => (a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : 0));
+
+  const dayHref = (key: string) => `/dashboard?business=${business.id}&day=${key}`;
+  const weekdayFmt = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: tz });
+  const days = weekKeys.map((key) => {
+    const dayStart = getLocalDayInfo(key, tz).dayStartUtc;
+    return {
+      key,
+      weekday: weekdayFmt.format(new Date(dayStart)),
+      dayNum: String(Number(key.slice(8, 10))),
+      count: byDay.get(key)?.length ?? 0,
+      href: dayHref(key),
+      selected: key === selectedDay,
+      isToday: key === bounds.todayKey,
+    };
+  });
+
+  const selectedLabel =
+    selectedDay === bounds.todayKey
+      ? `Today · ${todayLabel}`
+      : formatLongDateInZone(getLocalDayInfo(selectedDay, tz).dayStartUtc, tz);
+
+  const nowIso = now.toISOString();
+  const nextBooking =
+    selectedBookings.find((b) => b.startTime >= nowIso) ??
+    (selectedDay === bounds.todayKey ? upcoming[0] : undefined);
+  const highlightId =
+    selectedDay === bounds.todayKey && nextBooking ? nextBooking.id : undefined;
+
+  const todayCount = byDay.get(bounds.todayKey)?.length ?? 0;
+  const attentionCount = counts.failedNotifications + counts.calendarIssues;
+
   return (
     <>
       <Navbar />
       <main className="flex-1">
-        <div className="mx-auto w-full max-w-5xl px-5 py-10">
-          <div className="flex flex-col gap-8 lg:flex-row">
-            <WorkspaceShell
-              businessId={business.id}
-              businessName={business.name}
-              businessSlug={business.slug}
-            />
-            <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">{business.name}</h1>
+        <DashboardShell
+          businessId={business.id}
+          businessName={business.name}
+          businessSlug={business.slug}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm text-ink-soft">
+                {todayLabel} · {tz}
+              </p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-[1.75rem]">
+                {greeting}
+                {displayName ? `, ${displayName}` : ""}
+              </h1>
               <p className="mt-1 text-sm text-ink-soft">
-                {todayLabel} · {business.timezone}
+                Here&apos;s today at {business.name} · {todayCount} booking
+                {todayCount === 1 ? "" : "s"} on the schedule.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <CopyBookingLink slug={business.slug} />
               <Link
                 href={`/dashboard/bookings?business=${business.id}&new=1`}
-                className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-paper hover:bg-black"
+                className={primaryActionClass}
               >
                 New booking
               </Link>
@@ -129,15 +207,16 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </div>
 
           {switcher.length > 1 && (
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap gap-2" aria-label="Switch business">
               {switcher.map((entry) => (
                 <Link
                   key={entry.id}
                   href={`/dashboard?business=${entry.id}`}
+                  aria-current={entry.id === business.id ? "true" : undefined}
                   className={[
-                    "rounded-full border px-4 py-1.5 text-sm",
+                    "rounded-full border px-4 py-1.5 text-sm transition-colors",
                     entry.id === business.id
-                      ? "border-gold bg-gold-soft font-semibold text-gold-strong"
+                      ? "border-blue bg-blue-soft font-semibold text-blue-strong"
                       : "border-line bg-card text-ink-soft hover:text-ink",
                   ].join(" ")}
                 >
@@ -147,105 +226,118 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             </div>
           )}
 
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="Today" value={String(counts.today)} href={`/dashboard/bookings?business=${business.id}&view=today`} />
-            <StatCard label="Upcoming" value={String(counts.upcoming)} href={`/dashboard/bookings?business=${business.id}&view=upcoming`} />
+          <div className="mt-6 grid grid-cols-3 gap-2.5 sm:gap-3">
             <StatCard
-              label="Notifications failed"
-              value={String(counts.failedNotifications)}
-              tone={counts.failedNotifications > 0 ? "warn" : undefined}
+              label="Today"
+              value={String(counts.today)}
+              href={`/dashboard/bookings?business=${business.id}&view=today`}
             />
             <StatCard
-              label="Calendar issues"
-              value={String(counts.calendarIssues)}
-              tone={counts.calendarIssues > 0 ? "warn" : undefined}
-              href={`/settings?business=${business.id}`}
+              label="Upcoming"
+              value={String(counts.upcoming)}
+              href={`/dashboard/bookings?business=${business.id}&view=upcoming`}
+            />
+            <StatCard
+              label="Needs attention"
+              value={String(attentionCount)}
+              tone={attentionCount > 0 ? "warn" : undefined}
+              href={attentionCount > 0 ? `/settings?business=${business.id}` : undefined}
             />
           </div>
 
-          <h2 className="mt-10 text-lg font-semibold">Today&apos;s bookings</h2>
-          {today.length === 0 ? (
-            <EmptyState
-              title="No bookings today"
-              body="Nothing on the books for today. Share your booking page or create one manually."
-              actionHref={`/dashboard/bookings?business=${business.id}&new=1`}
-              actionLabel="New booking"
-            />
-          ) : (
-            <ul className="mt-4 flex flex-col gap-2.5">
-              {today.map((booking) => (
-                <li key={booking.id}>
-                  <Link
-                    href={bookingHref(booking.id)}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 hover:border-gold/60"
-                  >
-                    <span>
-                      <span className="font-semibold tabular-nums">
-                        {formatTimeInZone(booking.startTime, business.timezone)}
-                      </span>
-                      <span className="text-ink-soft"> · {booking.serviceName}</span>
-                      <span className="block text-sm text-ink-soft">
-                        {booking.customerName} · {booking.customerPhone}
-                      </span>
-                    </span>
-                    <StatusPill status={booking.status} />
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          {nextBooking && selectedDay === bounds.todayKey && (
+            <Link
+              href={bookingHref(nextBooking.id)}
+              className="mt-4 flex items-center gap-4 rounded-2xl border border-blue/40 bg-blue-mist px-5 py-4 transition-colors hover:border-blue"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="text-xs font-semibold uppercase tracking-wider text-blue-strong">
+                  Up next · <span className="tabular-nums">{formatTimeInZone(nextBooking.startTime, tz)}</span>
+                </span>
+                <span className="mt-0.5 block truncate font-semibold">
+                  {nextBooking.serviceName} · {nextBooking.customerName}
+                </span>
+              </span>
+              <span className="shrink-0 text-sm font-medium text-blue-strong">
+                View details →
+              </span>
+            </Link>
           )}
 
-          <div className="mt-8 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Coming next</h2>
-            <Link
-              href={`/dashboard/bookings?business=${business.id}&view=upcoming`}
-              className="text-sm font-medium text-ink-soft hover:text-ink"
-            >
-              All bookings →
-            </Link>
-          </div>
-          {upcoming.length === 0 ? (
-            <EmptyState
-              title="No upcoming bookings"
-              body="The schedule ahead is clear."
+          <section aria-label="Schedule" className="mt-8">
+            <SectionHeading
+              title="Schedule"
+              actionHref={`/dashboard/bookings?business=${business.id}&view=upcoming`}
+              actionLabel="All bookings"
             />
-          ) : (
-            <ul className="mt-4 flex flex-col gap-2.5">
-              {upcoming.map((booking) => (
-                <li key={booking.id}>
-                  <Link
-                    href={bookingHref(booking.id)}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 hover:border-gold/60"
-                  >
-                    <span>
-                      <span className="font-semibold">
-                        {booking.startTime.slice(0, 10)} ·{" "}
-                        <span className="tabular-nums">
-                          {formatTimeInZone(booking.startTime, business.timezone)}
+            <div className="mt-4">
+              <Schedule
+                days={days}
+                dayLabel={selectedLabel}
+                bookings={selectedBookings.map((booking) => ({
+                  id: booking.id,
+                  href: bookingHref(booking.id),
+                  time: formatTimeInZone(booking.startTime, tz),
+                  serviceName: booking.serviceName,
+                  customerName: `${booking.customerName} · ${booking.customerPhone}`,
+                  status: booking.status,
+                  highlighted: booking.id === highlightId,
+                }))}
+                emptyTitle={
+                  selectedDay === bounds.todayKey
+                    ? "Nothing scheduled today"
+                    : "Nothing scheduled this day"
+                }
+                emptyBody="New bookings appear here as customers book."
+              />
+            </div>
+          </section>
+
+          <section aria-label="Coming next" className="mt-8">
+            <SectionHeading
+              title="Coming next"
+              actionHref={`/dashboard/bookings?business=${business.id}&view=upcoming`}
+              actionLabel="All bookings"
+            />
+            {upcoming.length === 0 ? (
+              <EmptyState
+                title="No upcoming bookings"
+                body="The schedule ahead is clear."
+              />
+            ) : (
+              <ul className="mt-4 flex flex-col gap-2.5">
+                {upcoming.slice(0, 5).map((booking) => (
+                  <li key={booking.id}>
+                    <Link
+                      href={bookingHref(booking.id)}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 transition-colors hover:border-blue/50"
+                    >
+                      <span className="min-w-0">
+                        <span className="font-semibold">
+                          {booking.startTime.slice(0, 10)} ·{" "}
+                          <span className="tabular-nums">
+                            {formatTimeInZone(booking.startTime, tz)}
+                          </span>
+                        </span>
+                        <span className="block truncate text-sm text-ink-soft">
+                          {booking.serviceName} · {booking.customerName}
                         </span>
                       </span>
-                      <span className="block text-sm text-ink-soft">
-                        {booking.serviceName} · {booking.customerName}
-                      </span>
-                    </span>
-                    <StatusPill status={booking.status} />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+                      <StatusBadge status={booking.status} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
           {business.booking_mode === "resource" && (
-            <>
-              <div className="mt-8 flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Items</h2>
-                <Link
-                  href={`/settings?business=${business.id}`}
-                  className="text-sm font-medium text-ink-soft hover:text-ink"
-                >
-                  Manage items →
-                </Link>
-              </div>
+            <section aria-label="Rental items" className="mt-8">
+              <SectionHeading
+                title="Items"
+                actionHref={`/settings?business=${business.id}`}
+                actionLabel="Manage items"
+              />
               {modeResources.filter((r) => r.active).length === 0 ? (
                 <EmptyState
                   title="No rental items yet"
@@ -259,29 +351,25 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                       <li key={resource.id}>
                         <Link
                           href={`/dashboard/bookings?business=${business.id}&resourceId=${resource.id}`}
-                          className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 hover:border-gold/60"
+                          className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 transition-colors hover:border-blue/50"
                         >
                           <span className="font-medium">{resource.name}</span>
-                          <span className="text-sm text-ink-soft">ViewBookings →</span>
+                          <span className="shrink-0 text-sm text-blue-strong">View bookings →</span>
                         </Link>
                       </li>
                     ))}
                 </ul>
               )}
-            </>
+            </section>
           )}
 
           {business.booking_mode === "capacity" && (
-            <>
-              <div className="mt-8 flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Departures</h2>
-                <Link
-                  href={`/settings?business=${business.id}`}
-                  className="text-sm font-medium text-ink-soft hover:text-ink"
-                >
-                  Manage sessions →
-                </Link>
-              </div>
+            <section aria-label="Sessions" className="mt-8">
+              <SectionHeading
+                title="Departures"
+                actionHref={`/settings?business=${business.id}`}
+                actionLabel="Manage sessions"
+              />
               {modeSessions.filter((s) => s.active).length === 0 ? (
                 <EmptyState
                   title="No upcoming departures"
@@ -295,27 +383,27 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                       <li key={session.id}>
                         <Link
                           href={`/dashboard/bookings?business=${business.id}&sessionId=${session.id}`}
-                          className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 hover:border-gold/60"
+                          className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 transition-colors hover:border-blue/50"
                         >
-                          <span>
+                          <span className="min-w-0">
                             <span className="font-medium">
                               {session.service_name ?? "Session"}
                             </span>
                             <span className="block text-sm text-ink-soft tabular-nums">
-                              {formatTimeInZone(session.start_time, business.timezone)} ·{" "}
+                              {formatTimeInZone(session.start_time, tz)} ·{" "}
                               {session.booked}/{session.capacity} booked
                             </span>
                           </span>
-                          <span className="text-sm text-ink-soft">View bookings →</span>
+                          <span className="shrink-0 text-sm text-blue-strong">View bookings →</span>
                         </Link>
                       </li>
                     ))}
                 </ul>
               )}
-            </>
+            </section>
           )}
 
-          <div className="mt-8 flex flex-wrap gap-3 text-sm">
+          <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm">
             <Link href={`/dashboard/bookings?business=${business.id}`} className="font-medium text-ink-soft hover:text-ink">
               All bookings →
             </Link>
@@ -326,81 +414,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               Log out
             </Link>
           </div>
-            </div>
-          </div>
-        </div>
+        </DashboardShell>
       </main>
       <Footer />
     </>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  href,
-  tone,
-}: {
-  label: string;
-  value: string;
-  href?: string;
-  tone?: "warn";
-}) {
-  const body = (
-    <>
-      <span className={`text-2xl font-semibold tabular-nums ${tone === "warn" ? "text-red-700" : ""}`}>
-        {value}
-      </span>
-      <span className="mt-1 text-xs text-ink-soft">{label}</span>
-    </>
-  );
-  const className = "flex flex-col rounded-2xl border border-line bg-card px-4 py-3";
-  return href ? (
-    <Link href={href} className={`${className} hover:border-gold/60`}>
-      {body}
-    </Link>
-  ) : (
-    <div className={className}>{body}</div>
-  );
-}
-
-export function StatusPill({ status }: { status: string }) {
-  const tone =
-    status === "cancelled"
-      ? "bg-red-50 text-red-700"
-      : status === "rescheduled"
-        ? "bg-gold-soft text-gold-strong"
-        : "bg-gold-soft text-gold-strong";
-  return (
-    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>
-      {status}
-    </span>
-  );
-}
-
-export function EmptyState({
-  title,
-  body,
-  actionHref,
-  actionLabel,
-}: {
-  title: string;
-  body: string;
-  actionHref?: string;
-  actionLabel?: string;
-}) {
-  return (
-    <div className="mt-4 rounded-2xl border border-line bg-card p-6 text-center">
-      <p className="font-medium">{title}</p>
-      <p className="mt-1 text-sm text-ink-soft">{body}</p>
-      {actionHref && actionLabel && (
-        <Link
-          href={actionHref}
-          className="mt-4 inline-block rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-paper hover:bg-black"
-        >
-          {actionLabel}
-        </Link>
-      )}
-    </div>
   );
 }

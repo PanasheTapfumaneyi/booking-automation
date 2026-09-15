@@ -49,7 +49,7 @@ export default function MarketingHeader() {
             href="/login"
             className="rounded-lg px-4 py-2.5 text-[15px] font-medium text-ink-soft transition-colors duration-150 hover:text-ink"
           >
-            Sign In
+            Business login
           </Link>
           <Link
             href="/demo"
@@ -57,16 +57,14 @@ export default function MarketingHeader() {
           >
             View Demo
           </Link>
-          {wa && (
-            <a
-              href={wa}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-lg px-4 py-2.5 text-[15px] font-medium text-ink-soft transition-colors duration-150 hover:text-ink"
-            >
-              Contact
-            </a>
-          )}
+          <a
+            href={wa || `${anchorBase}#contact`}
+            target={wa ? "_blank" : undefined}
+            rel={wa ? "noopener noreferrer" : undefined}
+            className="rounded-lg px-4 py-2.5 text-[15px] font-medium text-ink-soft transition-colors duration-150 hover:text-ink"
+          >
+            Contact
+          </a>
           <Link
             href="/signup"
             className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-[15px] font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
@@ -117,7 +115,7 @@ export default function MarketingHeader() {
               className="rounded-lg px-3 py-2.5 text-center text-[15px] font-medium text-ink-soft transition-colors duration-150 hover:bg-surface-muted hover:text-ink"
               onClick={() => setMenuOpen(false)}
             >
-              Sign In
+              Business login
             </Link>
             <Link
               href="/demo"
@@ -126,17 +124,15 @@ export default function MarketingHeader() {
             >
               View Demo
             </Link>
-            {wa && (
-              <a
-                href={wa}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-lg px-3 py-2.5 text-center text-[15px] font-medium text-ink-soft transition-colors duration-150 hover:bg-surface-muted hover:text-ink"
-                onClick={() => setMenuOpen(false)}
-              >
-                Contact on WhatsApp
-              </a>
-            )}
+            <a
+              href={wa || `${anchorBase}#contact`}
+              target={wa ? "_blank" : undefined}
+              rel={wa ? "noopener noreferrer" : undefined}
+              className="rounded-lg px-3 py-2.5 text-center text-[15px] font-medium text-ink-soft transition-colors duration-150 hover:bg-surface-muted hover:text-ink"
+              onClick={() => setMenuOpen(false)}
+            >
+              Contact on WhatsApp
+            </a>
             <Link
               href="/signup"
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-3 text-[15px] font-semibold text-white transition-all duration-150 hover:bg-brand-hover"

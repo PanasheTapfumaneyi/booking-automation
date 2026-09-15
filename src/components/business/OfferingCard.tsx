@@ -34,6 +34,8 @@ export default function OfferingCard({
           <img
             src={imageUrl!}
             alt={name}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover"
           />
         </div>

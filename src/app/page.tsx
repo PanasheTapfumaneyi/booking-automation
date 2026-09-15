@@ -28,9 +28,9 @@ export default function HomePage() {
       <MarketingHeader />
       <main>
         <Hero />
+        <FeaturedBusinesses />
         <HowItWorks />
         <BusinessTypes />
-        <FeaturedBusinesses />
         <ProductPreview />
         <Pricing />
         <WhyKivo />

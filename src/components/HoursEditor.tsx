@@ -69,7 +69,7 @@ export default function HoursEditor({ value, onChange, disabled }: HoursEditorPr
                 checked={isOpen}
                 disabled={disabled}
                 onChange={(event) => setDay(key, event.target.checked)}
-                className="h-4 w-4 accent-gold"
+                className="h-4 w-4 accent-[#15547D]"
               />
               Open
             </label>
@@ -83,7 +83,7 @@ export default function HoursEditor({ value, onChange, disabled }: HoursEditorPr
                   onChange={(event) =>
                     setDay(key, true, { open: event.target.value, close: dayHours.close })
                   }
-                  className="rounded-lg border border-line bg-card px-2.5 py-1.5 text-sm outline-none focus:border-gold"
+                  className="rounded-lg border border-line bg-card px-2.5 py-1.5 text-sm outline-none focus:border-blue"
                 />
                 <span className="text-ink-soft">–</span>
                 <input
@@ -94,7 +94,7 @@ export default function HoursEditor({ value, onChange, disabled }: HoursEditorPr
                   onChange={(event) =>
                     setDay(key, true, { open: dayHours.open, close: event.target.value })
                   }
-                  className="rounded-lg border border-line bg-card px-2.5 py-1.5 text-sm outline-none focus:border-gold"
+                  className="rounded-lg border border-line bg-card px-2.5 py-1.5 text-sm outline-none focus:border-blue"
                 />
                 <button
                   type="button"

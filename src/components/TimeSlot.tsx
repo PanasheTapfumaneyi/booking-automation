@@ -21,8 +21,8 @@ export default function TimeSlot({
       className={[
         "flex items-baseline justify-between rounded-lg border px-4 py-3 transition-all",
         selected
-          ? "border-gold bg-gold text-white"
-          : "border-line bg-card hover:border-gold hover:bg-gold-soft/50",
+          ? "border-blue bg-blue text-white"
+          : "border-line bg-card hover:border-blue hover:bg-blue-soft/50",
       ].join(" ")}
     >
       <span className="text-base font-semibold tabular-nums">{label}</span>

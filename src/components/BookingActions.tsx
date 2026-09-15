@@ -157,7 +157,7 @@ export default function BookingActions({
                 setError(null);
                 setDone(null);
               }}
-              className="rounded-full bg-ink px-6 py-3 text-base font-semibold text-paper hover:bg-black"
+              className="rounded-full bg-blue px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
             >
               Reschedule
             </button>
@@ -196,11 +196,11 @@ export default function BookingActions({
           <div className="mt-4 grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1.5 text-sm font-medium">
               Start time
-              <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="rounded-xl border border-line bg-paper px-4 py-2.5 text-sm outline-none focus:border-gold" />
+              <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="rounded-xl border border-line bg-paper px-4 py-2.5 text-sm outline-none focus:border-blue" />
             </label>
             <label className="flex flex-col gap-1.5 text-sm font-medium">
               End time
-              <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="rounded-xl border border-line bg-paper px-4 py-2.5 text-sm outline-none focus:border-gold" />
+              <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="rounded-xl border border-line bg-paper px-4 py-2.5 text-sm outline-none focus:border-blue" />
             </label>
           </div>
           <div className="mt-4 flex gap-2.5">
@@ -208,7 +208,7 @@ export default function BookingActions({
               type="button"
               disabled={!dateKey || !startTime || !endTime || busy}
               onClick={confirmReschedule}
-              className="rounded-full bg-ink px-6 py-3 text-sm font-semibold text-paper hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-full bg-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-strong disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy ? "Rescheduling…" : "Confirm new time"}
             </button>
@@ -253,8 +253,8 @@ export default function BookingActions({
                     className={[
                       "rounded-xl border px-3 py-2.5 text-sm font-medium tabular-nums",
                       slot?.startTime === option.startTime
-                        ? "border-gold bg-gold-soft text-gold-strong"
-                        : "border-line bg-paper hover:border-gold/60",
+                        ? "border-blue bg-blue-mist text-blue-strong"
+                        : "border-line bg-paper hover:border-blue/60",
                     ].join(" ")}
                   >
                     {option.label}
@@ -266,7 +266,7 @@ export default function BookingActions({
                   type="button"
                   disabled={!slot || busy}
                   onClick={confirmReschedule}
-                  className="rounded-full bg-ink px-6 py-3 text-sm font-semibold text-paper hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-full bg-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-strong disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {busy ? "Rescheduling…" : "Confirm new time"}
                 </button>

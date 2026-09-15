@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import SettingsForm, { type SettingsBundle } from "@/components/SettingsForm";
+import DashboardShell from "@/components/dashboard/DashboardShell";
 import { getRequestUser, getMyMemberships } from "@/lib/server/auth";
 import { getSupabase } from "@/lib/supabase/server";
 import {
@@ -80,7 +81,13 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
     <>
       <Navbar />
       <main className="flex-1">
-        <SettingsForm bundle={bundle} />
+        <DashboardShell
+          businessId={settings.business.id}
+          businessName={settings.business.name}
+          businessSlug={settings.business.slug ?? null}
+        >
+          <SettingsForm bundle={bundle} />
+        </DashboardShell>
       </main>
       <Footer />
     </>

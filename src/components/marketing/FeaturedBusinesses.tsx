@@ -45,33 +45,27 @@ function BusinessCard({ business, index }: { business: FeaturedBusiness; index: 
   return (
     <div
       ref={ref}
-      className={`group flex flex-col rounded-2xl border border-line bg-card transition-all duration-200 hover:-translate-y-[3px] hover:border-line-strong hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] ${
+      className={`group flex flex-col overflow-hidden rounded-2xl border border-line bg-card transition-all duration-200 hover:-translate-y-[3px] hover:border-line-strong hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] ${
         visible ? "translate-y-0 opacity-100" : "translate-y-5 opacity-0"
       }`}
       style={{ transitionDelay: `${150 + index * 100}ms`, transitionDuration: "500ms", transitionTimingFunction: "cubic-bezier(0.16,1,0.3,1)" }}
     >
-      <div className="flex flex-col p-6">
-        <div className="flex items-start justify-between">
-          <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-semibold text-brand">
-            {business.category}
-          </span>
-          <span className="text-brand transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:rotate-3">
-            {MODE_ICONS[business.mode]}
-          </span>
-        </div>
-        <h3 className="mt-5 text-xl font-bold text-ink">{business.name}</h3>
+      <div className="flex items-center justify-between bg-gradient-to-br from-blue-soft via-blue-mist to-aqua-soft px-6 py-5">
+        <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-xs font-semibold text-blue-strong">
+          {business.category}
+        </span>
+        <span className="text-blue transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:rotate-3">
+          {MODE_ICONS[business.mode]}
+        </span>
+      </div>
+      <div className="flex flex-1 flex-col p-6">
+        <h3 className="text-xl font-bold text-ink">{business.name}</h3>
         <p className="mt-2 flex-1 leading-relaxed text-ink-soft">{business.description}</p>
         <div className="mt-5 border-t border-line pt-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted">{business.modeLabel}</p>
         </div>
       </div>
       <div className="flex flex-col gap-2 px-6 pb-6">
-        <Link
-          href={`/business/${business.slug}`}
-          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-line px-4 py-2.5 text-sm font-semibold text-ink transition-all duration-150 hover:border-brand hover:text-brand"
-        >
-          View business page
-        </Link>
         <Link
           href={`/book/${business.slug}`}
           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
@@ -80,6 +74,12 @@ function BusinessCard({ business, index }: { business: FeaturedBusiness; index: 
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
             <path d="M2 7H12M8 3L12 7L8 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
+        </Link>
+        <Link
+          href={`/business/${business.slug}`}
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-line px-4 py-2.5 text-sm font-semibold text-ink transition-all duration-150 hover:border-brand hover:text-brand"
+        >
+          View business
         </Link>
       </div>
     </div>
@@ -112,7 +112,7 @@ export default function FeaturedBusinesses() {
             href="/demo"
             className="inline-flex items-center gap-2 rounded-lg border border-line bg-card px-6 py-3 text-sm font-semibold text-ink transition-all duration-150 hover:border-line-strong hover:text-ink"
           >
-            View all demos
+            View all live sites
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
               <path d="M2 7H12M8 3L12 7L8 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>

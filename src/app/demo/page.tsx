@@ -5,9 +5,9 @@ import MarketingFooter from "@/components/marketing/MarketingFooter";
 import { FEATURED_BUSINESSES } from "@/lib/marketing-config";
 
 export const metadata: Metadata = {
-  title: "Live demos — see how booking works",
+  title: "Live booking sites — see how booking works",
   description:
-    "Explore real booking flows for different business types. Each demo uses the full Kivo engine — not a mockup.",
+    "Explore real booking flows for different business types. Each site uses the full Kivo engine — not a mockup.",
 };
 
 const DEMO_DETAILS: Record<string, { details: string; cta: string }> = {
@@ -36,7 +36,7 @@ export default function DemoPage() {
       <main className="flex-1">
         <section className="mx-auto max-w-[1200px] px-6 py-20 sm:py-28">
           <div className="max-w-xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Live demos</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Live booking sites</p>
             <h1 className="mt-4 text-[clamp(2rem,4vw,3rem)] font-bold leading-[1.05] tracking-tight text-ink">
               See Kivo in action
             </h1>
@@ -70,7 +70,7 @@ export default function DemoPage() {
                       href={`/business/${demo.slug}`}
                       className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-line px-4 py-2.5 text-sm font-semibold text-ink transition-all duration-150 hover:border-brand hover:text-brand"
                     >
-                      View business page
+                      View business
                     </Link>
                     <Link
                       href={`/book/${demo.slug}`}

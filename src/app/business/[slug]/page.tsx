@@ -22,6 +22,15 @@ interface BusinessPageProps {
   params: Promise<{ slug: string }>;
 }
 
+/**
+ * Public business profile (services, resources, imagery, hours) is
+ * relatively stable, so it may be cached for 5 minutes. Dynamic
+ * availability is ALWAYS client-fetched per request and is never part
+ * of this cache — stale availability or double bookings are impossible
+ * from this setting.
+ */
+export const revalidate = 300;
+
 const MODE_TAGLINE: Record<string, string> = {
   appointment: "Simple booking, without the back-and-forth.",
   resource: "Reserve what you need, when you need it.",

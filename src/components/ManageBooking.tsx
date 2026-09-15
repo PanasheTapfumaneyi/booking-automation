@@ -260,7 +260,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
         </p>
         <Link
           href="/book"
-          className="mt-6 inline-block rounded-full bg-ink px-6 py-3 text-base font-semibold text-paper hover:bg-black"
+          className="mt-6 inline-block rounded-full bg-blue px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
         >
           Book again
         </Link>
@@ -277,7 +277,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
             <button
               type="button"
               onClick={() => setRetryCount((count) => count + 1)}
-              className="mt-4 rounded-full bg-ink px-6 py-3 text-base font-semibold text-paper hover:bg-black"
+              className="mt-4 rounded-full bg-blue px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
             >
               Retry
             </button>
@@ -314,7 +314,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
 
       {mode === "rescheduled" && (
         <section className="text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gold text-white">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue text-white">
             <span className="text-2xl font-bold">✓</span>
           </div>
           <h1 className="mt-5 text-2xl font-semibold tracking-tight">
@@ -338,7 +338,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
           <div className="mt-8 flex flex-col gap-3">
             <Link
               href={`/manage/${token}`}
-              className="rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper hover:bg-black"
+              className="rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
             >
               View booking
             </Link>
@@ -366,7 +366,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
           <div className="mt-8 flex flex-col gap-3">
             <Link
               href="/book"
-              className="rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper hover:bg-black"
+              className="rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
             >
               Book again
             </Link>
@@ -425,7 +425,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
                     <button
                       type="button"
                       onClick={() => setRetryCount((count) => count + 1)}
-                      className="mt-5 rounded-full border border-ink px-5 py-2.5 text-sm font-medium hover:bg-ink hover:text-paper"
+                      className="mt-5 rounded-full border border-blue/40 px-5 py-2.5 text-sm font-medium text-blue-strong transition-colors hover:bg-blue-mist"
                     >
                       Try again
                     </button>
@@ -437,7 +437,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
                     <button
                       type="button"
                       onClick={() => setRescheduleStep("date")}
-                      className="mt-4 rounded-full border border-ink px-5 py-2.5 text-sm font-medium hover:bg-ink hover:text-paper"
+                      className="mt-4 rounded-full border border-blue/40 px-5 py-2.5 text-sm font-medium text-blue-strong transition-colors hover:bg-blue-mist"
                     >
                       Choose another date
                     </button>
@@ -460,7 +460,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
                       type="button"
                       onClick={handleConfirmReschedule}
                       disabled={!newSlot || busy}
-                      className="mt-6 w-full rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+                      className="mt-6 w-full rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {busy ? "Rescheduling…" : "Confirm new time"}
                     </button>
@@ -520,7 +520,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
                     type="time"
                     value={resourceNewStart}
                     onChange={(e) => setResourceNewStart(e.target.value)}
-                    className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-gold"
+                    className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-blue"
                   />
                 </div>
                 <div>
@@ -532,7 +532,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
                     type="time"
                     value={resourceNewEnd}
                     onChange={(e) => setResourceNewEnd(e.target.value)}
-                    className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-gold"
+                    className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm outline-none focus:border-blue"
                   />
                 </div>
               </div>
@@ -548,7 +548,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
                   resourceNewStart >= resourceNewEnd ||
                   busy
                 }
-                className="mt-6 w-full rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+                className="mt-6 w-full rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {busy ? "Rescheduling…" : "Confirm new time"}
               </button>
@@ -585,7 +585,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
           <div className="mt-8 flex flex-col gap-3">
             <Link
               href="/book"
-              className="rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper hover:bg-black"
+              className="rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
             >
               Book a new session
             </Link>
@@ -667,7 +667,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
                 "rounded-full px-2.5 py-1 text-xs font-semibold",
                 isCancelled
                   ? "bg-red-50 text-red-700"
-                  : "bg-gold-soft text-gold-strong",
+                  : "bg-blue-soft text-blue-strong",
               ].join(" ")}
             >
               {statusLabel(booking.status)}
@@ -688,7 +688,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
               </p>
               <Link
                 href="/book"
-                className="mt-5 inline-block rounded-full bg-ink px-6 py-3 text-base font-semibold text-paper hover:bg-black"
+                className="mt-5 inline-block rounded-full bg-blue px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
               >
                 Book again
               </Link>
@@ -700,7 +700,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
                   <button
                     type="button"
                     onClick={startReschedule}
-                    className="rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper transition-colors hover:bg-black"
+                    className="rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
                   >
                     Reschedule
                   </button>
@@ -708,7 +708,7 @@ export default function ManageBooking({ token }: ManageBookingProps) {
                 {bookingMode === "capacity" && !isCancelled && (
                   <Link
                     href="/book"
-                    className="rounded-full bg-ink px-6 py-3.5 text-center text-base font-semibold text-paper transition-colors hover:bg-black"
+                    className="rounded-full bg-blue px-6 py-3.5 text-center text-base font-semibold text-white transition-colors hover:bg-blue-strong"
                   >
                     Book a different session
                   </Link>

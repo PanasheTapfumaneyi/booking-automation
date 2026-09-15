@@ -198,7 +198,7 @@ export default function OnboardingFlow() {
   }
 
   const inputClass =
-    "rounded-xl border border-line bg-card px-4 py-3 text-base outline-none focus:border-gold disabled:opacity-40";
+    "rounded-xl border border-line bg-card px-4 py-3 text-base outline-none focus:border-blue disabled:opacity-40";
 
   return (
     <div className="mx-auto w-full max-w-xl px-5 py-8">
@@ -210,9 +210,9 @@ export default function OnboardingFlow() {
                 className={[
                   "flex h-6 w-6 items-center justify-center rounded-full border text-[11px]",
                   step === item
-                    ? "border-gold bg-gold text-white"
+                    ? "border-blue bg-blue text-white"
                     : index < stepIndex
-                      ? "border-gold bg-gold-soft text-gold-strong"
+                      ? "border-blue bg-blue-mist text-blue-strong"
                       : "border-line bg-card text-ink-soft",
                 ].join(" ")}
               >
@@ -261,7 +261,7 @@ export default function OnboardingFlow() {
                   aria-pressed={mode === option.mode}
                   className={[
                     "rounded-xl border p-4 text-left transition-all",
-                    mode === option.mode ? "border-gold bg-gold-soft ring-1 ring-gold" : "border-line bg-card hover:border-gold/60",
+                    mode === option.mode ? "border-blue bg-blue-mist ring-1 ring-blue" : "border-line bg-card hover:border-blue/50",
                   ].join(" ")}
                 >
                   <span className="font-semibold">{option.title}</span>
@@ -273,7 +273,7 @@ export default function OnboardingFlow() {
               type="button"
               disabled={busy || name.trim().length < 2}
               onClick={handleBasics}
-              className="mt-2 rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+              className="mt-2 rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy ? "Creating…" : "Continue"}
             </button>
@@ -339,7 +339,7 @@ export default function OnboardingFlow() {
               type="button"
               disabled={busy}
               onClick={handleOffering}
-              className="mt-2 rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+              className="mt-2 rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy ? "Saving…" : offeringDone ? "Saved — continue" : "Continue"}
             </button>
@@ -358,7 +358,7 @@ export default function OnboardingFlow() {
             type="button"
             disabled={busy}
             onClick={handleHours}
-            className="mt-6 w-full rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-6 w-full rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong disabled:cursor-not-allowed disabled:opacity-40"
           >
             {busy ? "Saving…" : "Continue"}
           </button>
@@ -380,7 +380,7 @@ export default function OnboardingFlow() {
               type="button"
               disabled={busy}
               onClick={handleNotifications}
-              className="mt-2 rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+              className="mt-2 rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy ? "Saving…" : "Continue"}
             </button>
@@ -400,7 +400,7 @@ export default function OnboardingFlow() {
             {!calendar?.connected && businessId && (
               <Link
                 href={`/api/integrations/google-calendar/connect?business=${businessId}`}
-                className="rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper hover:bg-black"
+                className="rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong"
               >
                 Connect Google Calendar
               </Link>

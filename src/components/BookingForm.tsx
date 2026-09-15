@@ -86,7 +86,7 @@ export default function BookingForm({
   const inputClass = (field: string) =>
     [
       "w-full rounded-lg border bg-card px-4 py-3 text-base outline-none transition-colors",
-      "placeholder:text-ink-soft/50 focus:border-gold focus:ring-2 focus:ring-gold/30",
+      "placeholder:text-ink-soft/50 focus:border-blue focus:ring-2 focus:ring-blue/30",
       errors[field] ? "border-red-500" : "border-line",
     ].join(" ");
 
@@ -175,7 +175,7 @@ export default function BookingForm({
       <button
         type="submit"
         disabled={!canSubmit}
-        className="mt-2 rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-2 rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong disabled:cursor-not-allowed disabled:opacity-60"
       >
         {submitLabel}
       </button>

@@ -90,7 +90,7 @@ export default function BookingCalendar({
           type="button"
           onClick={() => setMonthKey((current) => addMonthKey(current, -1))}
           disabled={!canGoPrevious}
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-card text-ink transition-colors hover:border-gold disabled:cursor-not-allowed disabled:opacity-30"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-card text-ink transition-colors hover:border-blue disabled:cursor-not-allowed disabled:opacity-30"
           aria-label="Previous month"
         >
           ‹
@@ -100,7 +100,7 @@ export default function BookingCalendar({
           type="button"
           onClick={() => setMonthKey((current) => addMonthKey(current, 1))}
           disabled={!canGoNext}
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-card text-ink transition-colors hover:border-gold disabled:cursor-not-allowed disabled:opacity-30"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-card text-ink transition-colors hover:border-blue disabled:cursor-not-allowed disabled:opacity-30"
           aria-label="Next month"
         >
           ›
@@ -146,11 +146,11 @@ export default function BookingCalendar({
               className={[
                 "relative flex aspect-square items-center justify-center rounded-lg text-sm transition-colors disabled:cursor-not-allowed disabled:text-ink-soft/40",
                 selected
-                  ? "bg-gold font-semibold text-white"
+                  ? "bg-blue font-semibold text-white"
                   : available
-                    ? "border border-line bg-card font-medium hover:border-gold hover:bg-gold-soft"
+                    ? "border border-line bg-card font-medium hover:border-blue hover:bg-blue-soft"
                     : "bg-transparent",
-                current && !selected ? "ring-1 ring-gold ring-inset" : "",
+                current && !selected ? "ring-1 ring-blue ring-inset" : "",
               ].join(" ")}
             >
               {Number(dateKey.slice(-2))}

@@ -5,7 +5,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BookingActions from "@/components/BookingActions";
 import CopyBookingLink from "@/components/CopyBookingLink";
-import { StatusPill } from "@/app/dashboard/page";
+import DashboardShell from "@/components/dashboard/DashboardShell";
+import { NotificationBadge, StatusBadge } from "@/components/dashboard/ui";
 import { formatTimeInZone, formatLongDateInZone } from "@/lib/availability";
 import { formatMauritianRupees } from "@/lib/resource-pricing";
 import { getRequestUser, getMyMemberships } from "@/lib/server/auth";
@@ -63,33 +64,37 @@ export default async function BookingDetailPage({ params, searchParams }: Detail
     <>
       <Navbar />
       <main className="flex-1">
-        <div className="mx-auto w-full max-w-xl px-5 py-10">
+        <DashboardShell
+          businessId={ctx.business.id}
+          businessName={ctx.business.name}
+          businessSlug={ctx.business.slug}
+        >
           <Link href={backHref} className="text-sm font-medium text-ink-soft hover:text-ink">
             ‹ All bookings
           </Link>
-          <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">
               {formatLongDateInZone(booking.startTime, tz)}
             </h1>
             <div className="flex items-center gap-2">
-              <StatusPill status={booking.status} />
+              <StatusBadge status={booking.status} />
               <CopyBookingLink slug={ctx.business.slug} />
             </div>
           </div>
-          <p className="mt-1 tabular-nums text-ink-soft">
+          <p className="mt-1 text-ink-soft tabular-nums">
             {formatTimeInZone(booking.startTime, tz)} – {formatTimeInZone(booking.endTime, tz)} · {tz}
           </p>
 
-          <section className="mt-6 rounded-2xl border border-line bg-card p-5">
-            <h2 className="font-semibold">Customer</h2>
-            <p className="mt-2 text-sm">{booking.customerName}</p>
+          <section className="mt-6 rounded-2xl border border-line bg-card p-5" aria-label="Customer">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">Customer</h2>
+            <p className="mt-2 font-medium">{booking.customerName}</p>
             <p className="text-sm text-ink-soft tabular-nums">{booking.customerPhone}</p>
             {booking.customerEmail && <p className="text-sm text-ink-soft">{booking.customerEmail}</p>}
           </section>
 
-          <section className="mt-4 rounded-2xl border border-line bg-card p-5">
-            <h2 className="font-semibold">Booking</h2>
-            <dl className="mt-2 space-y-1.5 text-sm">
+          <section className="mt-4 rounded-2xl border border-line bg-card p-5" aria-label="Booking">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">Booking</h2>
+            <dl className="mt-3 space-y-1.5 text-sm">
               <div className="flex justify-between gap-4">
                 <dt className="text-ink-soft">Service</dt>
                 <dd className="text-right font-medium">{booking.serviceName}</dd>
@@ -134,12 +139,12 @@ export default async function BookingDetailPage({ params, searchParams }: Detail
             </dl>
           </section>
 
-          <section className="mt-4 rounded-2xl border border-line bg-card p-5">
-            <h2 className="font-semibold">Notifications</h2>
+          <section className="mt-4 rounded-2xl border border-line bg-card p-5" aria-label="Notifications">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">Notifications</h2>
             {notifications.length === 0 ? (
               <p className="mt-2 text-sm text-ink-soft">No notifications recorded for this booking.</p>
             ) : (
-              <ul className="mt-2 flex flex-col gap-2">
+              <ul className="mt-3 flex flex-col gap-2">
                 {notifications.map((n, index) => (
                   <li
                     key={`${n.event_type}-${n.recipient_type}-${index}`}
@@ -148,15 +153,15 @@ export default async function BookingDetailPage({ params, searchParams }: Detail
                     <span>
                       {humanEvent(n.event_type)} · {n.recipient_type === "customer" ? "Customer" : "Business"}
                     </span>
-                    <NotificationPill status={n.status} />
+                    <NotificationBadge status={n.status} />
                   </li>
                 ))}
               </ul>
             )}
           </section>
 
-          <section className="mt-4 rounded-2xl border border-line bg-card p-5">
-            <h2 className="font-semibold">Google Calendar</h2>
+          <section className="mt-4 rounded-2xl border border-line bg-card p-5" aria-label="Google Calendar">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">Google Calendar</h2>
             <p className="mt-2 text-sm">
               {booking.calendarSyncStatus === "synced" && "Synced with Google Calendar."}
               {booking.calendarSyncStatus === "not_connected" && "Calendar not connected — bookings are kept in Kivo only."}
@@ -164,7 +169,7 @@ export default async function BookingDetailPage({ params, searchParams }: Detail
               {booking.calendarSyncStatus === "failed" && (
                 <>
                   Sync needs attention.{" "}
-                  <Link href={`/settings?business=${ctx.business.id}`} className="font-medium underline">
+                  <Link href={`/settings?business=${ctx.business.id}`} className="font-medium text-blue-strong underline hover:text-blue-ink">
                     Check the calendar connection
                   </Link>
                 </>
@@ -183,7 +188,7 @@ export default async function BookingDetailPage({ params, searchParams }: Detail
               timezone={ctx.business.timezone}
             />
           </div>
-        </div>
+        </DashboardShell>
       </main>
       <Footer />
     </>
@@ -205,18 +210,4 @@ function humanEvent(eventType: string): string {
     default:
       return eventType;
   }
-}
-
-function NotificationPill({ status }: { status: string }) {
-  const tone =
-    status === "sent"
-      ? "bg-gold-soft text-gold-strong"
-      : status === "failed"
-        ? "bg-red-50 text-red-700"
-        : "bg-card text-ink-soft border border-line";
-  return (
-    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>
-      {status}
-    </span>
-  );
 }

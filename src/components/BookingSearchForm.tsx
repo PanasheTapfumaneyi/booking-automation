@@ -60,7 +60,7 @@ export default function BookingSearchForm({
   }
 
   const inputClass =
-    "rounded-xl border border-line bg-card px-3.5 py-2 text-sm outline-none focus:border-gold";
+    "rounded-xl border border-line bg-card px-3.5 py-2 text-sm outline-none focus:border-blue";
 
   return (
     <form onSubmit={apply} className="flex flex-col gap-2">
@@ -74,7 +74,7 @@ export default function BookingSearchForm({
         />
         <button
           type="submit"
-          className="rounded-full bg-ink px-5 py-2 text-sm font-semibold text-paper hover:bg-black"
+          className="rounded-full bg-blue px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-strong"
         >
           Search
         </button>

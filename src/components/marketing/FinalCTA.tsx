@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { whatsappUrl, PRICING } from "@/lib/marketing-config";
+import { whatsappUrl, telUrl, PRICING } from "@/lib/marketing-config";
 
 export default function FinalCTA() {
   const ref = useRef<HTMLDivElement>(null);
@@ -20,9 +20,10 @@ export default function FinalCTA() {
   }, []);
 
   const wa = whatsappUrl();
+  const tel = telUrl();
 
   return (
-    <section ref={ref} className="bg-paper">
+    <section ref={ref} id="contact" className="bg-paper scroll-mt-20">
       <div className="mx-auto max-w-[1200px] px-6 py-24 sm:py-32">
         <div className={`overflow-hidden rounded-3xl bg-blue transition-all duration-700 ease-out ${
           visible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
@@ -64,6 +65,15 @@ export default function FinalCTA() {
               </div>
               <p className="mt-4 text-sm text-white/60">
                 First month free. No setup fee. No contracts.
+                {tel && (
+                  <>
+                    {" "}Prefer to talk?{" "}
+                    <a href={tel} className="font-medium text-white underline decoration-white/40 underline-offset-2 hover:decoration-white">
+                      Call us
+                    </a>
+                    .
+                  </>
+                )}
               </p>
             </div>
 

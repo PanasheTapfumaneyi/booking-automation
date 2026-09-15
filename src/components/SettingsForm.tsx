@@ -146,16 +146,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function DirtyHint({ dirty }: { dirty: boolean }) {
   if (!dirty) return null;
   return (
-    <p role="status" className="text-xs font-medium text-gold-strong">
+    <p role="status" className="text-xs font-medium text-blue-strong">
       Unsaved changes
     </p>
   );
 }
 
 const inputClass =
-  "rounded-xl border border-line bg-paper px-4 py-2.5 text-sm outline-none focus:border-gold disabled:opacity-40";
+  "rounded-xl border border-line bg-paper px-4 py-2.5 text-sm outline-none focus:border-blue disabled:opacity-40";
 const buttonClass =
-  "rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-paper hover:bg-black disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex min-h-[44px] items-center justify-center rounded-full bg-blue px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-strong disabled:cursor-not-allowed disabled:opacity-40";
 
 /** Owner settings: profile, hours, offering, notifications, integrations. */
 export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
@@ -479,24 +479,29 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
   const mode = live.business.booking_mode;
 
   return (
-    <div className="mx-auto w-full max-w-xl px-5 py-10">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <Link href="/dashboard" className="text-sm font-medium text-ink-soft hover:text-ink">
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+          <p className="mt-1 text-sm text-ink-soft">
+            {live.business.name} · {mode === "appointment" ? "Appointments" : mode === "resource" ? "Rentals" : "Group sessions"}
+            {live.business.slug && (
+              <>
+                {" · Booking page: "}
+                <Link href={`/book/${live.business.slug}`} className="font-medium text-blue-strong hover:underline">
+                  /book/{live.business.slug}
+                </Link>
+              </>
+            )}
+          </p>
+        </div>
+        <Link
+          href={`/dashboard?business=${live.business.id}`}
+          className="shrink-0 text-sm font-medium text-ink-soft hover:text-ink"
+        >
           ‹ Dashboard
         </Link>
       </div>
-      <p className="mt-1 text-sm text-ink-soft">
-        {live.business.name} · {mode === "appointment" ? "Appointments" : mode === "resource" ? "Rentals" : "Group sessions"}
-        {live.business.slug && (
-          <>
-            {" · Booking page: "}
-            <Link href={`/book/${live.business.slug}`} className="font-medium text-ink hover:underline">
-              /book/{live.business.slug}
-            </Link>
-          </>
-        )}
-      </p>
 
       {error && (
         <div role="alert" className="mb-6 mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -975,11 +980,11 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
               <input value={notifyPhone} onChange={(e) => setNotifyPhone(e.target.value)} disabled={busy !== null} className={inputClass} placeholder="+230 …" />
             </label>
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={customerAlerts} onChange={(e) => setCustomerAlerts(e.target.checked)} disabled={busy !== null} className="h-4 w-4 accent-gold" />
+              <input type="checkbox" checked={customerAlerts} onChange={(e) => setCustomerAlerts(e.target.checked)} disabled={busy !== null} className="h-5 w-5 accent-[#15547D]" />
               Customer WhatsApp confirmations
             </label>
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={businessAlerts} onChange={(e) => setBusinessAlerts(e.target.checked)} disabled={busy !== null} className="h-4 w-4 accent-gold" />
+              <input type="checkbox" checked={businessAlerts} onChange={(e) => setBusinessAlerts(e.target.checked)} disabled={busy !== null} className="h-5 w-5 accent-[#15547D]" />
               Owner WhatsApp alerts
             </label>
             <div>

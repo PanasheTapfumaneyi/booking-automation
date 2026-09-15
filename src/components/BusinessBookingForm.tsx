@@ -255,7 +255,7 @@ export default function BusinessBookingForm({
   }
 
   const inputClass =
-    "rounded-xl border border-line bg-paper px-4 py-2.5 text-sm outline-none focus:border-gold disabled:opacity-40";
+    "rounded-xl border border-line bg-paper px-4 py-2.5 text-sm outline-none focus:border-blue disabled:opacity-40";
 
   if (loading) {
     return (
@@ -375,8 +375,8 @@ export default function BusinessBookingForm({
                       className={[
                         "rounded-xl border px-3 py-2.5 text-sm font-medium tabular-nums",
                         slot?.startTime === option.startTime
-                          ? "border-gold bg-gold-soft text-gold-strong"
-                          : "border-line bg-paper hover:border-gold/60",
+                          ? "border-blue bg-blue-mist text-blue-strong"
+                          : "border-line bg-paper hover:border-blue/60",
                       ].join(" ")}
                     >
                       {option.label}
@@ -437,7 +437,7 @@ export default function BusinessBookingForm({
                     <button
                       type="button"
                       onClick={() => pickCustomer(c)}
-                      className="w-full rounded-xl border border-line px-3.5 py-2 text-left text-sm hover:border-gold/60"
+                      className="w-full rounded-xl border border-line px-3.5 py-2 text-left text-sm hover:border-blue/60"
                     >
                       {c.name} · <span className="tabular-nums">{c.phone}</span>
                     </button>
@@ -460,7 +460,7 @@ export default function BusinessBookingForm({
           type="button"
           disabled={busy || !canSubmit}
           onClick={submit}
-          className="w-full rounded-full bg-ink px-6 py-3.5 text-base font-semibold text-paper hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+          className="w-full rounded-full bg-blue px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-blue-strong disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy ? "Saving…" : "Confirm booking"}
         </button>
