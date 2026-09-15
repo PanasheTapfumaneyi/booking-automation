@@ -80,6 +80,7 @@ interface Catalog {
   business: {
     id: string;
     name: string;
+    phone: string | null;
     timezone: string;
     hours: BusinessHours | null;
     bookingMode: BookingMode;
@@ -116,6 +117,7 @@ export default function BookingFlow({
           business: {
             id: DEMO_BUSINESS.id,
             name: DEMO_BUSINESS.name,
+            phone: null,
             timezone: DEMO_BUSINESS.timezone,
             hours: null,
             bookingMode: "appointment",
@@ -197,6 +199,7 @@ export default function BookingFlow({
           business: {
             id: string;
             name: string;
+            phone: string | null;
             timezone: string;
             hours: BusinessHours | null;
             booking_mode: BookingMode;
@@ -234,6 +237,7 @@ export default function BookingFlow({
           business: {
             id: data.business.id,
             name: data.business.name,
+            phone: data.business.phone ?? null,
             timezone: data.business.timezone,
             hours: data.business.hours ?? null,
             bookingMode: data.business.booking_mode,
@@ -1422,6 +1426,22 @@ export default function BookingFlow({
               </a>
             </div>
           </div>
+
+          {/* Fallback contact */}
+          {catalog?.business.phone && (
+            <p className="mt-6 text-sm text-ink-soft">
+              Having trouble? Contact{" "}
+              <a
+                href={`https://wa.me/${catalog.business.phone.replace(/[^0-9]/g, "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-ink"
+              >
+                {catalog.business.name}
+              </a>{" "}
+              on WhatsApp.
+            </p>
+          )}
         </section>
       )}
     </div>

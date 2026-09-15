@@ -8,6 +8,12 @@
  *  - the customer message carries the /manage/[token] URL;
  *  - the business message never carries the manage URL/token nor Supabase ids;
  *  - rendered bodies are produced at dispatch time and never persisted.
+ *
+ * Mutual contact sharing:
+ *  - Customer confirmation includes business contact phone.
+ *  - Business booking notification includes customer phone.
+ *  - Customer phone is only shared AFTER a successful booking.
+ *  - Customer phone never appears in public URLs or analytics.
  */
 import {
   formatLongDateInZone,
@@ -38,6 +44,8 @@ export interface TemplateContext {
   resourceName?: string;
   /** Pre-formatted booking total ("Rs 4,200") for unit-rate resource bookings. */
   displayTotal?: string;
+  /** Business contact phone — included in customer messages for mutual contact. */
+  businessPhone?: string;
 }
 
 function dayTime(iso: string, timezone: string): string {
@@ -73,6 +81,16 @@ export function customerCreatedMessage(ctx: TemplateContext): string {
     "",
     `Add to your calendar: ${ctx.calendarUrl ?? "—"}`,
   );
+  if (ctx.businessPhone) {
+    lines.push(
+      "",
+      `Business contact: ${ctx.businessPhone}`,
+    );
+  }
+  lines.push(
+    "",
+    "Your contact details are shared with the business so they can manage your booking.",
+  );
   return lines.join("\n");
 }
 
@@ -97,6 +115,12 @@ export function customerRescheduledMessage(ctx: TemplateContext): string {
     "",
     `Add to your calendar: ${ctx.calendarUrl ?? "—"}`,
   );
+  if (ctx.businessPhone) {
+    lines.push(
+      "",
+      `Business contact: ${ctx.businessPhone}`,
+    );
+  }
   return lines.join("\n");
 }
 
@@ -112,42 +136,29 @@ export function customerCancelledMessage(ctx: TemplateContext): string {
 }
 
 // ---------------------------------------------------------------------------
-// Customer-facing reminder messages (Phase 5 — customer only, timed).
-// Same rendering rules as confirmations: business timezone, manage URL.
+// Customer-facing reminder messages — exactly ONE: 1 hour before booking.
 // ---------------------------------------------------------------------------
 
-export function customerReminder24hMessage(ctx: TemplateContext): string {
-  return [
-    `${ctx.businessName} — appointment reminder`,
+export function customerReminder1hMessage(ctx: TemplateContext): string {
+  const lines = [
+    `${ctx.businessName} — booking reminder`,
     "",
     `Hi ${ctx.customerName},`,
-    `just a reminder: your ${ctx.serviceName} is tomorrow, ${dayTime(ctx.startIso, ctx.businessTimezone)}.`,
+    `your ${itemLabel(ctx)} is in 1 hour, ${dayTime(ctx.startIso, ctx.businessTimezone)}.`,
     "",
     `Manage this appointment: ${ctx.manageUrl ?? "—"}`,
-  ].join("\n");
-}
-
-export function customerReminder2hMessage(ctx: TemplateContext): string {
-  return [
-    `${ctx.businessName} — appointment reminder`,
-    "",
-    `Hi ${ctx.customerName},`,
-    `just a reminder: your ${ctx.serviceName} is in about 2 hours, ${dayTime(ctx.startIso, ctx.businessTimezone)}.`,
-    "",
-    `Manage this appointment: ${ctx.manageUrl ?? "—"}`,
-  ].join("\n");
-}
-
-export function buildReminderMessage(
-  type: BookingReminderType,
-  ctx: TemplateContext,
-): string {
-  switch (type) {
-    case "booking.reminder.24h":
-      return customerReminder24hMessage(ctx);
-    case "booking.reminder.2h":
-      return customerReminder2hMessage(ctx);
+  ];
+  if (ctx.businessPhone) {
+    lines.push(
+      "",
+      `Business contact: ${ctx.businessPhone}`,
+    );
   }
+  return lines.join("\n");
+}
+
+export function buildReminderMessage(ctx: TemplateContext): string {
+  return customerReminder1hMessage(ctx);
 }
 
 // ---------------------------------------------------------------------------

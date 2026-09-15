@@ -1,5 +1,5 @@
 /**
- * Phase 5 reminder runner tests.
+ * Reminder runner tests — exactly ONE 1-hour reminder per booking.
  *
  * The Supabase surface is faked (bookings, notifications, businesses,
  * business_notification_settings, calendar_connections). The transport is a
@@ -22,6 +22,7 @@ import type {
 type Row = Record<string, unknown>;
 
 const HOUR = 3_600_000;
+/** Fixed clock: 2026-09-07T12:00:00.000Z (Monday). */
 const BASE = Date.parse("2026-09-07T12:00:00.000Z");
 
 // ---------------------------------------------------------------------------
@@ -224,6 +225,11 @@ function businessRow(): Row {
   };
 }
 
+/**
+ * Default booking: starts 55 minutes from BASE (within the T-1h window).
+ * Window: (BASE + 60min − 15min, BASE + 60min] = (BASE+45min, BASE+60min]
+ * 55min is inside the window.
+ */
 function bookingRow(overrides: Row = {}): Row {
   return {
     id: "b-1",
@@ -233,8 +239,8 @@ function bookingRow(overrides: Row = {}): Row {
     resource_id: null,
     session_id: null,
     quantity: 1,
-    start_time: new Date(BASE + 23 * HOUR + 50 * 60_000).toISOString(),
-    end_time: new Date(BASE + 24 * HOUR + 35 * 60_000).toISOString(),
+    start_time: new Date(BASE + 55 * 60_000).toISOString(),
+    end_time: new Date(BASE + 55 * 60_000 + HOUR).toISOString(),
     status: "confirmed",
     google_event_id: null,
     manage_token: "tok-1",
@@ -254,7 +260,7 @@ function notificationRow(overrides: Row = {}): Row {
     business_id: "biz-1",
     booking_id: "b-1",
     customer_id: "cust-1",
-    event_type: "booking.reminder.24h",
+    event_type: "booking.reminder.1h",
     recipient_type: "customer",
     channel: "whatsapp",
     destination: "+23057123456",
@@ -284,29 +290,29 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Window logic
+// Window logic — exactly ONE reminder: 1 hour before booking start.
 // ---------------------------------------------------------------------------
 
 describe("isReminderDue", () => {
   const at = (ms: number) => new Date(BASE + ms).toISOString();
 
-  it("fires inside the 24h window and not outside it", () => {
-    expect(isReminderDue("booking.reminder.24h", at(24 * HOUR), BASE)).toBe(true);
-    expect(isReminderDue("booking.reminder.24h", at(24 * HOUR - REMINDER_WINDOW_MS + 1000), BASE)).toBe(true);
-    expect(isReminderDue("booking.reminder.24h", at(25 * HOUR), BASE)).toBe(false); // too early
-    expect(isReminderDue("booking.reminder.24h", at(24 * HOUR - REMINDER_WINDOW_MS), BASE)).toBe(false); // boundary
-    expect(isReminderDue("booking.reminder.24h", at(23 * HOUR), BASE)).toBe(false); // too late
-  });
-
-  it("fires inside the 2h window and not outside it", () => {
-    expect(isReminderDue("booking.reminder.2h", at(2 * HOUR), BASE)).toBe(true);
-    expect(isReminderDue("booking.reminder.2h", at(2 * HOUR - 60_000), BASE)).toBe(true);
-    expect(isReminderDue("booking.reminder.2h", at(3 * HOUR), BASE)).toBe(false);
-    expect(isReminderDue("booking.reminder.2h", at(90 * 60_000), BASE)).toBe(false);
+  it("fires inside the 1h window and not outside it", () => {
+    // Exactly at T-1h: on the boundary → due (msUntil <= OFFSET).
+    expect(isReminderDue(at(HOUR), BASE)).toBe(true);
+    // Inside the window (T-1h − 15min + 1s): due.
+    expect(isReminderDue(at(HOUR - REMINDER_WINDOW_MS + 1000), BASE)).toBe(true);
+    // Just inside window (T-1h − 15min + 1): due.
+    expect(isReminderDue(at(HOUR - REMINDER_WINDOW_MS + 1), BASE)).toBe(true);
+    // Boundary (T-1h − 15min exactly): NOT due (strict >).
+    expect(isReminderDue(at(HOUR - REMINDER_WINDOW_MS), BASE)).toBe(false);
+    // Too early (beyond scan horizon): NOT due.
+    expect(isReminderDue(at(2 * HOUR), BASE)).toBe(false);
+    // Too late (past the window): NOT due.
+    expect(isReminderDue(at(40 * 60_000), BASE)).toBe(false);
   });
 
   it("rejects unparseable timestamps", () => {
-    expect(isReminderDue("booking.reminder.24h", "not-a-date", BASE)).toBe(false);
+    expect(isReminderDue("not-a-date", BASE)).toBe(false);
   });
 });
 
@@ -315,7 +321,7 @@ describe("isReminderDue", () => {
 // ---------------------------------------------------------------------------
 
 describe("runDueReminders", () => {
-  it("sends the 24h reminder when eligible and persists the message id", async () => {
+  it("sends the 1h reminder when eligible and persists the message id", async () => {
     const db = createFakeDb();
     seedDb(db);
     const { provider, calls } = fakeProvider();
@@ -326,9 +332,10 @@ describe("runDueReminders", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].destination).toBe("+23057123456");
     expect(calls[0].body).toContain("/manage/tok-1");
+    expect(calls[0].body).toContain("in 1 hour");
     const row = db.tables.notifications[0];
-    expect(row.event_id).toBe(reminderEventId("b-1", "booking.reminder.24h"));
-    expect(row.event_type).toBe("booking.reminder.24h");
+    expect(row.event_id).toBe(reminderEventId("b-1"));
+    expect(row.event_type).toBe("booking.reminder.1h");
     expect(row.recipient_type).toBe("customer");
     expect(row.status).toBe("sent");
     expect(row.provider_message_id).toBe("WA-1");
@@ -337,29 +344,11 @@ describe("runDueReminders", () => {
     expect(db.tables.notifications).toHaveLength(1);
   });
 
-  it("sends the 2h reminder when eligible", async () => {
-    const db = createFakeDb();
-    seedDb(db, [
-      bookingRow({
-        start_time: new Date(BASE + 2 * HOUR - 5 * 60_000).toISOString(),
-        end_time: new Date(BASE + 2 * HOUR + 40 * 60_000).toISOString(),
-      }),
-    ]);
-    const { provider, calls } = fakeProvider();
-
-    const summary = await runDueReminders({ db: asDb(db), now: BASE, provider });
-
-    expect(summary).toEqual({ processed: 1, sent: 1, skipped: 0, failed: 0 });
-    expect(calls).toHaveLength(1);
-    expect(calls[0].body).toContain("about 2 hours");
-    expect(db.tables.notifications[0].event_type).toBe("booking.reminder.2h");
-  });
-
   it("does not send too early or past the window", async () => {
     const db = createFakeDb();
     seedDb(db, [
-      bookingRow({ id: "b-early", start_time: new Date(BASE + 25 * HOUR).toISOString() }),
-      bookingRow({ id: "b-late", start_time: new Date(BASE + 23 * HOUR).toISOString() }),
+      bookingRow({ id: "b-early", start_time: new Date(BASE + 2 * HOUR).toISOString() }),
+      bookingRow({ id: "b-late", start_time: new Date(BASE + 30 * 60_000).toISOString() }),
     ]);
     const { provider, calls } = fakeProvider();
 
@@ -396,24 +385,6 @@ describe("runDueReminders", () => {
     expect(db.tables.notifications).toHaveLength(1);
   });
 
-  it("sends 2h later after 24h was already sent", async () => {
-    const db = createFakeDb();
-    const start = BASE + 23 * HOUR + 50 * 60_000;
-    seedDb(db, [bookingRow({ start_time: new Date(start).toISOString() })]);
-    const { provider, calls } = fakeProvider();
-
-    await runDueReminders({ db: asDb(db), now: BASE, provider });
-    expect(db.tables.notifications).toHaveLength(1);
-
-    const later = start - (2 * HOUR - 5 * 60_000);
-    const summary = await runDueReminders({ db: asDb(db), now: later, provider });
-
-    expect(summary).toEqual({ processed: 1, sent: 1, skipped: 0, failed: 0 });
-    expect(calls).toHaveLength(2);
-    expect(calls[1].body).toContain("about 2 hours");
-    expect(db.tables.notifications).toHaveLength(2);
-  });
-
   it("reschedule before sending moves the unsent reminder to the new time", async () => {
     const db = createFakeDb();
     // Far future: nothing eligible yet.
@@ -424,8 +395,8 @@ describe("runDueReminders", () => {
     expect(idle.processed).toBe(0);
     expect(db.tables.notifications).toHaveLength(0);
 
-    // Booking moves to tomorrow — same row identity, new schedule.
-    db.tables.bookings[0].start_time = new Date(BASE + 23 * HOUR + 50 * 60_000).toISOString();
+    // Booking moves to within the window — same row identity, new schedule.
+    db.tables.bookings[0].start_time = new Date(BASE + 55 * 60_000).toISOString();
     const summary = await runDueReminders({ db: asDb(db), now: BASE, provider });
 
     expect(summary).toEqual({ processed: 1, sent: 1, skipped: 0, failed: 0 });
@@ -433,7 +404,7 @@ describe("runDueReminders", () => {
     expect(db.tables.notifications).toHaveLength(1);
   });
 
-  it("reschedule after the 24h send does not resend 24h", async () => {
+  it("reschedule after sending does not resend (stable id found)", async () => {
     const db = createFakeDb();
     seedDb(db);
     const { provider, calls } = fakeProvider();
@@ -441,7 +412,7 @@ describe("runDueReminders", () => {
     await runDueReminders({ db: asDb(db), now: BASE, provider });
     expect(calls).toHaveLength(1);
 
-    // Move the booking a week out; the sent 24h row is found by stable id.
+    // Move the booking a week out; the sent row is found by stable id.
     db.tables.bookings[0].start_time = new Date(BASE + 7 * 24 * HOUR).toISOString();
     const summary = await runDueReminders({ db: asDb(db), now: BASE, provider });
 
@@ -450,18 +421,16 @@ describe("runDueReminders", () => {
     expect(db.tables.notifications).toHaveLength(1);
   });
 
-  it("cancellation after the 24h send prevents the 2h reminder", async () => {
+  it("cancellation after sending prevents future reminders", async () => {
     const db = createFakeDb();
-    const start = BASE + 23 * HOUR + 50 * 60_000;
-    seedDb(db, [bookingRow({ start_time: new Date(start).toISOString() })]);
+    seedDb(db);
     const { provider, calls } = fakeProvider();
 
     await runDueReminders({ db: asDb(db), now: BASE, provider });
     expect(calls).toHaveLength(1);
 
     db.tables.bookings[0].status = "cancelled";
-    const later = start - (2 * HOUR - 5 * 60_000);
-    const summary = await runDueReminders({ db: asDb(db), now: later, provider });
+    const summary = await runDueReminders({ db: asDb(db), now: BASE, provider });
 
     expect(summary.processed).toBe(0);
     expect(calls).toHaveLength(1);
@@ -593,7 +562,7 @@ describe("runDueReminders", () => {
     db.tables.notifications = [
       notificationRow({
         id: "n-stale",
-        event_id: reminderEventId("b-1", "booking.reminder.24h"),
+        event_id: reminderEventId("b-1"),
         status: "processing",
         attempt_count: 1,
         updated_at: new Date(BASE - 60 * 60_000).toISOString(),
@@ -615,7 +584,7 @@ describe("runDueReminders", () => {
     db.tables.notifications = [
       notificationRow({
         id: "n-live",
-        event_id: reminderEventId("b-1", "booking.reminder.24h"),
+        event_id: reminderEventId("b-1"),
         status: "processing",
         attempt_count: 1,
         updated_at: new Date(BASE).toISOString(),
@@ -634,11 +603,11 @@ describe("runDueReminders", () => {
     seedDb(db);
     const { provider, calls } = fakeProvider();
     await runDueReminders({ db: asDb(db), now: BASE, provider });
-    // Start 11:50 UTC renders as 15:50 wall-clock in Indian/Mauritius (+4).
+    // Start at BASE+55min = 12:55 UTC → 16:55 in Indian/Mauritius (+4).
     expect(calls[0].body).toContain("Fade District");
     expect(calls[0].body).toContain("Haircut");
-    expect(calls[0].body).toContain("15:50");
-    expect(calls[0].body).not.toContain("11:50");
+    expect(calls[0].body).toContain("16:55");
+    expect(calls[0].body).not.toContain("12:55");
   });
 });
 

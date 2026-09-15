@@ -133,32 +133,25 @@ describe("business messages", () => {
   });
 });
 
-describe("reminder messages (Phase 5 — customer only)", () => {
-  it("24h reminder names the service, the business-local time, and the manage link", () => {
-    const message = buildReminderMessage("booking.reminder.24h", {
+describe("reminder messages (customer only — exactly one: 1h before booking)", () => {
+  it("1h reminder names the service, the business-local time, and the manage link", () => {
+    const message = buildReminderMessage({
       ...BASE,
-      calendarUrl: "http://localhost:3000/api/bookings/abc123/calendar",
     });
-    expect(message).toContain("appointment reminder");
+    expect(message).toContain("booking reminder");
     expect(message).toContain("Fade District");
     expect(message).toContain("Haircut + Beard");
-    expect(message).toContain("tomorrow");
+    expect(message).toContain("in 1 hour");
     expect(message).toContain("Monday, 7 September at 14:00");
     expect(message).toContain(BASE.manageUrl as string);
     expect(message).toContain("Jean-Marc");
-    expect(message).not.toContain("calendar");
   });
 
-  it("2h reminder carries the 2-hour intent with the same guarantees", () => {
-    const message = buildReminderMessage("booking.reminder.2h", {
+  it("does not include calendar URL", () => {
+    const message = buildReminderMessage({
       ...BASE,
       calendarUrl: "http://localhost:3000/api/bookings/abc123/calendar",
     });
-    expect(message).toContain("appointment reminder");
-    expect(message).toContain("in about 2 hours");
-    expect(message).toContain("Monday, 7 September at 14:00");
-    expect(message).toContain(BASE.manageUrl as string);
-    expect(message).not.toContain("barbershop");
     expect(message).not.toContain("calendar");
   });
 });

@@ -21,8 +21,8 @@ export type NotificationStatus =
   | "failed" // provider rejected / unreachable (booking outcome unaffected)
   | "skipped"; // recipient intentionally not notified (disabled / no destination)
 
-/** Timed reminder events (Phase 5 — customer only, scheduler-driven). */
-export type BookingReminderType = "booking.reminder.24h" | "booking.reminder.2h";
+/** Timed reminder events — exactly ONE per booking: 1 hour before start. */
+export type BookingReminderType = "booking.reminder.1h";
 
 /** Event-driven booking events (Phase 4 confirmations). */
 export type BookingEventType =

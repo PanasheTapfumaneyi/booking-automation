@@ -78,6 +78,8 @@ export interface BookingNotificationDispatchInput {
      * Never populated from client input.
      */
     is_demo?: boolean | null;
+    /** Business contact phone — included in customer messages for mutual contact. */
+    phone?: string | null;
   };
   serviceName: string;
   booking: Pick<BookingRowMinimal, "id" | "start_time" | "end_time" | "manage_token">;
@@ -294,6 +296,7 @@ export async function dispatchBookingEvent(
       previousStartIso: input.previous?.startTime,
       resourceName: input.resourceName,
       displayTotal: input.displayTotal,
+      businessPhone: input.business.phone ?? undefined,
     };
 
     const customerPromise = (async () => {

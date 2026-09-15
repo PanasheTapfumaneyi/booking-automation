@@ -35,6 +35,11 @@ import {
   dispatchBookingEvent,
   type NotificationDispatchResult,
 } from "@/lib/server/notifications/service";
+import {
+  generateAttemptId,
+  recordFunnelEvent,
+  recordFailure,
+} from "@/lib/server/operations/events";
 
 export { generateManageToken } from "@/lib/server/token";
 
@@ -204,9 +209,17 @@ export async function createBooking(
   input: CreateBookingInput,
 ): Promise<CreateBookingResult> {
   const contact = validateContact(input);
+  const attemptId = generateAttemptId();
 
+  // Fire-and-forget funnel tracking — never blocks the booking response.
   const service = await fetchService(input.serviceId);
   if (!service || !service.active) {
+    void recordFailure(
+      "booking_submit_attempted",
+      "SERVICE_NOT_FOUND",
+      "expected",
+      attemptId,
+    );
     throw new ApiError(
       400,
       "SERVICE_NOT_FOUND",
@@ -214,6 +227,14 @@ export async function createBooking(
     );
   }
   const business = await fetchBusiness(service.business_id);
+
+  void recordFunnelEvent(
+    "booking_submit_attempted",
+    attemptId,
+    business.id,
+    undefined,
+    { serviceId: service.id, mode: business.booking_mode },
+  );
 
   const customerId = await findOrCreateCustomer(business.id, contact);
   const token = generateManageToken();
@@ -263,6 +284,13 @@ export async function createBooking(
         customer: contact,
         type: "booking.created",
       });
+
+      void recordFunnelEvent(
+        "booking_created",
+        attemptId,
+        business.id,
+        row.id,
+      );
 
       return { booking: withBusinessContext(booking, business), notifications };
     }
@@ -344,6 +372,15 @@ export async function createBooking(
         resourceName: resource.name,
         displayTotal,
       });
+
+      void recordFunnelEvent(
+        "booking_created",
+        attemptId,
+        business.id,
+        row.id,
+        { mode: "resource", resourceId: resource.id },
+      );
+
       return {
         booking: withBusinessContext(bookingResource, business),
         notifications,
@@ -386,6 +423,15 @@ export async function createBooking(
         customer: contact,
         type: "booking.created",
       });
+
+      void recordFunnelEvent(
+        "booking_created",
+        attemptId,
+        business.id,
+        row.id,
+        { mode: "capacity", sessionId: session.id },
+      );
+
       return {
         booking: withBusinessContext(bookingCapacity, business),
         notifications,
@@ -579,6 +625,14 @@ export async function rescheduleBooking(
     },
   });
 
+  const attemptId = generateAttemptId();
+  void recordFunnelEvent(
+    "reschedule_attempted",
+    attemptId,
+    business.id,
+    row.id,
+  );
+
   await dispatchBookingEvent({
     business,
     serviceName: service.name,
@@ -588,6 +642,13 @@ export async function rescheduleBooking(
     previous: { startTime: row.start_time, endTime: row.end_time },
     resourceName: row.resource?.name ?? undefined,
   });
+
+  void recordFunnelEvent(
+    "reschedule_completed",
+    attemptId,
+    business.id,
+    movedRow.id,
+  );
 
   return withBusinessContext(
     normalizeBookingRow(
@@ -601,6 +662,15 @@ export async function rescheduleBooking(
 
 export async function cancelBooking(token: string): Promise<Booking> {
   const db = getSupabase();
+  const cancelAttemptId = generateAttemptId();
+
+  void recordFunnelEvent(
+    "cancellation_attempted",
+    cancelAttemptId,
+    undefined,
+    undefined,
+    { token },
+  );
 
   const { data, error } = await db
     .from("bookings")
@@ -640,7 +710,7 @@ export async function cancelBooking(token: string): Promise<Booking> {
   // Load the business so the cancellation message renders with its real name
   // and timezone. This is notification bookkeeping — a failure here must never
   // break the cancellation, which is already committed.
-  let cancelBusiness: { id: string; name: string; timezone: string } = {
+  let cancelBusiness: { id: string; name: string; timezone: string; phone?: string | null } = {
     id: cancelled.business_id,
     name: "",
     timezone: "",
@@ -666,6 +736,13 @@ export async function cancelBooking(token: string): Promise<Booking> {
     type: "booking.cancelled",
     resourceName: cancelled.resource?.name ?? undefined,
   });
+
+  void recordFunnelEvent(
+    "cancellation_completed",
+    cancelAttemptId,
+    cancelBusiness.id,
+    cancelled.id,
+  );
 
   return withBusinessContext(mapBooking(cancelled), cancelBusiness);
 }

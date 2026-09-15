@@ -1,15 +1,13 @@
 /**
- * Phase 5 — timed booking reminders (customer only, scheduler-driven).
+ * Timed booking reminders — exactly ONE per booking: 1 hour before start.
  *
  * Architecture:
- *  - Reminders are additional notification EVENTS (`booking.reminder.24h`,
- *    `booking.reminder.2h`) persisted in the existing `notifications` table.
- *    Booking create/reschedule/cancel logic, templates for confirmations,
- *    the provider abstraction, and transports are all untouched.
- *  - One row per (reminder event, customer, whatsapp), keyed by a STABLE
- *    event id `reminder:{bookingId}:{type}` that does NOT contain the start
- *    time. Eligibility is always computed from the CURRENT booking start,
- *    which gives the reschedule policy for free:
+ *  - Reminder is a notification event (`booking.reminder.1h`) persisted in
+ *    the existing `notifications` table.
+ *  - One row per (booking, customer, whatsapp), keyed by a STABLE event id
+ *    `reminder:{bookingId}:1h` that does NOT contain the start time.
+ *    Eligibility is always computed from the CURRENT booking start, which
+ *    gives the reschedule policy for free:
  *      - unsent reminder + reschedule → same row, evaluated against the new
  *        start → "follows" the new time, no duplicate row;
  *      - sent reminder + reschedule → the sent row is found by the stable id
@@ -21,8 +19,16 @@
  *    claimed with an atomic compare-and-swap on (status, attempt_count)
  *    (`claimNotificationRow`). Overlapping runs race the claim; exactly one
  *    wins, losers skip. No locks, no maps, no process state.
- *  - Failure isolation mirrors Phase 4: one bad reminder never stops the
- *    run and never touches the booking.
+ *  - Failure isolation: one bad reminder never stops the run and never
+ *    touches the booking.
+ *
+ * Timing precision:
+ *  - The cron/scheduler runs every 5–15 minutes.
+ *  - A booking becomes eligible when its T-1h threshold has been reached,
+ *    provided the reminder has not already been sent.
+ *  - Expected precision: within 5–15 minutes of T-1h depending on cron interval.
+ *  - No retroactive reminders: if T-1h has already passed when the booking
+ *    is created, no reminder is sent.
  */
 import { getSupabase } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -47,15 +53,12 @@ import {
 import type { NotificationStatusPatch } from "./records";
 import { fetchBusiness } from "../database";
 
-/** Lead time per reminder type. Extend this map to add new reminder types. */
-export const REMINDER_OFFSETS_MS: Record<BookingReminderType, number> = {
-  "booking.reminder.24h": 24 * 3_600_000,
-  "booking.reminder.2h": 2 * 3_600_000,
-};
+/** Exactly ONE reminder type: 1 hour before booking start. */
+export const REMINDER_OFFSET_MS = 1 * 60 * 60_000; // 1 hour
 
 /**
- * Eligibility window: a reminder fires once the booking is within `offset`
- * and no earlier than `offset - WINDOW`. Sized for a scheduler running every
+ * Eligibility window: a reminder fires once the booking is within T-1h
+ * and no earlier than T-1h - WINDOW. Sized for a scheduler running every
  * 5–15 minutes — tolerant of jitter, never early, never exact-second.
  */
 export const REMINDER_WINDOW_MS = 15 * 60_000;
@@ -84,21 +87,16 @@ export interface RunDueRemindersArgs {
   provider?: NotificationProvider;
 }
 
-/** Stable identity: one row per (booking, reminder type) across reschedules. */
-export function reminderEventId(bookingId: string, type: BookingReminderType): string {
-  return `reminder:${bookingId}:${type}`;
+/** Stable identity: one row per booking across reschedules. */
+export function reminderEventId(bookingId: string): string {
+  return `reminder:${bookingId}:1h`;
 }
 
-/** True when a booking `startIso` falls inside `type`'s firing window at `now`. */
-export function isReminderDue(
-  type: BookingReminderType,
-  startIso: string,
-  now: number,
-): boolean {
+/** True when a booking `startIso` falls inside the T-1h firing window at `now`. */
+export function isReminderDue(startIso: string, now: number): boolean {
   const msUntil = Date.parse(startIso) - now;
   if (!Number.isFinite(msUntil)) return false;
-  const offset = REMINDER_OFFSETS_MS[type];
-  return msUntil <= offset && msUntil > offset - REMINDER_WINDOW_MS;
+  return msUntil <= REMINDER_OFFSET_MS && msUntil > REMINDER_OFFSET_MS - REMINDER_WINDOW_MS;
 }
 
 interface DueBooking {
@@ -119,7 +117,7 @@ async function fetchDueBookings(
   now: number,
 ): Promise<DueBooking[]> {
   const horizon = new Date(
-    now + REMINDER_OFFSETS_MS["booking.reminder.24h"] + REMINDER_WINDOW_MS,
+    now + REMINDER_OFFSET_MS + REMINDER_WINDOW_MS,
   ).toISOString();
   const { data, error } = await db
     .from("bookings")
@@ -155,8 +153,6 @@ async function fetchDueBookings(
   return rows;
 }
 
-const REMINDER_TYPES = Object.keys(REMINDER_OFFSETS_MS) as BookingReminderType[];
-
 /**
  * Runs one reminder pass. Safe to call repeatedly and concurrently:
  * idempotency + claiming are database-backed (see module docs).
@@ -177,11 +173,14 @@ export async function runDueReminders(
   >();
 
   for (const booking of bookings) {
+    if (!isReminderDue(booking.start_time, now)) continue;
+    summary.processed += 1;
+
     let business: { id: string; name: string; timezone: string };
     try {
       business = await fetchBusiness(booking.business_id, db);
     } catch {
-      continue; // Unknown business — nothing sensible to send.
+      continue;
     }
     let settings = settingsByBusiness.get(business.id);
     if (!settings) {
@@ -189,26 +188,20 @@ export async function runDueReminders(
       settingsByBusiness.set(business.id, settings);
     }
 
-    for (const type of REMINDER_TYPES) {
-      if (!isReminderDue(type, booking.start_time, now)) continue;
-      summary.processed += 1;
-      try {
-        const outcome = await deliverReminder({
-          db,
-          provider,
-          booking,
-          business,
-          serviceName: booking.service_name,
-          type,
-          now,
-          customerEnabled:
-            settings.customer_notifications_enabled && settings.whatsapp_enabled,
-        });
-        summary[outcome] += 1;
-      } catch {
-        // Failure isolation: a broken reminder must not stop the run.
-        summary.failed += 1;
-      }
+    try {
+      const outcome = await deliverReminder({
+        db,
+        provider,
+        booking,
+        business,
+        serviceName: booking.service_name,
+        now,
+        customerEnabled:
+          settings.customer_notifications_enabled && settings.whatsapp_enabled,
+      });
+      summary[outcome] += 1;
+    } catch {
+      summary.failed += 1;
     }
   }
 
@@ -221,23 +214,22 @@ interface DeliverArgs {
   booking: DueBooking;
   business: { id: string; name: string; timezone: string };
   serviceName: string;
-  type: BookingReminderType;
   now: number;
   customerEnabled: boolean;
 }
 
 async function deliverReminder(args: DeliverArgs): Promise<"sent" | "skipped" | "failed"> {
-  const { db, provider, booking, business, serviceName, type, now } = args;
+  const { db, provider, booking, business, serviceName, now } = args;
   if (!args.customerEnabled) return "skipped";
 
-  const eventId = reminderEventId(booking.id, type);
+  const eventId = reminderEventId(booking.id);
 
   const existing = await fetchNotificationRecord(
     { eventId, recipientType: "customer", channel: "whatsapp" },
     db,
   );
   if (existing && (existing.status === "sent" || existing.status === "skipped")) {
-    return "skipped"; // Already delivered — reschedules never re-send these.
+    return "skipped"; // Already delivered — reschedules never re-send.
   }
 
   // Ensure a row exists to claim (stable id → reschedules reuse it).
@@ -249,18 +241,17 @@ async function deliverReminder(args: DeliverArgs): Promise<"sent" | "skipped" | 
         bookingId: booking.id,
         businessId: business.id,
         customerId: booking.customer_id,
-        eventType: type,
+        eventType: "booking.reminder.1h",
         recipientType: "customer",
         channel: "whatsapp",
         destination: booking.customer_phone,
         status: "pending",
         provider: provider.name,
-        metadata: { reminderType: type, bookingStart: booking.start_time },
+        metadata: { reminderType: "booking.reminder.1h", bookingStart: booking.start_time },
       },
       db,
     );
     if (!created.id) {
-      // Lost the insert race — re-read the winner's row instead of duplicating.
       row = await fetchNotificationRecord(
         { eventId, recipientType: "customer", channel: "whatsapp" },
         db,
@@ -282,13 +273,13 @@ async function deliverReminder(args: DeliverArgs): Promise<"sent" | "skipped" | 
         ? (["processing"] as const)
         : null
       : (["pending", "failed"] as const);
-  if (!claimable) return "skipped"; // Fresh `processing` → another run is sending.
+  if (!claimable) return "skipped";
   const claim = await claimNotificationRow(
     row.id,
     { attemptCount: row.attempt_count, statuses: [...claimable] },
     db,
   );
-  if (!claim.claimed) return "skipped"; // Lost the race — winner sends.
+  if (!claim.claimed) return "skipped";
 
   const metadata = { ...(row.metadata ?? {}), bookingStart: booking.start_time };
 
@@ -322,7 +313,7 @@ async function deliverReminder(args: DeliverArgs): Promise<"sent" | "skipped" | 
 
   const result = await provider.send({
     destination: normalized,
-    body: buildReminderMessage(type, ctx),
+    body: buildReminderMessage(ctx),
     eventId,
     bookingId: booking.id,
     businessId: business.id,
