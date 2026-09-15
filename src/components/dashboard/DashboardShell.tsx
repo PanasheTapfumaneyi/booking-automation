@@ -31,6 +31,16 @@ function BookingsIcon() {
   );
 }
 
+function StorefrontIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2 5.5A1.5 1.5 0 0 1 3.5 4h9A1.5 1.5 0 0 1 14 5.5V12a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12V5.5Z" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M2 5.5C2 4 3 2.5 4.5 2.5c1 0 1.5.8 2.5.8s1.5-.8 2.5-.8 1.5.8 2.5.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M6 8.5h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function SettingsIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -71,6 +81,13 @@ export default function DashboardShell({
       href: `/dashboard/bookings${q}`,
       icon: <BookingsIcon />,
       active: pathname.startsWith("/dashboard/bookings"),
+    },
+    {
+      key: "storefront",
+      label: "Storefront",
+      href: `/dashboard/storefront${q}`,
+      icon: <StorefrontIcon />,
+      active: pathname === "/dashboard/storefront",
     },
     {
       key: "settings",

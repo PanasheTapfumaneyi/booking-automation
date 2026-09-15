@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type {
   Booking,
@@ -75,6 +75,8 @@ interface BookingFlowProps {
   businessSlug?: string;
   /** Optional vehicle preselect via `?vehicle=<id>` from the business page. */
   initialVehicleId?: string;
+  /** Optional service preselect via `?service=<id>` (appointment mode). */
+  initialServiceId?: string;
 }
 
 interface Catalog {
@@ -108,6 +110,7 @@ function confirmationWording(summary: DispatchSummary | null): string {
 export default function BookingFlow({
   businessSlug,
   initialVehicleId,
+  initialServiceId,
 }: BookingFlowProps = {}) {
   const [step, setStep] = useState<Step>("service");
   const [service, setService] = useState<Service | null>(null);
@@ -154,6 +157,9 @@ export default function BookingFlow({
   const [rentalResults, setRentalResults] = useState<ResourceAvailability | null>(null);
   const [rentalLoading, setRentalLoading] = useState(false);
   const [preselectedUsed, setPreselectedUsed] = useState(false);
+  // Service deep-link guard: a ref (not state) so consuming it never
+  // retriggers the catalog fetch.
+  const servicePreselectedRef = useRef(false);
 
   // Capacity state
   const [selectedSession, setSelectedSession] = useState<BookingSession | null>(null);
@@ -306,6 +312,39 @@ export default function BookingFlow({
           });
           setStep("dates");
         }
+
+        // Appointment mode: preselect the linked service (from the
+        // storefront menu) and land on date picking. Unknown ids fall
+        // through to the normal service list — never a dead end.
+        if (
+          data.business.booking_mode === "appointment" &&
+          initialServiceId &&
+          !servicePreselectedRef.current
+        ) {
+          const preselected = data.services.find((s) => s.id === initialServiceId);
+          if (preselected) {
+            setService({
+              id: preselected.id,
+              businessId: data.business.id,
+              name: preselected.name,
+              durationMinutes: preselected.durationMinutes,
+              price: preselected.price,
+              description: "",
+              active: true,
+            });
+            servicePreselectedRef.current = true;
+            trackFunnelEvent({
+              eventName: "booking_started",
+              businessId: data.business.id,
+            });
+            trackFunnelEvent({
+              eventName: "offering_selected",
+              businessId: data.business.id,
+              metadata: { serviceId: preselected.id, type: "service" },
+            });
+            setStep("date");
+          }
+        }
       })
       .catch((fetchError: unknown) => {
         if (cancelled) return;
@@ -318,7 +357,7 @@ export default function BookingFlow({
     return () => {
       cancelled = true;
     };
-  }, [businessSlug, catalogRetry]);
+  }, [businessSlug, catalogRetry, initialServiceId]);
 
   // -----------------------------------------------------------------------
   // Load appointment slots (appointment mode only)
@@ -913,7 +952,7 @@ export default function BookingFlow({
                           imageUrl: vehicle.imageUrl ?? null,
                           metadata: vehicle.metadata ?? {},
                         })
-                      }
+                        }
                       className={[
                         "w-full overflow-hidden rounded-xl border text-left transition-colors",
                         available

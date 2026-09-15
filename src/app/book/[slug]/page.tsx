@@ -9,7 +9,7 @@ import { fetchBusinessBySlug } from "@/lib/server/database";
 
 interface BookSlugPageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ vehicle?: string }>;
+  searchParams: Promise<{ vehicle?: string; service?: string }>;
 }
 
 const MODE_META: Record<string, { verb: string; blurb: string }> = {
@@ -57,6 +57,9 @@ export default async function BookSlugPage({ params, searchParams }: BookSlugPag
         <BookingFlow
           businessSlug={business.slug ?? slug}
           initialVehicleId={query.vehicle || undefined}
+          initialServiceId={
+            typeof query.service === "string" && query.service ? query.service : undefined
+          }
         />
       </main>
       <Footer />

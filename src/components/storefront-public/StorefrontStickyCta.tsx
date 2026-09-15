@@ -3,12 +3,18 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-interface MobileStickyCtaProps {
+/**
+ * Bottom sticky booking bar (mobile only): one clear action, safe-area
+ * aware, never covering content (page reserves bottom padding). No
+ * attention animations.
+ */
+export default function StorefrontStickyCta({
+  bookHref,
+  accent,
+}: {
   bookHref: string;
-  primary: string;
-}
-
-export default function MobileStickyCta({ bookHref, primary }: MobileStickyCtaProps) {
+  accent: string;
+}) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -28,13 +34,10 @@ export default function MobileStickyCta({ bookHref, primary }: MobileStickyCtaPr
     >
       <Link
         href={bookHref}
-        className="flex w-full items-center justify-center gap-2 rounded-lg py-3.5 text-base font-semibold text-white transition-all duration-150 hover:opacity-90"
-        style={{ backgroundColor: primary }}
+        className="flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-base font-semibold text-white transition-opacity hover:opacity-90"
+        style={{ backgroundColor: accent }}
       >
-        Book now
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <path d="M2 7H12M8 3L12 7L8 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        Book appointment
       </Link>
     </div>
   );

@@ -14,7 +14,9 @@ import MobileStickyCta from "@/components/business/MobileStickyCta";
 import { getSupabase } from "@/lib/supabase/server";
 import { getMyBusinessIds } from "@/lib/server/auth";
 import { getBusinessSiteData } from "@/lib/server/public-site";
+import { getStorefrontBundle } from "@/lib/server/storefront";
 import { parseTheme, themeToCssVars } from "@/lib/server/business-theme";
+import AppointmentStorefront from "@/components/storefront-public/AppointmentStorefront";
 import { minutesToLabel } from "@/lib/availability";
 import { formatPrice } from "@/lib/demo";
 import type { BusinessHours } from "@/lib/availability/hours";
@@ -82,9 +84,12 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
   if (!data) notFound();
   const tagline = data.business.tagline || MODE_TAGLINE[data.business.booking_mode] || "Book online in under a minute.";
   const cleanName = data.business.name.trim().replace(/\.$/, "");
+  // Open Graph identity from existing business imagery (no extra queries).
+  const ogImage = data.business.cover_image_url ?? data.business.logo_url ?? null;
   return {
     title: `${data.business.name} — Book online`,
     description: `View services and book online at ${cleanName}. ${tagline}`,
+    openGraph: ogImage ? { images: [{ url: ogImage, alt: data.business.name }] } : undefined,
   };
 }
 
@@ -104,6 +109,33 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   const theme = parseTheme(business.theme_config);
   const cssVars = themeToCssVars(theme);
   const reviews = getDemoReviews(slug);
+
+  // Storefront 2.0: every appointment business renders the new design
+  // from existing businesses/services data. The optional storefront row
+  // only customizes — it never gates. Resource/capacity keep the
+  // existing experience below, byte-for-byte.
+  if (business.booking_mode === "appointment") {
+    const bundle = await getStorefrontBundle(business.id, getSupabase()).catch(() => ({
+      storefront: null,
+      gallery: [],
+      team: [],
+      reviews: [],
+    }));
+    return (
+      <AppointmentStorefront
+        data={{
+          business,
+          services,
+          hours,
+          accent: theme.primary,
+          bookHref,
+          preview,
+          demoReviews: reviews,
+          bundle,
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-paper text-ink pb-16 sm:pb-0" style={cssVars}>

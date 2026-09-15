@@ -33,6 +33,8 @@ export interface BusinessRow {
   logo_url: string | null;
   /** Business color theme config (JSONB). Null = default Kivo teal. */
   theme_config: unknown;
+  /** Presentation category (migration 0020). Null/absent = uncategorized. */
+  category?: string | null;
   /** Public address for the business location. */
   address: string | null;
   /** Map coordinates (nullable). */

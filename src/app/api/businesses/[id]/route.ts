@@ -12,6 +12,7 @@ import {
 import { fetchBusinessNotificationSettings } from "@/lib/server/notifications/records";
 import { getConnectionStatus } from "@/lib/server/google-calendar/connections";
 import { toApiErrorResponse } from "@/lib/server/route-helper";
+import { revalidatePublicPages } from "./storefront/route";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -108,6 +109,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       getSupabase(),
     );
     const settings = await getBusinessSettings(ctx.business.id, getSupabase());
+    revalidatePublicPages(ctx.business.slug);
     return NextResponse.json(settings);
   } catch (error) {
     return toApiErrorResponse(error);
