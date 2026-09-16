@@ -22,34 +22,25 @@ export default async function OperationsDashboardPage() {
     getBookingFunnel(db),
   ]);
 
-  // Note: healthArr contains all businesses; the page shows aggregate only.
-  // No per-business data is exposed to the platform admin unless explicitly
-  // filtered (which we don't do here for the global view).
-
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="mx-auto max-w-6xl">
-        <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-soft">
-          <a href="/admin/analytics" className="font-medium hover:text-ink">
-            Marketing analytics
-          </a>
-          <a href="/admin/leads" className="font-medium hover:text-ink">
-            Setup requests
-          </a>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Operations</h1>
+        <p className="mt-1 text-sm text-ink-soft">
+          Booking funnel and system health · last 24 hours.
         </p>
-        <h1 className="mt-2 text-2xl font-bold text-gray-900 mb-6">
-          Operations Dashboard
-        </h1>
+      </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      {/* Summary Cards */}
+      <section aria-label="Summary">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
           <SummaryCard
-            label="Booking Attempts"
+            label="Booking attempts"
             value={summary.bookingAttempts}
             sub={`${summary.submitAttempts} submits`}
           />
           <SummaryCard
-            label="Bookings Created"
+            label="Bookings created"
             value={summary.bookingsCreated}
             sub={`${summary.submitSuccessRate.toFixed(1)}% success`}
           />
@@ -66,128 +57,112 @@ export default async function OperationsDashboardPage() {
             alert={summary.notificationsFailed > 0}
           />
         </div>
+      </section>
 
-        {/* Funnel */}
-        <section className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">
-            Booking Funnel
-          </h2>
-          <div className="space-y-3">
-            {funnel.map((step) => (
-              <div key={step.step} className="flex items-center gap-4">
-                <span className="w-48 text-sm text-gray-600">{step.step}</span>
-                <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
-                  <div
-                    className="bg-blue-500 h-full rounded-full transition-all"
-                    style={{ width: `${step.percentage}%` }}
-                  />
-                </div>
-                <span className="w-16 text-right text-sm font-medium text-gray-800">
-                  {step.count}
-                </span>
-                <span className="w-16 text-right text-sm text-gray-500">
-                  {step.percentage.toFixed(1)}%
-                </span>
+      {/* Funnel */}
+      <section aria-label="Booking funnel">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-soft">
+          Booking funnel
+        </h2>
+        <div className="space-y-2">
+          {funnel.map((step) => (
+            <div
+              key={step.step}
+              className="flex items-center gap-4 rounded-xl border border-line bg-card px-4 py-2.5"
+            >
+              <span className="w-44 text-sm text-ink-soft">{step.step}</span>
+              <div className="flex-1 overflow-hidden rounded-full bg-line h-2">
+                <div
+                  className="h-full rounded-full bg-blue/60 transition-all"
+                  style={{ width: `${step.percentage}%` }}
+                />
               </div>
-            ))}
+              <span className="w-12 text-right text-sm font-medium tabular-nums">
+                {step.count}
+              </span>
+              <span className="w-12 text-right text-xs text-ink-soft tabular-nums">
+                {step.percentage.toFixed(0)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Business health aggregate */}
+      {healthArr.length > 0 && (
+        <section aria-label="Business health">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-soft">
+            Aggregate business health ({healthArr.length})
+          </h2>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5 sm:gap-3">
+            <HealthStat
+              label="Attempts"
+              value={healthArr.reduce((s, h) => s + h.bookingAttempts, 0)}
+            />
+            <HealthStat
+              label="Completed"
+              value={healthArr.reduce((s, h) => s + h.completed, 0)}
+            />
+            <HealthStat
+              label="Technical failures"
+              value={healthArr.reduce((s, h) => s + h.technicalFailures, 0)}
+              alert={healthArr.some((h) => h.technicalFailures > 0)}
+            />
+            <HealthStat
+              label="Notification failures"
+              value={healthArr.reduce((s, h) => s + h.notificationFailures, 0)}
+              alert={healthArr.some((h) => h.notificationFailures > 0)}
+            />
+            <HealthStat
+              label="Calendar failures"
+              value={healthArr.reduce((s, h) => s + h.calendarFailures, 0)}
+              alert={healthArr.some((h) => h.calendarFailures > 0)}
+            />
           </div>
         </section>
+      )}
 
-        {/* Aggregate Business Health */}
-        {healthArr.length > 0 && (
-          <section className="bg-white rounded-lg shadow p-6 mb-8">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">
-              Aggregate Business Health ({healthArr.length} businesses)
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <HealthStat
-                label="Attempts"
-                value={healthArr.reduce((s, h) => s + h.bookingAttempts, 0)}
-              />
-              <HealthStat
-                label="Completed"
-                value={healthArr.reduce((s, h) => s + h.completed, 0)}
-              />
-              <HealthStat
-                label="Technical Failures"
-                value={healthArr.reduce((s, h) => s + h.technicalFailures, 0)}
-                alert={healthArr.some((h) => h.technicalFailures > 0)}
-              />
-              <HealthStat
-                label="Notification Failures"
-                value={healthArr.reduce((s, h) => s + h.notificationFailures, 0)}
-                alert={healthArr.some((h) => h.notificationFailures > 0)}
-              />
-              <HealthStat
-                label="Calendar Failures"
-                value={healthArr.reduce((s, h) => s + h.calendarFailures, 0)}
-                alert={healthArr.some((h) => h.calendarFailures > 0)}
-              />
-            </div>
-          </section>
+      {/* Recent failures */}
+      <section aria-label="Recent failures">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-soft">
+          Recent failures
+        </h2>
+        {failures.length === 0 ? (
+          <p className="text-sm text-ink-soft">No recent failures.</p>
+        ) : (
+          <ul className="space-y-2">
+            {failures.map((f) => (
+              <li
+                key={f.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 text-sm"
+              >
+                <div className="min-w-0">
+                  <span className="font-medium">{f.eventName}</span>
+                  {f.errorCode && (
+                    <span
+                      className={[
+                        "ml-2 inline-block rounded px-2 py-0.5 text-xs font-medium",
+                        f.severity === "technical"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-amber-100 text-amber-700",
+                      ].join(" ")}
+                    >
+                      {f.errorCode}
+                    </span>
+                  )}
+                  {f.businessName && (
+                    <span className="ml-2 text-ink-soft">{f.businessName}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-ink-soft">
+                  {f.provider && <span>{f.provider}</span>}
+                  <span>{new Date(f.timestamp).toLocaleString("en-GB")}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
-
-        {/* Recent Failures */}
-        <section className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">
-            Recent Failures
-          </h2>
-          {failures.length === 0 ? (
-            <p className="text-gray-500 text-sm">No recent failures.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-2 px-3 font-medium text-gray-600">
-                      Time
-                    </th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-600">
-                      Event
-                    </th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-600">
-                      Code
-                    </th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-600">
-                      Severity
-                    </th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-600">
-                      Provider
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {failures.map((f) => (
-                    <tr key={f.id} className="border-b border-gray-100">
-                      <td className="py-2 px-3 text-gray-500">
-                        {new Date(f.timestamp).toLocaleString()}
-                      </td>
-                      <td className="py-2 px-3 text-gray-800">{f.eventName}</td>
-                      <td className="py-2 px-3">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                            f.severity === "technical"
-                              ? "bg-red-100 text-red-700"
-                              : "bg-yellow-100 text-yellow-700"
-                          }`}
-                        >
-                          {f.errorCode ?? "—"}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3 text-gray-600">
-                        {f.severity ?? "—"}
-                      </td>
-                      <td className="py-2 px-3 text-gray-600">
-                        {f.provider ?? "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </div>
+      </section>
     </div>
   );
 }
@@ -205,13 +180,21 @@ function SummaryCard({
 }) {
   return (
     <div
-      className={`bg-white rounded-lg shadow p-4 ${
-        alert ? "ring-2 ring-red-400" : ""
-      }`}
+      className={[
+        "flex min-h-[80px] flex-col justify-center rounded-2xl border bg-card px-4 py-3",
+        alert ? "border-amber-200" : "border-line",
+      ].join(" ")}
     >
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
-      <p className="text-xs text-gray-400 mt-1">{sub}</p>
+      <span
+        className={[
+          "text-2xl font-semibold tabular-nums",
+          alert ? "text-amber-600" : "",
+        ].join(" ")}
+      >
+        {value}
+      </span>
+      <span className="mt-0.5 text-xs text-ink-soft">{label}</span>
+      <span className="text-xs text-ink-soft">{sub}</span>
     </div>
   );
 }
@@ -226,9 +209,16 @@ function HealthStat({
   alert?: boolean;
 }) {
   return (
-    <div className={alert ? "text-red-600" : "text-gray-800"}>
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-lg font-semibold">{value}</p>
+    <div className="rounded-2xl border border-line bg-card px-4 py-3">
+      <p
+        className={[
+          "text-xl font-semibold tabular-nums",
+          alert ? "text-amber-600" : "",
+        ].join(" ")}
+      >
+        {value}
+      </p>
+      <p className="mt-0.5 text-xs text-ink-soft">{label}</p>
     </div>
   );
 }

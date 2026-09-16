@@ -49,6 +49,7 @@ import {
 } from "./records";
 import type { NotificationStatusPatch } from "./records";
 import { fetchBusiness } from "../database";
+import { recordReminderEvent } from "../operations/events";
 
 /** Exactly ONE reminder type: 1 hour before booking start. */
 export const REMINDER_OFFSET_MS = 1 * 60 * 60_000; // 1 hour
@@ -197,8 +198,31 @@ export async function runDueReminders(
           settings.customer_notifications_enabled && settings.whatsapp_enabled,
       });
       summary[outcome] += 1;
+      // Record per-booking outcome for operations telemetry.
+      void recordReminderEvent(
+        outcome === "sent"
+          ? "reminder_sent"
+          : outcome === "failed"
+            ? "reminder_failed"
+            : "reminder_skipped",
+        business.id,
+        booking.id,
+        outcome === "sent",
+        outcome === "failed" ? "SEND_FAILED" : undefined,
+        { reminderType: "booking.reminder.1h", bookingStart: booking.start_time },
+        db,
+      );
     } catch {
       summary.failed += 1;
+      void recordReminderEvent(
+        "reminder_failed",
+        business.id,
+        booking.id,
+        false,
+        "INTERNAL_ERROR",
+        { reminderType: "booking.reminder.1h", bookingStart: booking.start_time },
+        db,
+      );
     }
   }
 

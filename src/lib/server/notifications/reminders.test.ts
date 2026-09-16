@@ -640,3 +640,144 @@ describe("claimNotificationRow", () => {
     expect(result.claimed).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Additional coverage: UTC/business-date boundary, cancellation-in-window,
+// endpoint auth, rescheduled-old-time, whatsapp-disabled
+// ---------------------------------------------------------------------------
+
+describe("isReminderDue — UTC/business-date boundary", () => {
+  it("uses the booking startIso instant directly (not business-local date)", () => {
+    // A booking at 2026-09-16T23:30:00Z is Sep 17 in Mauritius (+4),
+    // but still Sep 16 in UTC. The reminder window is computed purely from
+    // the instant difference — no timezone conversion needed in isReminderDue.
+    // At now = 2026-09-16T22:31:00Z the booking is 59 min away → due.
+    const bookingStart = "2026-09-16T23:30:00.000Z";
+    const nowJustInside = Date.parse("2026-09-16T22:31:00.000Z"); // 59 min away
+    const nowJustOutside = Date.parse("2026-09-16T22:29:00.000Z"); // 61 min away
+
+    expect(isReminderDue(bookingStart, nowJustInside)).toBe(true);
+    expect(isReminderDue(bookingStart, nowJustOutside)).toBe(false);
+  });
+
+  it("does not fire if the booking is already in the past at the instant checked", () => {
+    const bookingStart = "2026-09-16T12:00:00.000Z";
+    const nowAfter = Date.parse("2026-09-16T13:00:00.000Z"); // 60 min past start
+    expect(isReminderDue(bookingStart, nowAfter)).toBe(false);
+  });
+});
+
+describe("runDueReminders — cancellation immediately before the reminder window", () => {
+  it("never sends to a booking that is cancelled just before the window opens", async () => {
+    const db = createFakeDb();
+    // Booking would enter the window in 1ms, but it's already cancelled.
+    seedDb(db, [
+      bookingRow({
+        status: "cancelled",
+        start_time: new Date(BASE + 55 * 60_000).toISOString(),
+      }),
+    ]);
+    const { provider, calls } = fakeProvider();
+
+    const summary = await runDueReminders({ db: asDb(db), now: BASE, provider });
+
+    // fetchDueBookings filters by LIVE_BOOKING_STATUSES — cancelled never scanned.
+    expect(summary.processed).toBe(0);
+    expect(calls).toHaveLength(0);
+    expect(db.tables.notifications).toHaveLength(0);
+  });
+
+  it("does not resend after a booking is cancelled immediately after the window opens", async () => {
+    const db = createFakeDb();
+    seedDb(db);
+    const { provider, calls } = fakeProvider();
+
+    // First run: sends the reminder.
+    const first = await runDueReminders({ db: asDb(db), now: BASE, provider });
+    expect(first.sent).toBe(1);
+    expect(calls).toHaveLength(1);
+
+    // Booking gets cancelled immediately after.
+    db.tables.bookings[0].status = "cancelled";
+
+    // Second run: cancelled booking is never fetched by the live-status filter.
+    const second = await runDueReminders({ db: asDb(db), now: BASE, provider });
+    expect(second.processed).toBe(0);
+    expect(calls).toHaveLength(1);
+    expect(db.tables.notifications).toHaveLength(1);
+  });
+});
+
+describe("runDueReminders — reschedule: old start time never triggers", () => {
+  it("old start time outside the window does not trigger after reschedule", async () => {
+    const db = createFakeDb();
+    const originalStart = new Date(BASE + 55 * 60_000).toISOString(); // in window
+    seedDb(db, [bookingRow({ start_time: originalStart })]);
+    const { provider, calls } = fakeProvider();
+
+    // Rescheduled to far future BEFORE the first run fires.
+    const newStart = new Date(BASE + 48 * HOUR).toISOString();
+    db.tables.bookings[0].start_time = newStart;
+
+    // Run while original would have been in window — only new time is checked.
+    const summary = await runDueReminders({ db: asDb(db), now: BASE, provider });
+
+    // New start is beyond the scan horizon — not processed at all.
+    expect(summary.processed).toBe(0);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Endpoint auth — protected endpoint tests
+// ---------------------------------------------------------------------------
+
+describe("POST /api/internal/reminders/run — endpoint protection", () => {
+  it("rejects requests with no Authorization header (401)", async () => {
+    vi.stubEnv("REMINDER_CRON_SECRET", "test-secret-xyz");
+    vi.stubEnv("NOTIFICATION_PROVIDER", "mock");
+    const { POST } = await import("@/app/api/internal/reminders/run/route");
+    const request = new Request("http://localhost/api/internal/reminders/run", {
+      method: "POST",
+    });
+    const response = await POST(request);
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects requests with a wrong secret (401)", async () => {
+    vi.stubEnv("REMINDER_CRON_SECRET", "correct-secret");
+    vi.stubEnv("NOTIFICATION_PROVIDER", "mock");
+    const { POST } = await import("@/app/api/internal/reminders/run/route");
+    const request = new Request("http://localhost/api/internal/reminders/run", {
+      method: "POST",
+      headers: { Authorization: "Bearer wrong-secret" },
+    });
+    const response = await POST(request);
+    expect(response.status).toBe(401);
+  });
+
+  it("returns 503 when REMINDER_CRON_SECRET is not configured", async () => {
+    vi.stubEnv("REMINDER_CRON_SECRET", "");
+    vi.stubEnv("CRON_SECRET", "");
+    vi.stubEnv("NOTIFICATION_PROVIDER", "mock");
+    const { POST } = await import("@/app/api/internal/reminders/run/route");
+    const request = new Request("http://localhost/api/internal/reminders/run", {
+      method: "POST",
+      headers: { Authorization: "Bearer anything" },
+    });
+    const response = await POST(request);
+    expect(response.status).toBe(503);
+  });
+
+  it("returns 503 when NOTIFICATION_PROVIDER=none even with correct secret", async () => {
+    vi.stubEnv("REMINDER_CRON_SECRET", "valid-secret");
+    vi.stubEnv("NOTIFICATION_PROVIDER", "none");
+    const { POST } = await import("@/app/api/internal/reminders/run/route");
+    const request = new Request("http://localhost/api/internal/reminders/run", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-secret" },
+    });
+    const response = await POST(request);
+    expect(response.status).toBe(503);
+  });
+});

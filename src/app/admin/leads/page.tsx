@@ -58,27 +58,19 @@ export default async function LeadsPage() {
   const leads = withAges(requests);
 
   return (
-    <div className="min-h-screen bg-paper">
-      <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:py-10">
-        <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-soft">
-          <a href="/admin/operations" className="font-medium hover:text-ink">
-            ‹ Operations
-          </a>
-          <a href="/admin/analytics" className="font-medium hover:text-ink">
-            Marketing analytics
-          </a>
-        </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">
           New setup requests
         </h1>
         <p className="mt-1 text-sm text-ink-soft">
           Every business that started onboarding, with its setup choice and
           lifecycle status. Only platform admins see this page.
         </p>
-        <div className="mt-6">
-          <LeadsTable leads={leads} />
-        </div>
-      </main>
+      </div>
+      <div>
+        <LeadsTable leads={leads} />
+      </div>
     </div>
   );
 }

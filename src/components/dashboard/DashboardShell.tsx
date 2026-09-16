@@ -50,6 +50,16 @@ function SettingsIcon() {
   );
 }
 
+function IntegrationsIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="4" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="12" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M6.5 8h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /**
  * Shared authenticated-app shell: sidebar navigation + content column.
  * Used by /dashboard, /dashboard/bookings*, and /settings so the whole
@@ -95,6 +105,13 @@ export default function DashboardShell({
       href: `/settings${q}`,
       icon: <SettingsIcon />,
       active: pathname === "/settings",
+    },
+    {
+      key: "integrations",
+      label: "Integrations",
+      href: `/dashboard/integrations${q}`,
+      icon: <IntegrationsIcon />,
+      active: pathname === "/dashboard/integrations",
     },
   ];
 

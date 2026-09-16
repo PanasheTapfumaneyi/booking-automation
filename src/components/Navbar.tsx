@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AuthLinks from "@/components/AuthLinks";
+import AdminNavLink from "@/components/AdminNavLink";
 
 export default function Navbar() {
   return (
@@ -14,6 +15,7 @@ export default function Navbar() {
           <span className="text-lg font-bold tracking-tight text-ink">Kivo</span>
         </Link>
         <span className="flex items-center gap-3">
+          <AdminNavLink />
           <AuthLinks />
         </span>
       </div>
