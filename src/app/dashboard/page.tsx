@@ -248,7 +248,25 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             >
               <span className="min-w-0 flex-1">
                 <span className="text-xs font-semibold uppercase tracking-wider text-blue-strong">
-                  Up next · <span className="tabular-nums">{formatTimeInZone(nextBooking.startTime, tz)}</span>
+                  Up next ·{" "}
+                  {(() => {
+                    const bookingKey = isoToDateKey(nextBooking.startTime, tz);
+                    const isToday = bookingKey === bounds.todayKey;
+                    const tomorrowKey = addDaysKey(bounds.todayKey, 1);
+                    const isTomorrow = bookingKey === tomorrowKey;
+
+                    if (isToday) return "Today";
+                    if (isTomorrow) return "Tomorrow";
+
+                    return new Intl.DateTimeFormat("en-MU", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      timeZone: tz,
+                    }).format(new Date(nextBooking.startTime));
+                  })()}
+                  {" · "}
+                  <span className="tabular-nums">{formatTimeInZone(nextBooking.startTime, tz)}</span>
                 </span>
                 <span className="mt-0.5 block truncate font-semibold">
                   {nextBooking.serviceName} · {nextBooking.customerName}

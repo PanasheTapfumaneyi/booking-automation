@@ -236,6 +236,14 @@ export default function OnboardingFlow({
 
   return (
     <div className="mx-auto w-full max-w-xl px-5 py-8">
+      <div className="mb-6 flex items-center justify-end">
+        <a
+          href="/logout"
+          className="text-xs font-medium text-ink-soft hover:text-ink hover:underline"
+        >
+          Log out
+        </a>
+      </div>
       <nav aria-label="Setup progress" className="mb-8">
         <ol className="flex items-center gap-2 text-xs font-medium">
           {visibleSteps.map((item, index) => (
@@ -278,7 +286,7 @@ export default function OnboardingFlow({
             </label>
             <label className="flex flex-col gap-1.5 text-sm font-medium">
               Phone <span className="text-xs font-normal text-ink-soft">Shown to customers on your booking page.</span>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={busy} className={inputClass} placeholder="+230 …" />
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={busy} className={inputClass} placeholder="+230 5xxx xxxx" />
             </label>
             <label className="flex flex-col gap-1.5 text-sm font-medium">
               Timezone
@@ -408,7 +416,7 @@ export default function OnboardingFlow({
           <div className="mt-6 flex flex-col gap-4">
             <label className="flex flex-col gap-1.5 text-sm font-medium">
               Your WhatsApp number <span className="text-xs font-normal text-ink-soft">Optional — leave empty to skip owner alerts.</span>
-              <input value={notifyPhone} onChange={(e) => setNotifyPhone(e.target.value)} disabled={busy} className={inputClass} placeholder="+230 …" />
+              <input value={notifyPhone} onChange={(e) => setNotifyPhone(e.target.value)} disabled={busy} className={inputClass} placeholder="+230 5xxx xxxx" />
             </label>
             <button
               type="button"
@@ -448,6 +456,9 @@ export default function OnboardingFlow({
               {busy ? "Saving…" : calendar?.connected ? "Finish — review my page" : "Skip for now"}
             </button>
           </div>
+          <p className="mt-4 text-xs text-ink-soft">
+            You can change these settings anytime from your dashboard.
+          </p>
         </section>
       )}
     </div>

@@ -141,7 +141,15 @@ export default function LoginForm({ mode }: { mode: "login" | "signup" }) {
         </button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-ink-soft">
+      {mode === "login" && (
+        <p className="mt-4 text-center text-sm text-ink-soft">
+          <Link href="/forgot-password" className="font-medium text-ink-soft hover:text-ink hover:underline">
+            Forgot password?
+          </Link>
+        </p>
+      )}
+
+      <p className="mt-4 text-center text-sm text-ink-soft">
         {mode === "signup" ? (
           <>
             Already have an account?{" "}

@@ -170,7 +170,7 @@ export default function BasicsForm() {
             inputMode="tel"
             autoComplete="tel"
             className={inputClass}
-            placeholder="+230 …"
+            placeholder="+230 5xxx xxxx"
           />
         </label>
 

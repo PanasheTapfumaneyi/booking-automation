@@ -29,12 +29,26 @@ export default function AuthLinks() {
   }, []);
 
   return state === "in" ? (
-    <Link
-      href="/dashboard"
-      className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:text-ink"
-    >
-      Dashboard
-    </Link>
+    <div className="flex gap-2">
+      <Link
+        href="/dashboard"
+        className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:text-ink"
+      >
+        Dashboard
+      </Link>
+      <Link
+        href="/account"
+        className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:text-ink"
+      >
+        Account
+      </Link>
+      <button
+        onClick={() => window.location.href = "/logout"}
+        className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:text-ink"
+      >
+        Logout
+      </button>
+    </div>
   ) : (
     <Link
       href="/login"

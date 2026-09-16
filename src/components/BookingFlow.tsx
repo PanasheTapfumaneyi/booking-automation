@@ -67,6 +67,40 @@ const STEP_LABELS: Record<string, string> = {
   fleet: "Vehicle",
 };
 
+// Mode-aware resource copy labels.
+// Derives vocabulary from the resources already loaded in the catalog:
+// if all active resources have resourceType "vehicle", use car-specific
+// language. Otherwise fall back to neutral item language.
+// This keeps the booking engine untouched — only copy changes.
+function isVehicleMode(resources: Array<{ resourceType: string }>): boolean {
+  if (resources.length === 0) return false;
+  return resources.every((r) => r.resourceType === "vehicle");
+}
+
+function resourceLabel(
+  resources: Array<{ resourceType: string }>,
+  key: "item" | "start" | "end",
+): string {
+  if (isVehicleMode(resources)) {
+    if (key === "item") return "Vehicle";
+    if (key === "start") return "Pick-up";
+    return "Return";
+  }
+  if (key === "item") return "Equipment / Item";
+  if (key === "start") return "Start";
+  return "Return";
+}
+
+function datesHeading(resources: Array<{ resourceType: string }>): string {
+  if (isVehicleMode(resources)) return "Pick-up & return";
+  return "Start & end dates";
+}
+
+function availabilitySearchLabel(resources: Array<{ resourceType: string }>): string {
+  if (isVehicleMode(resources)) return "Search available vehicles";
+  return "Search available items";
+}
+
 // ---------------------------------------------------------------------------
 // Props + catalog
 // ---------------------------------------------------------------------------
@@ -798,13 +832,13 @@ export default function BookingFlow({
       {/* ================================================================ */}
 
       {/* Pick-up / return search */}
-      {step === "dates" && (
+{step === "dates" && (
         <section>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Pick-up &amp; return
+            {datesHeading(catalog?.resources ?? [])}
           </h1>
           <p className="mt-1.5 text-ink-soft">
-            Search available vehicles at {catalog?.business.name ?? "this business"}.
+            {availabilitySearchLabel(catalog?.resources ?? [])} at {catalog?.business.name ?? "this business"}.
           </p>
 
           <div className="mt-6 grid gap-5 sm:grid-cols-2">
@@ -889,7 +923,9 @@ export default function BookingFlow({
           >
             ‹ Back to dates
           </button>
-          <h1 className="text-2xl font-semibold tracking-tight">Choose your vehicle</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {resourceLabel(catalog?.resources ?? [], "item")}
+          </h1>
           <p className="mt-1.5 text-ink-soft">
             {formatSelectedDate(pickupDate)} · {formatRentalTime(pickupTime)} —{" "}
             {formatSelectedDate(returnDate)} · {formatRentalTime(returnTime)}
@@ -897,7 +933,7 @@ export default function BookingFlow({
 
           {rentalLoading && (
             <div className="mt-6 rounded-xl border border-line bg-card p-8 text-center text-ink-soft">
-              Checking vehicle availability…
+              Checking availability…
             </div>
           )}
 
@@ -911,7 +947,9 @@ export default function BookingFlow({
             rentalResults?.kind === "resource" &&
             rentalResults.resources.length === 0 && (
               <div className="mt-6 rounded-xl border border-line bg-card p-8 text-center">
-                <p className="font-medium">No vehicles available</p>
+                <p className="font-medium">
+                  No {resourceLabel(catalog?.resources ?? [], "item").toLowerCase()}s available
+                </p>
                 <p className="mt-1 text-sm text-ink-soft">
                   Try adjusting your dates.
                 </p>

@@ -93,7 +93,7 @@ export default function ChoiceScreen({
           inputMode="tel"
           autoComplete="tel"
           className="rounded-xl border border-line bg-card px-4 py-3 text-base outline-none focus:border-blue disabled:opacity-40"
-          placeholder="+230 …"
+          placeholder="+230 5xxx xxxx"
         />
       </label>
 
@@ -142,6 +142,10 @@ export default function ChoiceScreen({
       <p className="mt-6 text-center text-sm text-ink-soft">
         Either way, Kivo stays involved — we review every setup with you
         before your business goes live.
+      </p>
+
+      <p className="mt-3 text-center text-xs text-ink-soft">
+        You can change these settings anytime after setup.
       </p>
     </div>
   );

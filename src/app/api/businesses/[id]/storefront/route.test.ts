@@ -51,7 +51,7 @@ function ownerCtx() {
   return {
     user: { id: "user-1", email: "o@x.mu" },
     membership: { business_id: "biz-1", role: "owner" },
-    business: { id: "biz-1", name: "Watpo", slug: "watpo" },
+    business: { id: "biz-1", name: "Watpo Hair Studio", slug: "watpo-hair-studio" },
   };
 }
 

@@ -986,7 +986,7 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
             <DirtyHint dirty={notificationsDirty} />
             <label className="flex flex-col gap-1 font-medium">
               Your WhatsApp number
-              <input value={notifyPhone} onChange={(e) => setNotifyPhone(e.target.value)} disabled={busy !== null} className={inputClass} placeholder="+230 …" />
+              <input value={notifyPhone} onChange={(e) => setNotifyPhone(e.target.value)} disabled={busy !== null} className={inputClass} placeholder="+230 5xxx xxxx" />
             </label>
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={customerAlerts} onChange={(e) => setCustomerAlerts(e.target.checked)} disabled={busy !== null} className="h-5 w-5 accent-[#15547D]" />
