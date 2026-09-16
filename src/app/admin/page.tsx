@@ -3,7 +3,10 @@ import Link from "next/link";
 import { requirePlatformAdmin } from "@/lib/server/auth";
 import { getSupabase } from "@/lib/supabase/server";
 import { getOperationsSummary, getRecentFailures } from "@/lib/server/operations";
-import { getAllBusinessIntegrationHealth, relativeTime } from "@/lib/server/integrations/health";
+import {
+  getAllBusinessIntegrationHealth,
+  relativeTime,
+} from "@/lib/server/integrations/health";
 
 export const dynamic = "force-dynamic";
 
@@ -13,9 +16,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-function formatLastRun(lastRunAt: string | null, now: number): string {
-  if (!lastRunAt) return "No runs recorded";
-  return relativeTime(lastRunAt, now);
+/** Called once in the data layer — not inside a React render function. */
+function captureNowMs(): number {
+  return Date.now();
 }
 
 export default async function AdminOverviewPage() {
@@ -29,6 +32,8 @@ export default async function AdminOverviewPage() {
     getAllBusinessIntegrationHealth(db),
   ]);
 
+  const nowMs = captureNowMs();
+
   const bizRows = (businesses.data ?? []) as Array<{
     id: string;
     is_demo: boolean;
@@ -39,7 +44,7 @@ export default async function AdminOverviewPage() {
   const inactive = bizRows.filter((b) => !b.is_active && !b.is_demo).length;
   const demo = bizRows.filter((b) => b.is_demo).length;
 
-  const needsAttention = integrations.filter(
+  const needsAttentionCount = integrations.filter(
     (b) =>
       !b.isDemo &&
       (b.calendar.status === "needs_attention" ||
@@ -49,42 +54,24 @@ export default async function AdminOverviewPage() {
 
   const schedulerHealth = integrations[0]?.scheduler ?? null;
 
-  const recentFailures = failures.slice(0, 5);
-  const now = Date.now();
+  // Pre-format relative timestamps — plain strings, never called inside render.
+  const schedulerLastRunLabel = schedulerHealth?.lastRunAt
+    ? relativeTime(schedulerHealth.lastRunAt, nowMs)
+    : "No runs recorded";
+
+  const recentFailures = failures.slice(0, 5).map((f) => ({
+    ...f,
+    ageLabel: relativeTime(f.timestamp, nowMs),
+  }));
 
   return (
-    <AdminOverviewContent
-      totalBusinesses={totalBusinesses}
-      activeReal={activeReal}
-      inactive={inactive}
-      demo={demo}
-      needsAttention={needsAttention}
-      schedulerHealth={schedulerHealth}
-      recentFailures={recentFailures}
-      now={now}
-    />
-  );
-}
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+        <p className="mt-1 text-sm text-ink-soft">Platform health at a glance.</p>
+      </div>
 
-function AdminOverviewContent({
-  totalBusinesses,
-  activeReal,
-  inactive,
-  demo,
-  needsAttention,
-  schedulerHealth,
-  recentFailures,
-  now,
-}: {
-  totalBusinesses: number;
-  activeReal: number;
-  inactive: number;
-  demo: number;
-  needsAttention: number;
-  schedulerHealth: AdminOverviewContent["schedulerHealth"];
-  recentFailures: (typeof recentFailures)[number][];
-  now: number;
-}) {
+      {/* Business counts */}
       <section aria-label="Business summary">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-soft">
           Businesses
@@ -100,16 +87,14 @@ function AdminOverviewContent({
               key={stat.label}
               className="flex min-h-[80px] flex-col justify-center rounded-2xl border border-line bg-card px-4 py-3"
             >
-              <span className="text-2xl font-semibold tabular-nums">
-                {stat.value}
-              </span>
+              <span className="text-2xl font-semibold tabular-nums">{stat.value}</span>
               <span className="mt-0.5 text-xs text-ink-soft">{stat.label}</span>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Integration / notifications health */}
+      {/* Integration health */}
       <section aria-label="Integration health">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-soft">
           Integrations
@@ -120,15 +105,12 @@ function AdminOverviewContent({
             <p
               className={[
                 "mt-1 text-2xl font-semibold tabular-nums",
-                needsAttention > 0 ? "text-amber-600" : "text-emerald-600",
+                needsAttentionCount > 0 ? "text-amber-600" : "text-emerald-600",
               ].join(" ")}
             >
-              {needsAttention}
+              {needsAttentionCount}
             </p>
-            <Link
-              href="/admin/integrations"
-              className="mt-1 text-xs text-blue-strong hover:underline"
-            >
+            <Link href="/admin/integrations" className="mt-1 text-xs text-blue-strong hover:underline">
               View all →
             </Link>
           </div>
@@ -139,18 +121,13 @@ function AdminOverviewContent({
                 <p
                   className={[
                     "mt-1 text-sm font-semibold",
-                    schedulerHealth.status === "healthy"
-                      ? "text-emerald-600"
-                      : "text-amber-600",
+                    schedulerHealth.status === "healthy" ? "text-emerald-600" : "text-amber-600",
                   ].join(" ")}
                 >
-                  {schedulerHealth.status === "healthy"
-                    ? "Healthy"
-                    : "Needs attention"}
+                  {schedulerHealth.status === "healthy" ? "Healthy" : "Needs attention"}
                 </p>
                 <p className="mt-0.5 text-xs text-ink-soft">
-                  Last run:{" "}
-                  {formatLastRun(schedulerHealth.lastRunAt, now)}
+                  Last run: {schedulerLastRunLabel}
                 </p>
               </>
             ) : (
@@ -167,11 +144,8 @@ function AdminOverviewContent({
         </h2>
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
           {[
-            { label: "Bookings created", value: summary.bookingsCreated },
-            {
-              label: "Notifications sent",
-              value: summary.notificationsSent,
-            },
+            { label: "Bookings created", value: summary.bookingsCreated, alert: false },
+            { label: "Notifications sent", value: summary.notificationsSent, alert: false },
             {
               label: "Notification failures",
               value: summary.notificationsFailed,
@@ -210,17 +184,12 @@ function AdminOverviewContent({
           <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">
             Recent failures
           </h2>
-          <Link
-            href="/admin/operations"
-            className="text-xs text-blue-strong hover:underline"
-          >
+          <Link href="/admin/operations" className="text-xs text-blue-strong hover:underline">
             View all →
           </Link>
         </div>
         {recentFailures.length === 0 ? (
-          <p className="mt-3 text-sm text-ink-soft">
-            No recent failures.
-          </p>
+          <p className="mt-3 text-sm text-ink-soft">No recent failures.</p>
         ) : (
           <ul className="mt-3 space-y-2">
             {recentFailures.map((f) => (
@@ -234,14 +203,10 @@ function AdminOverviewContent({
                     <span className="ml-2 text-ink-soft">· {f.errorCode}</span>
                   )}
                   {f.businessName && (
-                    <span className="ml-2 text-ink-soft">
-                      · {f.businessName}
-                    </span>
+                    <span className="ml-2 text-ink-soft">· {f.businessName}</span>
                   )}
                 </div>
-                <span className="shrink-0 text-xs text-ink-soft">
-                  {relativeTime(f.timestamp, now)}
-                </span>
+                <span className="shrink-0 text-xs text-ink-soft">{f.ageLabel}</span>
               </li>
             ))}
           </ul>

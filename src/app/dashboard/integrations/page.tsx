@@ -11,6 +11,7 @@ import {
   getIntegrationHealth,
   relativeTime,
   type HealthStatus,
+  type IntegrationHealth,
 } from "@/lib/server/integrations/health";
 
 export const dynamic = "force-dynamic";
@@ -21,12 +22,73 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-function formatRelativeTime(timestamp: string | null, now: number): string {
-  if (!timestamp) return "Not yet started";
-  return relativeTime(timestamp, now);
+interface IntegrationsPageProps {
+  searchParams: Promise<{ business?: string }>;
 }
 
-function statusBadge(status: HealthStatus) {
+// ---------------------------------------------------------------------------
+// View model — all relative time strings pre-formatted in the async data layer.
+// Date.now() is called exactly once inside buildViewModel, never in JSX render.
+// ---------------------------------------------------------------------------
+
+interface IntegrationsViewModel {
+  calendarStatus: HealthStatus;
+  calendarAccountEmail: string | null;
+  calendarId: string | null;
+  calendarRequiresReconnect: boolean;
+  calendarLastIssue: string | null;
+  messagingStatus: HealthStatus;
+  messagingEnabled: boolean;
+  messagingLastSuccess: string | null;
+  messagingRecentFailureCount: number;
+  messagingFailures: Array<{ type: string; reason: string; ageLabel: string }>;
+  schedulerStatus: HealthStatus;
+  schedulerLastChecked: string;
+  schedulerLastRunProcessed: number | null;
+  businessId: string;
+}
+
+function buildViewModel(
+  health: IntegrationHealth,
+  businessId: string,
+): IntegrationsViewModel {
+  // Single Date.now() call — in a plain helper, not in a React component body.
+  const nowMs = Date.now();
+  const { calendar, messaging, scheduler } = health;
+
+  return {
+    calendarStatus: calendar.status,
+    calendarAccountEmail: calendar.accountEmail ?? null,
+    calendarId: calendar.calendarId ?? null,
+    calendarRequiresReconnect: calendar.requiresReconnect ?? false,
+    calendarLastIssue: calendar.lastFailureAt
+      ? relativeTime(calendar.lastFailureAt, nowMs)
+      : null,
+    messagingStatus: messaging.status,
+    messagingEnabled: messaging.enabled,
+    messagingLastSuccess: messaging.lastSuccessAt
+      ? relativeTime(messaging.lastSuccessAt, nowMs)
+      : null,
+    messagingRecentFailureCount: messaging.recentFailureCount,
+    messagingFailures: messaging.recentFailures.map((f) => ({
+      type: f.type,
+      reason: f.reason,
+      ageLabel: relativeTime(f.at, nowMs),
+    })),
+    schedulerStatus: scheduler.status,
+    schedulerLastChecked: scheduler.lastRunAt
+      ? relativeTime(scheduler.lastRunAt, nowMs)
+      : "Not yet started",
+    schedulerLastRunProcessed: scheduler.lastRunProcessed,
+    businessId,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Pure presentation helpers
+// ---------------------------------------------------------------------------
+
+function StatusBadge({ status }: { status: HealthStatus }) {
   const configs: Record<HealthStatus, { label: string; className: string }> = {
     healthy: {
       label: "Healthy",
@@ -55,48 +117,32 @@ function statusBadge(status: HealthStatus) {
   );
 }
 
-function Row({
-  label,
-  value,
-  muted,
-}: {
-  label: string;
-  value: string;
-  muted?: boolean;
-}) {
+function Row({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-4 text-sm">
       <span className="text-ink-soft">{label}</span>
-      <span className={muted ? "text-ink-soft" : "font-medium text-ink"}>
-        {value}
-      </span>
+      <span className={muted ? "text-ink-soft" : "font-medium text-ink"}>{value}</span>
     </div>
   );
 }
 
-function IntegrationsContent({
-  calendar,
-  messaging,
-  scheduler,
-  businessId,
-  now,
-}: {
-  calendar: typeof calendar;
-  messaging: typeof messaging;
-  scheduler: typeof scheduler;
-  businessId: string;
-  now: number;
-}) {
+// ---------------------------------------------------------------------------
+// Content component — receives plain string view model, no time calls needed
+// ---------------------------------------------------------------------------
+
+function IntegrationsView({ vm }: { vm: IntegrationsViewModel }) {
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Integrations</h1>
-        <p className="mt-1 text-sm text-ink-soft">
-          Status of your connected services.
-        </p>
+        <p className="mt-1 text-sm text-ink-soft">Status of your connected services.</p>
       </div>
 
-      <section aria-label="Google Calendar" className="rounded-2xl border border-line bg-card p-5">
+      {/* Google Calendar */}
+      <section
+        aria-label="Google Calendar"
+        className="rounded-2xl border border-line bg-card p-5"
+      >
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="font-semibold">Google Calendar</p>
@@ -104,49 +150,43 @@ function IntegrationsContent({
               Keeps your calendar in sync with bookings.
             </p>
           </div>
-          {statusBadge(calendar.status)}
+          <StatusBadge status={vm.calendarStatus} />
         </div>
 
         <div className="mt-4 space-y-2 border-t border-line pt-4">
-          {calendar.status !== "not_connected" && (
+          {vm.calendarStatus !== "not_connected" && (
             <>
-              {calendar.accountEmail && (
-                <Row label="Account" value={calendar.accountEmail} />
+              {vm.calendarAccountEmail && (
+                <Row label="Account" value={vm.calendarAccountEmail} />
               )}
-              {calendar.calendarId && (
+              {vm.calendarId && (
                 <Row
                   label="Calendar"
                   value={
-                    calendar.calendarId === "primary"
-                      ? "Primary calendar"
-                      : calendar.calendarId
+                    vm.calendarId === "primary" ? "Primary calendar" : vm.calendarId
                   }
                 />
               )}
-              {calendar.lastFailureAt && (
-                <Row
-                  label="Last issue"
-                  value={formatRelativeTime(calendar.lastFailureAt, now)}
-                  muted
-                />
+              {vm.calendarLastIssue && (
+                <Row label="Last issue" value={vm.calendarLastIssue} muted />
               )}
             </>
           )}
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          {calendar.status === "not_connected" && (
+          {vm.calendarStatus === "not_connected" && (
             <Link
-              href={`/api/integrations/google-calendar/connect?business=${businessId}`}
+              href={`/api/integrations/google-calendar/connect?business=${vm.businessId}`}
               className="rounded-full bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-strong"
             >
               Connect Google Calendar
             </Link>
           )}
-          {calendar.status === "needs_attention" && calendar.requiresReconnect && (
+          {vm.calendarStatus === "needs_attention" && vm.calendarRequiresReconnect && (
             <>
               <Link
-                href={`/api/integrations/google-calendar/connect?business=${businessId}`}
+                href={`/api/integrations/google-calendar/connect?business=${vm.businessId}`}
                 className="rounded-full bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-strong"
               >
                 Reconnect
@@ -156,9 +196,9 @@ function IntegrationsContent({
               </p>
             </>
           )}
-          {calendar.status === "healthy" && (
+          {vm.calendarStatus === "healthy" && (
             <Link
-              href={`/settings?business=${businessId}`}
+              href={`/settings?business=${vm.businessId}`}
               className="rounded-full border border-line px-4 py-2 text-sm font-medium text-ink-soft hover:text-ink"
             >
               Manage in settings
@@ -167,7 +207,11 @@ function IntegrationsContent({
         </div>
       </section>
 
-      <section aria-label="WhatsApp notifications" className="rounded-2xl border border-line bg-card p-5">
+      {/* WhatsApp notifications */}
+      <section
+        aria-label="WhatsApp notifications"
+        className="rounded-2xl border border-line bg-card p-5"
+      >
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="font-semibold">WhatsApp notifications</p>
@@ -175,65 +219,79 @@ function IntegrationsContent({
               Sends booking confirmations, reminders and updates to customers.
             </p>
           </div>
-          {statusBadge(messaging.status)}
+          <StatusBadge status={vm.messagingStatus} />
         </div>
 
         <div className="mt-4 space-y-2 border-t border-line pt-4">
-          {messaging.status === "disabled" ? (
-            <p className="text-sm text-ink-soft">Customer notifications are currently disabled.</p>
+          {vm.messagingStatus === "disabled" ? (
+            <p className="text-sm text-ink-soft">
+              Customer notifications are currently disabled.
+            </p>
           ) : (
             <>
-              {messaging.lastSuccessAt && (
-                <Row
-                  label="Last successful delivery"
-                  value={formatRelativeTime(messaging.lastSuccessAt, now)}
-                />
+              {vm.messagingLastSuccess && (
+                <Row label="Last successful delivery" value={vm.messagingLastSuccess} />
               )}
-              {messaging.recentFailureCount > 0 && (
-                <Row label="Recent failures" value={String(messaging.recentFailureCount)} muted />
+              {vm.messagingRecentFailureCount > 0 && (
+                <Row
+                  label="Recent failures"
+                  value={String(vm.messagingRecentFailureCount)}
+                  muted
+                />
               )}
             </>
           )}
         </div>
 
-        {messaging.recentFailures.length > 0 && (
+        {vm.messagingFailures.length > 0 && (
           <div className="mt-4 border-t border-line pt-4">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-ink-soft">Recent issues</p>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-ink-soft">
+              Recent issues
+            </p>
             <ul className="space-y-1.5">
-              {messaging.recentFailures.map((f, i) => (
-                <li key={i} className="rounded-xl border border-amber-100 bg-amber-50 px-3.5 py-2.5 text-sm">
+              {vm.messagingFailures.map((f, i) => (
+                <li
+                  key={i}
+                  className="rounded-xl border border-amber-100 bg-amber-50 px-3.5 py-2.5 text-sm"
+                >
                   <span className="font-medium text-amber-800">{f.type}</span>
                   <span className="mx-1 text-amber-600">—</span>
                   <span className="text-amber-700">{f.reason}</span>
-                  <span className="ml-2 text-xs text-amber-500">{formatRelativeTime(f.at, now)}</span>
+                  <span className="ml-2 text-xs text-amber-500">{f.ageLabel}</span>
                 </li>
               ))}
             </ul>
           </div>
         )}
 
-        {messaging.recentFailures.length === 0 && messaging.status !== "disabled" && (
+        {vm.messagingFailures.length === 0 && vm.messagingStatus !== "disabled" && (
           <div className="mt-4 border-t border-line pt-4">
             <p className="text-sm text-emerald-700">No recent notification issues.</p>
           </div>
         )}
 
         <div className="mt-4 flex flex-wrap gap-2">
-          {messaging.status === "disabled" && (
+          {vm.messagingStatus === "disabled" && (
             <Link
-              href={`/settings?business=${messaging.status === "disabled" ? "businessId" : "businessId"}`}
+              href={`/settings?business=${vm.businessId}`}
               className="rounded-full border border-line px-4 py-2 text-sm font-medium text-ink-soft hover:text-ink"
             >
               Enable in settings
             </Link>
           )}
-          {messaging.status === "needs_attention" && (
-            <p className="text-sm text-ink-soft">Kivo is checking this integration. Contact support if the issue persists.</p>
+          {vm.messagingStatus === "needs_attention" && (
+            <p className="text-sm text-ink-soft">
+              Kivo is checking this integration. Contact support if the issue persists.
+            </p>
           )}
         </div>
       </section>
 
-      <section aria-label="Booking reminders" className="rounded-2xl border border-line bg-card p-5">
+      {/* Booking reminders */}
+      <section
+        aria-label="Booking reminders"
+        className="rounded-2xl border border-line bg-card p-5"
+      >
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="font-semibold">Booking reminders</p>
@@ -241,23 +299,25 @@ function IntegrationsContent({
               Automatic 1-hour reminder sent to customers before their appointment.
             </p>
           </div>
-          {statusBadge(scheduler.status)}
+          <StatusBadge status={vm.schedulerStatus} />
         </div>
 
         <div className="mt-4 space-y-2 border-t border-line pt-4">
-          <Row label="Last checked" value={formatRelativeTime(scheduler.lastRunAt, now)} />
-          {scheduler.lastRunProcessed !== null && (
+          <Row label="Last checked" value={vm.schedulerLastChecked} />
+          {vm.schedulerLastRunProcessed !== null && (
             <Row
               label="Reminders processed in last run"
-              value={String(scheduler.lastRunProcessed)}
+              value={String(vm.schedulerLastRunProcessed)}
               muted
             />
           )}
         </div>
 
-        {scheduler.status === "needs_attention" && (
+        {vm.schedulerStatus === "needs_attention" && (
           <div className="mt-4 border-t border-line pt-4">
-            <p className="text-sm text-ink-soft">Kivo is checking this integration. Contact support if the issue persists.</p>
+            <p className="text-sm text-ink-soft">
+              Kivo is checking this integration. Contact support if the issue persists.
+            </p>
           </div>
         )}
       </section>
@@ -265,9 +325,11 @@ function IntegrationsContent({
   );
 }
 
-export default async function IntegrationsPage({
-  searchParams,
-}: IntegrationsPageProps) {
+// ---------------------------------------------------------------------------
+// Route handler
+// ---------------------------------------------------------------------------
+
+export default async function IntegrationsPage({ searchParams }: IntegrationsPageProps) {
   const user = await getRequestUser().catch(() => null);
   if (!user) redirect("/login?next=/dashboard/integrations");
   const memberships = await getMyMemberships(user.id).catch(() => []);
@@ -276,10 +338,15 @@ export default async function IntegrationsPage({
   const params = await searchParams;
   const requestedBusiness =
     params.business && params.business.trim().length > 0 ? params.business : null;
-  if (requestedBusiness && !memberships.some((m) => m.business_id === requestedBusiness)) {
+  if (
+    requestedBusiness &&
+    !memberships.some((m) => m.business_id === requestedBusiness)
+  ) {
     notFound();
   }
-  const selectedId = (requestedBusiness ? requestedBusiness : memberships[0].business_id) as string;
+  const selectedId = (
+    requestedBusiness ? requestedBusiness : memberships[0].business_id
+  ) as string;
 
   const db = getSupabase();
   const [business, health] = await Promise.all([
@@ -287,21 +354,19 @@ export default async function IntegrationsPage({
     getIntegrationHealth(selectedId, db),
   ]);
 
-  const { calendar, messaging, scheduler } = health;
-  const now = Date.now();
+  // buildViewModel calls Date.now() once, here in the async data layer.
+  const vm = buildViewModel(health, business.id);
 
   return (
     <>
       <Navbar />
       <main className="flex-1">
-        <DashboardShell businessId={business.id} businessName={business.name} businessSlug={business.slug ?? null}>
-          <IntegrationsContent
-            calendar={calendar}
-            messaging={messaging}
-            scheduler={scheduler}
-            businessId={business.id}
-            now={now}
-          />
+        <DashboardShell
+          businessId={business.id}
+          businessName={business.name}
+          businessSlug={business.slug ?? null}
+        >
+          <IntegrationsView vm={vm} />
         </DashboardShell>
       </main>
       <Footer />
