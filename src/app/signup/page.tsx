@@ -8,6 +8,7 @@ import { TrackMarketingPageView } from "@/components/marketing/TrackedLink";
 export const metadata: Metadata = {
   title: "Create your business account",
   description: "Set up online booking for your business on Kivo.",
+  robots: { index: false, follow: false },
 };
 
 export default function SignupPage() {

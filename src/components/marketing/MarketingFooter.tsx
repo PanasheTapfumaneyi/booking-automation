@@ -54,17 +54,24 @@ export default function MarketingFooter() {
           <nav className="flex flex-wrap gap-x-8 gap-y-3 text-sm" aria-label="Footer navigation">
             <Link href="/#product" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Product</Link>
             <Link href="/#solutions" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Solutions</Link>
-            <Link href="/#pricing" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Pricing</Link>
+            <Link href="/pricing" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Pricing</Link>
             <Link href="/#how-it-works" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">How It Works</Link>
             <Link href="/demo" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Live sites</Link>
+            <Link href="/about" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">About</Link>
+            <Link href="/contact" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Contact</Link>
             <Link href="/login" className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Business login</Link>
             <TrackedLink href="/signup" eventName="start_free_clicked" eventProps={{ cta_location: "footer", cta_label: "Get Started" }} className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Get Started</TrackedLink>
-            <TrackedLink href={wa || "/#contact"} target={wa ? "_blank" : undefined} rel={wa ? "noopener noreferrer" : undefined} eventName="contact_clicked" eventProps={{ contact_type: wa ? "whatsapp" : "section", cta_location: "footer" }} className="font-medium text-ink-soft transition-colors duration-150 hover:text-ink">Contact</TrackedLink>
           </nav>
         </div>
 
         <div className="mt-10 border-t border-line pt-6">
-          <p className="text-xs text-muted">&copy; {new Date().getFullYear()} Kivo. All rights reserved.</p>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <p className="text-xs text-muted">&copy; {new Date().getFullYear()} Kivo. All rights reserved.</p>
+            <div className="flex gap-4 text-xs">
+              <Link href="/privacy" className="text-muted transition-colors duration-150 hover:text-ink-soft">Privacy</Link>
+              <Link href="/terms" className="text-muted transition-colors duration-150 hover:text-ink-soft">Terms</Link>
+            </div>
+          </div>
         </div>
       </div>
     </footer>

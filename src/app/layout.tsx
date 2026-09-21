@@ -1,6 +1,16 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import {
+  SITE_URL,
+  SITE_NAME,
+  DEFAULT_TITLE,
+  DEFAULT_DESCRIPTION,
+  OG_IMAGE,
+  OG_WIDTH,
+  OG_HEIGHT,
+  SITE_LOCALE,
+} from "@/lib/site-config";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,31 +23,34 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-
 export const metadata: Metadata = {
   title: {
-    default: "Kivo — Simple digital booking for businesses",
-    template: "%s — Kivo",
+    default: DEFAULT_TITLE,
+    template: "%s | Kivo",
   },
-  description:
-    "Kivo gives your customers a simple way to book online while giving you one place to manage your availability, services and reservations.",
-  metadataBase: new URL(siteUrl),
+  description: DEFAULT_DESCRIPTION,
+  metadataBase: new URL(SITE_URL),
+  alternates: {
+    canonical: SITE_URL,
+  },
   openGraph: {
     type: "website",
-    siteName: "Kivo",
-    title: "Kivo",
-    description:
-      "Simple digital booking for businesses — appointment, resource, and capacity modes.",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Kivo" }],
+    siteName: SITE_NAME,
+    locale: SITE_LOCALE,
+    url: SITE_URL,
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+    images: [{ url: OG_IMAGE, width: OG_WIDTH, height: OG_HEIGHT, alt: "Kivo — Online booking system for Mauritian businesses" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Kivo",
-    description:
-      "Simple digital booking for businesses — appointment, resource, and capacity modes.",
-    images: ["/og.png"],
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+    images: [OG_IMAGE],
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
   themeColor: "#14161a",
   icons: {

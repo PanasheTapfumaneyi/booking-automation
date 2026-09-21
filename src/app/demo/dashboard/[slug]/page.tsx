@@ -15,6 +15,7 @@ export async function generateMetadata({ params }: DemoDashboardPageProps): Prom
   return {
     title: `${data.business.name} demo workspace — Kivo`,
     description: `Explore a read-only demo of the Kivo business dashboard for ${data.business.name}.`,
+    robots: { index: false, follow: true },
   };
 }
 

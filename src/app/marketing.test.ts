@@ -62,10 +62,10 @@ describe("marketing — demo CTAs on the main site", () => {
     expect(header).toContain('href="/login"');
   });
 
-  it("hero exposes See how it works as the secondary action", () => {
+  it("hero exposes Watch the demo as the secondary action", () => {
     const hero = src("components/marketing/Hero.tsx");
     expect(hero).toContain('href="/demo"');
-    expect(hero).toContain("See how it works");
+    expect(hero).toContain("Watch the demo");
     expect(hero).toContain('href="/signup"');
   });
 

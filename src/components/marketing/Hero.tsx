@@ -30,17 +30,18 @@ export default function Hero() {
           }`}
         >
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">
-            Managed booking for your business
+            Managed booking for businesses in Mauritius
           </p>
           <h1 className="mt-5 text-[clamp(2.5rem,5vw,3.75rem)] font-bold leading-[1.02] tracking-tight text-ink">
-            Bookings,
+            Online bookings,
             <br />
             without the back-and-forth.
           </h1>
           <p className="mt-6 max-w-md text-lg leading-relaxed text-ink-soft">
             A professional booking system for your business &mdash; set up and
-            managed for you. Accept bookings online, keep your calendar
-            organised and keep customers updated automatically.
+            managed for you. Accept appointments, rentals or class bookings
+            online, keep your calendar organised and send customers automatic
+            WhatsApp confirmations.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link

@@ -35,6 +35,7 @@ export async function generateMetadata({ params }: BookSlugPageProps): Promise<M
   return {
     title: `${meta.verb} — ${business.name}`,
     description: `${meta.verb.at(0)?.toUpperCase()}${meta.verb.slice(1)} at ${business.name} — ${meta.blurb} in under a minute.`,
+    robots: { index: false, follow: true },
   };
 }
 

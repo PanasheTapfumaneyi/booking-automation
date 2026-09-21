@@ -20,6 +20,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Business settings",
   description: "Edit your business profile, offering, hours and notifications.",
+  robots: { index: false, follow: false },
 };
 
 interface SettingsPageProps {

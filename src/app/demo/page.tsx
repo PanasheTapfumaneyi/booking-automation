@@ -4,11 +4,13 @@ import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 import { TrackMarketingPageView } from "@/components/marketing/TrackedLink";
 import { FEATURED_BUSINESSES } from "@/lib/marketing-config";
+import { SITE_URL } from "@/lib/site-config";
 
 export const metadata: Metadata = {
   title: "Live booking sites — see how booking works",
   description:
     "Explore real booking flows for different business types. Each site uses the full Kivo engine — not a mockup.",
+  alternates: { canonical: `${SITE_URL}/demo` },
 };
 
 const DEMO_DETAILS: Record<string, { details: string; cta: string }> = {

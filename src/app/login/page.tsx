@@ -8,6 +8,7 @@ import { TrackMarketingPageView } from "@/components/marketing/TrackedLink";
 export const metadata: Metadata = {
   title: "Business login",
   description: "Business login — manage your business on Kivo.",
+  robots: { index: false, follow: false },
 };
 
 export default function LoginPage() {

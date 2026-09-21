@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Set up your business",
   description: "Create your business and start taking bookings.",
+  robots: { index: false, follow: false },
 };
 
 /**

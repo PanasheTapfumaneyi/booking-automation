@@ -20,6 +20,8 @@ import AppointmentStorefront from "@/components/storefront-public/AppointmentSto
 import { minutesToLabel } from "@/lib/availability";
 import { formatPrice } from "@/lib/demo";
 import type { BusinessHours } from "@/lib/availability/hours";
+import { SITE_URL } from "@/lib/site-config";
+import { JsonLdScript } from "@/lib/seo-jsonld";
 
 interface BusinessPageProps {
   params: Promise<{ slug: string }>;
@@ -84,11 +86,16 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
   if (!data) notFound();
   const tagline = data.business.tagline || MODE_TAGLINE[data.business.booking_mode] || "Book online in under a minute.";
   const cleanName = data.business.name.trim().replace(/\.$/, "");
+  const canonical = `${SITE_URL}/business/${slug}`;
   // Open Graph identity from existing business imagery (no extra queries).
   const ogImage = data.business.cover_image_url ?? data.business.logo_url ?? null;
   return {
     title: `${data.business.name} — Book online`,
     description: `View services and book online at ${cleanName}. ${tagline}`,
+    alternates: { canonical },
+    robots: data.business.is_demo === true
+      ? { index: false, follow: true }
+      : { index: true, follow: true },
     openGraph: ogImage ? { images: [{ url: ogImage, alt: data.business.name }] } : undefined,
   };
 }
@@ -110,6 +117,41 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   const cssVars = themeToCssVars(theme);
   const reviews = getDemoReviews(slug);
 
+  // Structured data — only for non-demo businesses
+  const localBusinessJsonLd =
+    business.is_demo !== true
+      ? {
+          "@context": "https://schema.org",
+          "@type": "LocalBusiness",
+          name: business.name,
+          url: `${SITE_URL}/business/${slug}`,
+          telephone: business.phone || undefined,
+          address: business.address
+            ? { "@type": "PostalAddress", streetAddress: business.address }
+            : undefined,
+          geo:
+            business.latitude != null && business.longitude != null
+              ? {
+                  "@type": "GeoCoordinates",
+                  latitude: Number(business.latitude),
+                  longitude: Number(business.longitude),
+                }
+              : undefined,
+          image: business.cover_image_url ?? business.logo_url ?? undefined,
+          logo: business.logo_url ?? undefined,
+          openingHoursSpecification: hours
+            ? Object.entries(hours)
+                .filter(([, v]) => v && v.open && v.close)
+                .map(([day, v]) => ({
+                  "@type": "OpeningHoursSpecification",
+                  dayOfWeek: day.charAt(0).toUpperCase() + day.slice(1),
+                  opens: v!.open,
+                  closes: v!.close,
+                }))
+            : undefined,
+        }
+      : null;
+
   // Storefront 2.0: every appointment business renders the new design
   // from existing businesses/services data. The optional storefront row
   // only customizes — it never gates. Resource/capacity keep the
@@ -122,23 +164,27 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
       reviews: [],
     }));
     return (
-      <AppointmentStorefront
-        data={{
-          business,
-          services,
-          hours,
-          accent: theme.primary,
-          bookHref,
-          preview,
-          demoReviews: reviews,
-          bundle,
-        }}
-      />
+      <>
+        {localBusinessJsonLd && <JsonLdScript data={localBusinessJsonLd} />}
+        <AppointmentStorefront
+          data={{
+            business,
+            services,
+            hours,
+            accent: theme.primary,
+            bookHref,
+            preview,
+            demoReviews: reviews,
+            bundle,
+          }}
+        />
+      </>
     );
   }
 
   return (
     <div className="min-h-screen bg-paper text-ink pb-16 sm:pb-0" style={cssVars}>
+      {localBusinessJsonLd && <JsonLdScript data={localBusinessJsonLd} />}
       <main className="flex-1">
         {preview && (
           <div role="status" className="border-b border-blue/30 bg-blue-mist">
