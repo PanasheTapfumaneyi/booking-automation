@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformAdmin } from "@/lib/server/auth";
 import { getSupabase } from "@/lib/supabase/server";
+import TransferOwnerButton from "@/components/admin/TransferOwnerButton";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,12 @@ interface BusinessRow {
   is_demo: boolean;
   is_active: boolean;
   created_at: string;
+}
+
+interface MemberRow {
+  business_id: string;
+  user_id: string;
+  role: string;
 }
 
 function StatusBadge({ active, demo }: { active: boolean; demo: boolean }) {
@@ -45,14 +52,22 @@ export default async function AdminBusinessesPage() {
   await requirePlatformAdmin();
   const db = getSupabase();
 
-  const { data } = await db
-    .from("businesses")
-    .select(
-      "id, name, slug, booking_mode, category, is_demo, is_active, created_at",
-    )
-    .order("created_at", { ascending: false });
+  const [businessesRes, membersRes] = await Promise.all([
+    db
+      .from("businesses")
+      .select(
+        "id, name, slug, booking_mode, category, is_demo, is_active, created_at",
+      )
+      .order("created_at", { ascending: false }),
+    db
+      .from("business_members")
+      .select("business_id, user_id, role")
+      .eq("role", "owner"),
+  ]);
 
-  const businesses = ((data ?? []) as unknown[]) as BusinessRow[];
+  const businesses = ((businessesRes.data ?? []) as unknown[]) as BusinessRow[];
+  const owners = ((membersRes.data ?? []) as unknown[]) as MemberRow[];
+  const ownerMap = new Map(owners.map((m) => [m.business_id, m.user_id]));
 
   return (
     <div className="space-y-6">
@@ -91,10 +106,13 @@ export default async function AdminBusinessesPage() {
                 <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-ink-soft">
                   {biz.slug && <span>/{biz.slug}</span>}
                   <span className="capitalize">{biz.booking_mode}</span>
+                  {ownerMap.has(biz.id) && (
+                    <span className="font-mono">owner: {ownerMap.get(biz.id)!.slice(0, 8)}…</span>
+                  )}
                 </div>
               </div>
 
-              <div className="flex shrink-0 flex-wrap gap-2">
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
                 {biz.slug && !biz.is_demo && (
                   <Link
                     href={`/business/${biz.slug}`}
@@ -121,6 +139,9 @@ export default async function AdminBusinessesPage() {
                 >
                   Diagnostics
                 </Link>
+                <TransferOwnerButton
+                  businessId={biz.id}
+                />
               </div>
             </li>
           ))}
