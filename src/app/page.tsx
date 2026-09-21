@@ -29,7 +29,7 @@ export default function HomePage() {
     <>
       <MarketingHeader />
       <TrackMarketingPageView />
-      <main>
+      <main id="main">
         <Hero />
         <DemoVideo />
         <FeaturedBusinesses />

@@ -60,7 +60,7 @@ export default function BusinessTypes() {
   }, []);
 
   return (
-    <section id="solutions" ref={ref} className="bg-surface-muted">
+    <section id="solutions" ref={ref} className="scroll-mt-24 bg-surface-muted">
       <div className="mx-auto max-w-[1200px] px-6 py-24 sm:py-32">
         <div className="max-w-xl">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Flexible by design</p>

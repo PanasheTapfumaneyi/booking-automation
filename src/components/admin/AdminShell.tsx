@@ -11,6 +11,7 @@ interface AdminShellProps {
 const NAV_ENTRIES = [
   { key: "overview", label: "Overview", href: "/admin" },
   { key: "businesses", label: "Businesses", href: "/admin/businesses" },
+  { key: "create", label: "Create Business", href: "/admin/create-business" },
   { key: "operations", label: "Operations", href: "/admin/operations" },
   { key: "analytics", label: "Analytics", href: "/admin/analytics" },
   { key: "leads", label: "Leads", href: "/admin/leads" },

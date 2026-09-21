@@ -165,15 +165,15 @@ export async function requireBusinessMembership(
 }
 
 /**
- * Pilot ownership gate. Today every member is an owner; the role check
- * future-proofs Phase 6B staff roles without changing call sites.
+ * Pilot ownership gate. Allows owners and platform admins who hold an
+ * `admin` membership to manage the business via the dashboard.
  */
 export async function requireBusinessOwner(
   businessId: string,
   opts?: { client?: SessionClientLike; db?: DbLike },
 ): Promise<BusinessContext> {
   const ctx = await requireBusinessMembership(businessId, opts);
-  if (ctx.membership.role !== "owner") {
+  if (ctx.membership.role !== "owner" && ctx.membership.role !== "admin") {
     throw new ApiError(
       403,
       "FORBIDDEN",

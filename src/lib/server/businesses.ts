@@ -216,6 +216,8 @@ export interface CreateBusinessInput extends BusinessProfileInput {
   description?: string | null;
   /** Public visibility. Defaults to true (existing self-service behaviour). */
   is_active?: boolean;
+  /** Demo site flag. Defaults to false (production tenant). */
+  is_demo?: boolean;
 }
 
 export interface CreatedBusiness {
@@ -228,8 +230,8 @@ export interface CreatedBusiness {
  * settings. If a later step fails, the business row is removed again so a
  * half-onboarded business never lingers (cascades wipe the membership).
  *
- * Production tenants always land with `is_demo = false` (explicit, never
- * relying on the column default) and `is_active` as requested.
+ * Production tenants land with `is_demo = false` by default. Admin-created
+ * demo sites pass `is_demo: true`. `is_active` defaults to true.
  */
 export async function createBusinessWithOwner(
   userId: string,
@@ -242,6 +244,7 @@ export async function createBusinessWithOwner(
   const address = sanitizeText(input.address ?? null, 500);
   const description = sanitizeText(input.description ?? null, 2000);
   const isActive = input.is_active ?? true;
+  const isDemo = input.is_demo ?? false;
   const client = db as SupabaseClient;
 
   const exists = async (slug: string): Promise<boolean> => {
@@ -278,7 +281,7 @@ export async function createBusinessWithOwner(
       slug,
       address,
       description,
-      is_demo: false,
+      is_demo: isDemo,
       is_active: isActive,
     })
     .select("id, slug")

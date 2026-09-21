@@ -73,6 +73,9 @@ export default function OnboardingFlow({
   bookingMode: existingMode,
   markCompleteUrl,
   completionHref = "/dashboard",
+  apiPrefix = "/api/businesses",
+  isDemo,
+  ownerUserId,
 }: {
   /** When set, the business already exists: basics is skipped entirely. */
   businessId?: string;
@@ -82,6 +85,12 @@ export default function OnboardingFlow({
   markCompleteUrl?: string;
   /** Where the final button leads after optional completion marking. */
   completionHref?: string;
+  /** API prefix for business creation. Admin uses "/api/admin/businesses". */
+  apiPrefix?: string;
+  /** Whether this is a demo site. Passed to the creation API. */
+  isDemo?: boolean;
+  /** Target user ID for admin-created businesses. */
+  ownerUserId?: string;
 } = {}) {
   const router = useRouter();
   const visibleSteps = STEP_ORDER.filter(
@@ -130,8 +139,11 @@ export default function OnboardingFlow({
   }
 
   async function handleBasics() {
+    const body: Record<string, unknown> = { name, phone, timezone, booking_mode: mode };
+    if (isDemo !== undefined) body.is_demo = isDemo;
+    if (ownerUserId) body.ownerUserId = ownerUserId;
     const created = await run(() =>
-      postJson("/api/businesses", { name, phone, timezone, booking_mode: mode }),
+      postJson(apiPrefix, body),
     );
     if (created?.business) {
       setBusinessId(created.business.id);

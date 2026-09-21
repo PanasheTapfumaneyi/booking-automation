@@ -79,18 +79,23 @@ export default function Hero() {
             No setup fee &middot; First month free &middot; Then Rs 1,000/month
           </p>
           <ul className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted">
-            <li className="flex items-center gap-1.5">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-brand" aria-hidden="true"><path d="M2.5 7.5L5.5 10.5L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              No technical setup needed
-            </li>
-            <li className="flex items-center gap-1.5">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-brand" aria-hidden="true"><path d="M2.5 7.5L5.5 10.5L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              WhatsApp confirmations
-            </li>
-            <li className="flex items-center gap-1.5">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-brand" aria-hidden="true"><path d="M2.5 7.5L5.5 10.5L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              Support included
-            </li>
+            {["No technical setup needed", "WhatsApp confirmations", "Support included"].map(
+              (item, i) => (
+                <li
+                  key={item}
+                  className={`flex items-center gap-1.5 transition-all duration-500 ease-out ${
+                    loaded ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
+                  }`}
+                  style={{
+                    transitionDelay: `${400 + i * 80}ms`,
+                    transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)",
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-brand" aria-hidden="true"><path d="M2.5 7.5L5.5 10.5L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  {item}
+                </li>
+              ),
+            )}
           </ul>
         </div>
 

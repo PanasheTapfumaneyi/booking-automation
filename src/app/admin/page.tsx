@@ -66,9 +66,17 @@ export default async function AdminOverviewPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-        <p className="mt-1 text-sm text-ink-soft">Platform health at a glance.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+          <p className="mt-1 text-sm text-ink-soft">Platform health at a glance.</p>
+        </div>
+        <Link
+          href="/admin/create-business"
+          className="shrink-0 rounded-full bg-blue px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-strong"
+        >
+          Create Business Profile
+        </Link>
       </div>
 
       {/* Business counts */}

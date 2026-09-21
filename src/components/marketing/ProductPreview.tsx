@@ -18,7 +18,7 @@ export default function ProductPreview() {
   }, []);
 
   return (
-    <section id="product" ref={ref} className="bg-paper">
+    <section id="product" ref={ref} className="scroll-mt-24 bg-paper">
       <div className="mx-auto max-w-[1200px] px-6 py-24 sm:py-32">
         <div className="max-w-xl">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Product preview</p>

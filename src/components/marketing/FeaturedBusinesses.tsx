@@ -77,7 +77,7 @@ function BusinessCard({ business, index }: { business: FeaturedBusiness; index: 
               action: "book_now",
             })
           }
-          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-all duration-150 hover:bg-brand-hover active:scale-[0.97]"
         >
           Book now
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -94,7 +94,7 @@ function BusinessCard({ business, index }: { business: FeaturedBusiness; index: 
               action: "view_business",
             })
           }
-          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-line px-4 py-2.5 text-sm font-semibold text-ink transition-all duration-150 hover:border-brand hover:text-brand"
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-line px-4 py-2.5 text-sm font-semibold text-ink transition-all duration-150 hover:border-brand hover:text-brand active:scale-[0.97]"
         >
           View business
         </Link>
@@ -105,7 +105,7 @@ function BusinessCard({ business, index }: { business: FeaturedBusiness; index: 
 
 export default function FeaturedBusinesses() {
   return (
-    <section id="showcase" className="bg-surface-muted">
+    <section id="showcase" className="scroll-mt-24 bg-surface-muted">
       <div className="mx-auto max-w-[1200px] px-6 py-24 sm:py-32">
         <div className="max-w-xl">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">See Kivo in action</p>

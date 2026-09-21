@@ -17,9 +17,11 @@ const NAV_LINKS = [
 export default function MarketingHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [activeSection, setActiveSection] = useState<string | null>(null);
   const pathname = usePathname();
   // Off the homepage the fragment targets don't exist, so link to the root.
   const anchorBase = pathname === "/" ? "" : "/";
+  const isHome = pathname === "/";
 
   const wa = whatsappUrl();
 
@@ -30,6 +32,28 @@ export default function MarketingHeader() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Scrollspy: highlight the nav link for the section in view (home only).
+  useEffect(() => {
+    if (!isHome) return;
+    const ids = NAV_LINKS.map((l) => l.href.slice(1));
+    const sections = ids
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+    if (sections.length === 0) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setActiveSection(`#${entry.target.id}`);
+          }
+        }
+      },
+      { rootMargin: "-30% 0px -60% 0px" },
+    );
+    sections.forEach((s) => obs.observe(s));
+    return () => obs.disconnect();
+  }, [isHome]);
+
   return (
     <header
       className={`sticky top-0 z-30 border-b bg-paper/70 backdrop-blur-xl backdrop-saturate-150 transition-shadow duration-300 ease-out ${
@@ -38,6 +62,12 @@ export default function MarketingHeader() {
           : "border-transparent shadow-none"
       }`}
     >
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-ink focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+      >
+        Skip to content
+      </a>
       <div className="mx-auto flex h-20 max-w-[1200px] items-center justify-between px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2.5">
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
@@ -49,15 +79,23 @@ export default function MarketingHeader() {
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex" aria-label="Main navigation">
-          {NAV_LINKS.map((link) => (
-            <a
-              key={link.href}
-              href={`${anchorBase}${link.href}`}
-              className="rounded-lg px-4 py-2 text-[15px] font-medium text-ink-soft transition-colors duration-150 hover:text-ink"
-            >
-              {link.label}
-            </a>
-          ))}
+          {NAV_LINKS.map((link) => {
+            const active = isHome && activeSection === link.href;
+            return (
+              <a
+                key={link.href}
+                href={`${anchorBase}${link.href}`}
+                aria-current={active ? "true" : undefined}
+                className={`rounded-lg px-4 py-2 text-[15px] font-medium transition-colors duration-150 ${
+                  active
+                    ? "bg-surface-muted text-ink"
+                    : "text-ink-soft hover:text-ink"
+                }`}
+              >
+                {link.label}
+              </a>
+            );
+          })}
         </nav>
 
         <div className="hidden items-center gap-1 md:flex">
@@ -124,7 +162,7 @@ export default function MarketingHeader() {
       </div>
 
       {menuOpen && (
-        <div className="border-t border-line bg-paper px-6 pb-6 pt-4 md:hidden">
+        <div className="animate-overlay-in origin-top border-t border-line bg-paper px-6 pb-6 pt-4 md:hidden">
           <nav className="flex flex-col gap-1" aria-label="Mobile navigation">
             {NAV_LINKS.map((link) => (
               <a
@@ -169,7 +207,7 @@ export default function MarketingHeader() {
             </a>
             <Link
               href="/signup"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-3 text-[15px] font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-3 text-[15px] font-semibold text-white transition-all duration-150 hover:bg-brand-hover active:scale-[0.97]"
               onClick={() => {
                 trackMarketingEvent("start_free_clicked", {
                   cta_location: "header",

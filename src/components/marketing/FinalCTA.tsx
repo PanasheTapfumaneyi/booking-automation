@@ -49,7 +49,7 @@ export default function FinalCTA() {
                       cta_label: "Start your free month",
                     })
                   }
-                  className="inline-flex items-center gap-2 rounded-lg bg-white px-7 py-3.5 text-[15px] font-semibold text-blue transition-all duration-150 hover:bg-white/90"
+                  className="inline-flex items-center gap-2 rounded-lg bg-white px-7 py-3.5 text-[15px] font-semibold text-blue transition-all duration-150 hover:bg-white/90 active:scale-[0.97]"
                 >
                   Start your free month
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">

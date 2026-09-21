@@ -36,7 +36,7 @@ export default function HowItWorks() {
   }, []);
 
   return (
-    <section id="how-it-works" ref={ref} className="bg-paper">
+    <section id="how-it-works" ref={ref} className="scroll-mt-24 bg-paper">
       <div className="mx-auto max-w-[1200px] px-6 py-24 sm:py-32 lg:grid lg:grid-cols-2 lg:gap-16">
         {/* Left */}
         <div>

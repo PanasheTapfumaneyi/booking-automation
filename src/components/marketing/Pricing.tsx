@@ -40,7 +40,7 @@ export default function Pricing() {
   const viewedRef = useViewedOnce("pricing_viewed", { cta_location: "pricing" });
 
   return (
-    <section id="pricing" ref={ref} className="bg-paper">
+    <section id="pricing" ref={ref} className="scroll-mt-24 bg-paper">
       <div ref={viewedRef} className="mx-auto max-w-[1200px] px-6 py-24 sm:py-32">
         <div className="max-w-xl">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Pricing</p>
@@ -75,7 +75,7 @@ export default function Pricing() {
                     cta_label: "Start your free month",
                   })
                 }
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-7 py-3.5 text-base font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-7 py-3.5 text-base font-semibold text-white transition-all duration-150 hover:bg-brand-hover active:scale-[0.97]"
               >
                 Start your free month
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">

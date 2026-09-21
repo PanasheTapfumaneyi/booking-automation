@@ -56,11 +56,19 @@ export default async function AdminBusinessesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Businesses</h1>
-        <p className="mt-1 text-sm text-ink-soft">
-          All businesses on the platform · {businesses.length} total
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Businesses</h1>
+          <p className="mt-1 text-sm text-ink-soft">
+            All businesses on the platform · {businesses.length} total
+          </p>
+        </div>
+        <Link
+          href="/admin/create-business"
+          className="shrink-0 rounded-full bg-blue px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-strong"
+        >
+          Create Business
+        </Link>
       </div>
 
       {businesses.length === 0 ? (
