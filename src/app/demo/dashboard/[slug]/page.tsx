@@ -58,8 +58,7 @@ export default async function DemoDashboardPage({ params }: DemoDashboardPagePro
           <div>
             <p className="text-sm font-medium text-muted">{todayKey}</p>
             <h1 className="mt-1 text-[clamp(1.75rem,3.5vw,2.5rem)] font-bold tracking-tight">
-              {/* Good morning, {business.name} */}
-              Good morning
+              Good morning, {business.name}
             </h1>
           </div>
           <div className="flex flex-wrap gap-2">
