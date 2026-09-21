@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 import Hero from "@/components/marketing/Hero";
+import DemoVideo from "@/components/marketing/DemoVideo";
 import HowItWorks from "@/components/marketing/HowItWorks";
 import BusinessTypes from "@/components/marketing/BusinessTypes";
 import FeaturedBusinesses from "@/components/marketing/FeaturedBusinesses";
@@ -30,6 +31,7 @@ export default function HomePage() {
       <TrackMarketingPageView />
       <main>
         <Hero />
+        <DemoVideo />
         <FeaturedBusinesses />
         <HowItWorks />
         <BusinessTypes />

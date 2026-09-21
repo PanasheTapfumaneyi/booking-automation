@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { whatsappUrl } from "@/lib/marketing-config";
 import { trackMarketingEvent } from "@/lib/marketing-analytics";
 
 const NAV_LINKS = [
+  { label: "Demo", href: "#demo" },
   { label: "Product", href: "#product" },
   { label: "Solutions", href: "#solutions" },
   { label: "Pricing", href: "#pricing" },
@@ -15,14 +16,28 @@ const NAV_LINKS = [
 
 export default function MarketingHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
   // Off the homepage the fragment targets don't exist, so link to the root.
   const anchorBase = pathname === "/" ? "" : "/";
 
   const wa = whatsappUrl();
 
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-paper/95 backdrop-blur-sm">
+    <header
+      className={`sticky top-0 z-30 border-b bg-paper/70 backdrop-blur-xl backdrop-saturate-150 transition-shadow duration-300 ease-out ${
+        scrolled
+          ? "border-line shadow-[0_8px_30px_rgba(7,30,43,0.08)]"
+          : "border-transparent shadow-none"
+      }`}
+    >
       <div className="mx-auto flex h-20 max-w-[1200px] items-center justify-between px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2.5">
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
@@ -80,7 +95,7 @@ export default function MarketingHeader() {
                 cta_label: "Get Started",
               })
             }
-            className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-[15px] font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
+            className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-[15px] font-semibold text-white transition-all duration-150 hover:bg-brand-hover active:scale-[0.97]"
           >
             Get Started
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">

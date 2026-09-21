@@ -14,7 +14,15 @@ export default function Hero() {
 
   return (
     <section className="relative overflow-hidden bg-paper">
-      <div className="mx-auto grid max-w-[1200px] gap-12 px-6 pb-16 pt-20 sm:pt-28 lg:grid-cols-[1fr_1.1fr] lg:items-center lg:pb-24 lg:pt-32">
+      {/* Ambient gradient wash — decorative, transform/opacity only */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+      >
+        <div className="absolute -top-32 left-1/2 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-gradient-to-br from-brand-soft via-aqua-soft to-blue-soft opacity-70 blur-3xl" />
+        <div className="absolute -bottom-40 -right-24 h-[320px] w-[420px] rounded-full bg-gradient-to-br from-blue-soft to-aqua-soft opacity-50 blur-3xl" />
+      </div>
+      <div className="relative mx-auto grid max-w-[1200px] gap-12 px-6 pb-16 pt-20 sm:pt-28 lg:grid-cols-[1fr_1.1fr] lg:items-center lg:pb-24 lg:pt-32">
         {/* Left — copy */}
         <div
           className={`transition-all duration-700 ease-out ${
@@ -43,25 +51,29 @@ export default function Hero() {
                   cta_label: "Start free for 1 month",
                 })
               }
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-7 py-3.5 text-base font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-7 py-3.5 text-base font-semibold text-white transition-all duration-150 hover:bg-brand-hover hover:shadow-[0_8px_24px_rgba(19,132,125,0.35)] active:scale-[0.97]"
             >
               Start free for 1 month
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                 <path d="M2 7H12M8 3L12 7L8 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </Link>
-            <Link
-              href="/demo"
+            <a
+              href="#demo"
               onClick={() =>
                 trackMarketingEvent("see_how_it_works_clicked", {
                   cta_location: "hero",
-                  cta_label: "See how it works",
+                  cta_label: "Watch the demo",
                 })
               }
-              className="inline-flex items-center justify-center rounded-lg border border-line bg-card px-7 py-3.5 text-base font-medium text-ink-soft transition-all duration-150 hover:border-line-strong hover:text-ink"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-card/80 px-7 py-3.5 text-base font-medium text-ink-soft backdrop-blur-sm transition-all duration-150 hover:border-line-strong hover:text-ink active:scale-[0.97]"
             >
-              See how it works
-            </Link>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M6.5 5.5L10.5 8L6.5 10.5V5.5Z" fill="currentColor" />
+              </svg>
+              Watch the demo
+            </a>
           </div>
           <p className="mt-4 text-sm text-muted">
             No setup fee &middot; First month free &middot; Then Rs 1,000/month
