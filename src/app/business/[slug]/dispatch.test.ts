@@ -34,11 +34,14 @@ describe("mode dispatch", () => {
     expect(page).toContain('business.booking_mode === "appointment"');
     expect(page).toContain("AppointmentStorefront");
     expect(page).toContain("getStorefrontBundle");
-    // The bundle fetch lives inside the appointment branch (never for
-    // resource/capacity): it must appear after the dispatch check.
+    // The bundle (gallery, team, DB reviews) loads BEFORE the mode
+    // dispatch so every mode — appointment, resource, capacity — renders
+    // the owner's configured content. A regression here silently hides
+    // gallery/team/reviews on non-appointment storefronts.
     const dispatchAt = page.indexOf('business.booking_mode === "appointment"');
     const bundleAt = page.indexOf("getStorefrontBundle(");
-    expect(bundleAt).toBeGreaterThan(dispatchAt);
+    expect(bundleAt).toBeGreaterThan(-1);
+    expect(bundleAt).toBeLessThan(dispatchAt);
   });
 
   it("resource and capacity keep their legacy render path", () => {
@@ -109,5 +112,30 @@ describe("reviews honesty", () => {
     expect(page).toContain("getDemoReviews(slug)");
     const composer = src("components/storefront-public/AppointmentStorefront.tsx");
     expect(composer).toContain("business.is_demo ? demoReviews : dbReviews");
+  });
+});
+
+describe("legacy storefront content parity", () => {
+  it("resource/capacity template renders gallery and team sections", () => {
+    const page = src("app/business/[slug]/page.tsx");
+    expect(page).toContain("StorefrontGallery");
+    expect(page).toContain("StorefrontTeam");
+    expect(page).toContain("galleryImages");
+    expect(page).toContain("teamMembers");
+  });
+
+  it("legacy reviews read owner-managed rows with the demo rule preserved", () => {
+    const page = src("app/business/[slug]/page.tsx");
+    expect(page).toContain("bundle.reviews");
+    expect(page).toContain("business.is_demo === true");
+  });
+
+  it("legacy gallery/team/reviews respect visibility flags and empty data", () => {
+    const page = src("app/business/[slug]/page.tsx");
+    expect(page).toContain("legacyVisible");
+    expect(page).toContain("resolveVisibleSections");
+    expect(page).toContain("legacyVisible.gallery");
+    expect(page).toContain("legacyVisible.team");
+    expect(page).toContain("legacyVisible.reviews");
   });
 });

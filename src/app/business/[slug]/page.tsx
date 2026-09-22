@@ -17,6 +17,9 @@ import { getBusinessSiteData } from "@/lib/server/public-site";
 import { getStorefrontBundle } from "@/lib/server/storefront";
 import { parseTheme, themeToCssVars } from "@/lib/server/business-theme";
 import AppointmentStorefront from "@/components/storefront-public/AppointmentStorefront";
+import StorefrontGallery from "@/components/storefront-public/StorefrontGallery";
+import StorefrontTeam from "@/components/storefront-public/StorefrontTeam";
+import { resolveVisibleSections } from "@/lib/storefront-public";
 import { minutesToLabel } from "@/lib/availability";
 import { formatPrice } from "@/lib/demo";
 import type { BusinessHours } from "@/lib/availability/hours";
@@ -115,7 +118,61 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   const tagline = business.tagline || MODE_TAGLINE[mode] || "Book online in under a minute.";
   const theme = parseTheme(business.theme_config);
   const cssVars = themeToCssVars(theme);
-  const reviews = getDemoReviews(slug);
+
+  // Storefront content (gallery, team, DB reviews) loads for EVERY mode.
+  // The appointment template and the legacy resource/capacity template
+  // both render from this bundle — a business must never lose its
+  // configured content because of its booking mode.
+  const bundle = await getStorefrontBundle(business.id, getSupabase()).catch(() => ({
+    storefront: null,
+    gallery: [],
+    team: [],
+    reviews: [],
+  }));
+
+  const galleryImages = bundle.gallery.map((image, index) => ({
+    src: image.image_url,
+    alt: image.alt_text || image.caption || `${business.name} photo ${index + 1}`,
+  }));
+  const teamMembers = bundle.team
+    .filter((member) => member.visible)
+    .map((member) => ({
+      name: member.name,
+      role: member.role,
+      bio: member.bio,
+      photoUrl: member.photo_url,
+    }));
+  // Demo tenants keep their showcase reviews; everyone else reads the
+  // owner-managed review rows (visible + with a body).
+  const reviews: Array<{ name: string; text: string; rating?: number }> =
+    business.is_demo === true
+      ? getDemoReviews(slug)
+      : bundle.reviews
+          .filter((review) => review.visible && review.body?.trim())
+          .map((review) => ({
+            name: review.reviewer_name?.trim() || "Guest",
+            text: (review.body as string).trim(),
+            rating: typeof review.rating === "number" ? review.rating : undefined,
+          }));
+
+  const storefrontFlags = bundle.storefront
+    ? {
+        showGallery: bundle.storefront.show_gallery,
+        showTeam: bundle.storefront.show_team,
+        showReviews: bundle.storefront.show_reviews,
+      }
+    : null;
+  const legacyVisible = resolveVisibleSections({
+    flags: storefrontFlags,
+    hasServices: services.length > 0,
+    galleryCount: galleryImages.length,
+    visibleTeamCount: teamMembers.length,
+    reviewCount: reviews.length,
+    hasAbout: Boolean(business.description?.trim()),
+    hasHours: hours !== null,
+    hasLocation: Boolean(business.address?.trim()) || business.latitude !== null,
+    socialCount: 0,
+  });
 
   // Structured data — only for non-demo businesses
   const localBusinessJsonLd =
@@ -157,12 +214,6 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   // only customizes — it never gates. Resource/capacity keep the
   // existing experience below, byte-for-byte.
   if (business.booking_mode === "appointment") {
-    const bundle = await getStorefrontBundle(business.id, getSupabase()).catch(() => ({
-      storefront: null,
-      gallery: [],
-      team: [],
-      reviews: [],
-    }));
     return (
       <>
         {localBusinessJsonLd && <JsonLdScript data={localBusinessJsonLd} />}
@@ -174,7 +225,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
             accent: theme.primary,
             bookHref,
             preview,
-            demoReviews: reviews,
+            demoReviews: getDemoReviews(slug),
             bundle,
           }}
         />
@@ -353,6 +404,12 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
           )}
         </section>
 
+        {legacyVisible.gallery && (
+          <StorefrontGallery businessName={business.name} images={galleryImages} />
+        )}
+
+        {legacyVisible.team && <StorefrontTeam members={teamMembers} />}
+
         {hours && (
           <section className="mx-auto max-w-[1200px] px-6 py-14 sm:py-16">
             <h2 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink">Opening hours</h2>
@@ -369,7 +426,9 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
           businessName={business.name}
         />
 
-        <ReviewsSection reviews={reviews} businessName={business.name} />
+        {legacyVisible.reviews && (
+          <ReviewsSection reviews={reviews} businessName={business.name} />
+        )}
 
         <ContactSection
           name={business.name}
