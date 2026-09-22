@@ -9,7 +9,6 @@ import { getSupabase } from "@/lib/supabase/server";
 import { fetchBusiness } from "@/lib/server/database";
 import { getSetupRequest } from "@/lib/server/onboarding";
 import { whatsappUrl } from "@/lib/marketing-config";
-import { PRICING } from "@/lib/marketing-config";
 
 export const dynamic = "force-dynamic";
 
@@ -92,7 +91,7 @@ export default async function SetupSuccessPage() {
           </p>
           <p className="mt-4 rounded-xl border border-line bg-card px-4 py-3 text-sm text-ink-soft">
             Your first month is free. No payment is required to get started —
-            {` ${PRICING.monthlyPrice}`} only after your trial.
+            plans from Rs 900/month only after your trial.
           </p>
         </div>
       </main>

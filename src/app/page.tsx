@@ -7,7 +7,7 @@ import HowItWorks from "@/components/marketing/HowItWorks";
 import BusinessTypes from "@/components/marketing/BusinessTypes";
 import FeaturedBusinesses from "@/components/marketing/FeaturedBusinesses";
 import ProductPreview from "@/components/marketing/ProductPreview";
-import Pricing from "@/components/marketing/Pricing";
+import PricingCards from "@/components/marketing/PricingCards";
 import WhyKivo from "@/components/marketing/WhyKivo";
 import FinalCTA from "@/components/marketing/FinalCTA";
 import { TrackMarketingPageView } from "@/components/marketing/TrackedLink";
@@ -98,7 +98,7 @@ export default function HomePage() {
         <HowItWorks />
         <BusinessTypes />
         <ProductPreview />
-        <Pricing />
+        <PricingCards />
         <WhyKivo />
         <FinalCTA />
       </main>

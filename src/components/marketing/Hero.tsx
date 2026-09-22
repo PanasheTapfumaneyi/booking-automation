@@ -77,7 +77,10 @@ export default function Hero() {
             </a>
           </div>
           <p className="mt-4 text-sm text-muted">
-            No setup fee &middot; First month free &middot; Then Rs 1,000/month
+            No setup fee &middot; First month free &middot;{" "}
+            <Link href="/pricing" className="underline decoration-muted/40 underline-offset-2 hover:decoration-muted">
+              Plans from Rs 900/month
+            </Link>
           </p>
           <ul className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted">
             {["No technical setup needed", "WhatsApp confirmations", "Support included"].map(

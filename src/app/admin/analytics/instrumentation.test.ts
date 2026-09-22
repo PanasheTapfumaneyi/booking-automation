@@ -28,7 +28,7 @@ describe("start_free_clicked locations", () => {
   it("header", () =>
     expectEmits("components/marketing/MarketingHeader.tsx", "start_free_clicked", "header"));
   it("pricing", () =>
-    expectEmits("components/marketing/Pricing.tsx", "start_free_clicked", "pricing"));
+    expectEmits("components/marketing/PricingCards.tsx", "start_free_clicked", "pricing"));
   it("final_cta", () =>
     expectEmits("components/marketing/FinalCTA.tsx", "start_free_clicked", "final_cta"));
   it("footer", () =>
@@ -42,7 +42,7 @@ describe("contact_clicked locations", () => {
     expect(content).toContain('contact_type: wa ? "whatsapp" : "section"');
   });
   it("pricing whatsapp", () =>
-    expectEmits("components/marketing/Pricing.tsx", "contact_clicked", "pricing"));
+    expectEmits("components/marketing/PricingCards.tsx", "contact_clicked", "pricing"));
   it("final_cta whatsapp", () =>
     expectEmits("components/marketing/FinalCTA.tsx", "contact_clicked", "final_cta"));
   it("footer whatsapp and phone", () => {
@@ -69,7 +69,7 @@ describe("featured business clicks", () => {
 
 describe("section views", () => {
   it("pricing fires once on view", () => {
-    const content = src("components/marketing/Pricing.tsx");
+    const content = src("components/marketing/PricingCards.tsx");
     expect(content).toContain("useViewedOnce");
     expect(content).toContain('"pricing_viewed"');
   });
@@ -143,7 +143,7 @@ describe("privacy guards in instrumentation", () => {
   it("no instrumented component sends raw form values", () => {
     for (const file of [
       "components/marketing/Hero.tsx",
-      "components/marketing/Pricing.tsx",
+      "components/marketing/PricingCards.tsx",
       "components/LoginForm.tsx",
       "components/onboarding/BasicsForm.tsx",
       "components/onboarding/ChoiceScreen.tsx",

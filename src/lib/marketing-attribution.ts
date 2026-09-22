@@ -20,6 +20,7 @@ export const MARKETING_EVENTS = [
   "contact_clicked",
   "signup_started",
   "signup_completed",
+  "plan_selected",
   "business_details_submitted",
   "setup_choice_viewed",
   "managed_setup_selected",

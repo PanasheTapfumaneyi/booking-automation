@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { whatsappUrl, telUrl, PRICING } from "@/lib/marketing-config";
+import { whatsappUrl, telUrl } from "@/lib/marketing-config";
 import { trackMarketingEvent } from "@/lib/marketing-analytics";
 
 export default function FinalCTA() {
@@ -37,7 +37,7 @@ export default function FinalCTA() {
                 Tell me how your business<br />handles bookings.
               </h2>
               <p className="mt-4 max-w-md text-base leading-relaxed text-white/70">
-                I&apos;ll set Kivo up for you. First month free, then {PRICING.monthlyPrice}.
+                I&apos;ll set Kivo up for you. First month free, then plans from Rs 900/month.
                 Setup, support and ongoing management included.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
