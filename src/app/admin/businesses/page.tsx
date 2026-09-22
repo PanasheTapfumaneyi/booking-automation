@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requirePlatformAdmin } from "@/lib/server/auth";
 import { getSupabase } from "@/lib/supabase/server";
 import TransferOwnerButton from "@/components/admin/TransferOwnerButton";
+import DuplicateBusinessButton from "@/components/admin/DuplicateBusinessButton";
 
 export const dynamic = "force-dynamic";
 
@@ -141,6 +142,10 @@ export default async function AdminBusinessesPage() {
                 </Link>
                 <TransferOwnerButton
                   businessId={biz.id}
+                />
+                <DuplicateBusinessButton
+                  businessId={biz.id}
+                  businessName={biz.name}
                 />
               </div>
             </li>
