@@ -29,12 +29,12 @@ export default function StorefrontStickyCta({
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-40 border-t border-line bg-card/95 px-4 pt-3 backdrop-blur-sm sm:hidden"
+      className="fixed bottom-0 left-0 right-0 z-40 border-t border-line bg-card/95 px-4 pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur-md sm:hidden"
       style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
     >
       <Link
         href={bookHref}
-        className="flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-base font-semibold text-white transition-opacity hover:opacity-90"
+        className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-base font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
         style={{ backgroundColor: accent }}
       >
         Book appointment

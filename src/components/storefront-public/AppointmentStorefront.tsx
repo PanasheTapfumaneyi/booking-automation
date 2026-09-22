@@ -204,7 +204,7 @@ export default function AppointmentStorefront({ data }: { data: AppointmentStore
   const amenities = storefront?.amenities ?? [];
 
   return (
-    <div id="top" className="min-h-screen bg-paper pb-24 text-ink sm:pb-0">
+    <div id="top" className="min-h-screen bg-paper pb-24 text-ink antialiased sm:pb-0">
       {preview && (
         <div role="status" className="border-b border-blue/30 bg-blue-mist">
           <p className="mx-auto max-w-6xl px-5 py-3 text-center text-sm">
@@ -244,12 +244,12 @@ export default function AppointmentStorefront({ data }: { data: AppointmentStore
         />
         {order.map((key) => sections[key] ?? null)}
         {amenities.length > 0 && (
-          <div className="mx-auto w-full max-w-4xl px-5 pb-14 sm:pb-20">
+          <div className="mx-auto w-full max-w-6xl px-5 pb-12 sm:pb-16">
             <ul aria-label="Amenities" className="flex flex-wrap gap-2">
               {amenities.map((amenity) => (
                 <li
                   key={amenity}
-                  className="rounded-full border border-line bg-card px-3.5 py-1.5 text-sm text-ink-soft"
+                  className="rounded-full border border-line bg-card px-3.5 py-1.5 text-sm text-ink-soft shadow-sm"
                 >
                   {amenity}
                 </li>

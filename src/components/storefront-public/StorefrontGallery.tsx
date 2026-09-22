@@ -18,10 +18,10 @@ export default function StorefrontGallery({
 
   return (
     <section id="gallery" aria-labelledby="gallery-title" className="scroll-mt-20">
-      <div className="mx-auto w-full max-w-6xl px-5 py-14 sm:py-20">
+      <div className="mx-auto w-full max-w-6xl px-5 py-12 sm:py-16">
         <h2
           id="gallery-title"
-          className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink"
+          className="text-2xl font-bold tracking-tight text-ink sm:text-[1.75rem]"
         >
           Gallery
         </h2>
@@ -33,7 +33,7 @@ export default function StorefrontGallery({
               onClick={() => setOpenIndex(index)}
               aria-label={`View photo ${index + 1} of ${images.length}`}
               className={[
-                "group relative block w-full overflow-hidden rounded-xl bg-surface-muted transition-transform duration-200 hover:scale-[1.01] sm:rounded-2xl",
+                "group relative block w-full overflow-hidden rounded-2xl bg-surface-muted shadow-sm ring-1 ring-line transition-all duration-200 hover:shadow hover:ring-line-strong sm:rounded-2xl",
                 index === 0
                   ? "aspect-[4/3] col-span-2 row-span-2 sm:aspect-auto sm:h-full sm:min-h-[320px]"
                   : "aspect-square",

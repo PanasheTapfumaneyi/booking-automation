@@ -12,7 +12,7 @@ export default function StorefrontFooter({
   bookHref: string;
 }) {
   return (
-    <footer className="border-t border-line/70">
+    <footer className="border-t border-line bg-card">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-5 py-8 text-sm text-ink-soft sm:flex-row sm:items-center sm:justify-between">
         <p>
           <span className="font-semibold text-ink">{businessName}</span>

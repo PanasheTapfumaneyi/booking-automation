@@ -27,10 +27,10 @@ export interface BusinessTheme {
 export const DEFAULT_THEME: BusinessTheme = {
   primary: "#13847D",
   accent: "#A67C00",
-  background: "#F7F4EE",
-  surface: "#FEFDFB",
-  foreground: "#101010",
-  muted: "#8B6E47",
+  background: "#F8FAFC",
+  surface: "#FFFFFF",
+  foreground: "#0F172A",
+  muted: "#475569",
 };
 
 /**

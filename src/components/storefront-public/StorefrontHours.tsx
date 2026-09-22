@@ -27,23 +27,25 @@ export default function StorefrontHours({
 }) {
   return (
     <section id="hours" aria-labelledby="hours-title" className="scroll-mt-20">
-      <div className="mx-auto w-full max-w-4xl px-5 py-14 sm:py-20">
-        <h2
-          id="hours-title"
-          className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink"
-        >
-          Opening hours
-        </h2>
-        {status && (
-          <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-card px-3.5 py-1.5 text-sm font-medium text-ink-soft">
-            <span
-              aria-hidden="true"
-              className={`inline-block h-2 w-2 rounded-full ${status.open ? "bg-green-600" : "bg-ink-soft/50"}`}
-            />
-            {status.label}
-          </p>
-        )}
-        <dl className="mt-6 max-w-2xl">
+      <div className="mx-auto w-full max-w-6xl px-5 py-12 sm:py-16">
+        <div className="max-w-2xl">
+          <h2
+            id="hours-title"
+            className="text-2xl font-bold tracking-tight text-ink sm:text-[1.75rem]"
+          >
+            Opening hours
+          </h2>
+          {status && (
+            <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-line bg-card px-3.5 py-1.5 text-sm font-medium text-ink-soft shadow-sm">
+              <span
+                aria-hidden="true"
+                className={`inline-block h-2 w-2 rounded-full ${status.open ? "bg-green-600" : "bg-slate-400"}`}
+              />
+              {status.label}
+            </p>
+          )}
+        </div>
+        <dl className="mt-6 max-w-2xl overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
           {WEEKDAYS.map((day, index) => {
             const entry = (hours as Record<string, { open: string; close: string } | null>)[day.key];
             const isToday = index === todayIndex;
@@ -51,11 +53,12 @@ export default function StorefrontHours({
               <div
                 key={day.key}
                 className={[
-                  "flex items-center justify-between gap-4 border-b border-line/70 px-1 py-3",
-                  isToday ? "font-semibold" : "",
+                  "flex items-center justify-between gap-4 px-5 py-3.5",
+                  index > 0 ? "border-t border-line" : "",
+                  isToday ? "bg-surface-muted/70 font-semibold" : "",
                 ].join(" ")}
               >
-                <dt className="flex items-center gap-2 text-ink">
+                <dt className="flex items-center gap-2 text-[15px] text-ink">
                   {day.label}
                   {isToday && (
                     <span className="rounded-full bg-blue-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-blue-strong">
@@ -63,7 +66,7 @@ export default function StorefrontHours({
                     </span>
                   )}
                 </dt>
-                <dd className="tabular-nums text-ink-soft">
+                <dd className="text-[15px] tabular-nums text-ink-soft">
                   {entry ? `${formatHourLabel(entry.open)} – ${formatHourLabel(entry.close)}` : "Closed"}
                 </dd>
               </div>

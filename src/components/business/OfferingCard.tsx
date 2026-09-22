@@ -28,9 +28,9 @@ export default function OfferingCard({
   const hasImage = Boolean(imageUrl);
 
   return (
-    <div className="flex flex-col rounded-2xl border border-line bg-card transition-all duration-150 hover:border-line-strong">
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-sm transition-all duration-150 hover:border-line-strong hover:shadow">
       {hasImage ? (
-        <div className="relative aspect-video overflow-hidden rounded-t-2xl">
+        <div className="relative aspect-video overflow-hidden">
           <img
             src={imageUrl!}
             alt={name}
@@ -40,7 +40,7 @@ export default function OfferingCard({
           />
         </div>
       ) : (
-        <div className="flex aspect-video items-center justify-center rounded-t-2xl bg-surface-muted">
+        <div className="flex aspect-video items-center justify-center bg-surface-muted">
           <svg
             width="32"
             height="32"
@@ -57,13 +57,13 @@ export default function OfferingCard({
       )}
 
       <div className="flex flex-1 flex-col p-5">
-        <h3 className="text-lg font-bold text-ink">{name}</h3>
+        <h3 className="text-[17px] font-semibold leading-snug text-ink">{name}</h3>
 
         {description && (
-          <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">{description}</p>
+          <p className="mt-1.5 line-clamp-2 text-[15px] leading-relaxed text-ink-soft">{description}</p>
         )}
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-muted">
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium tabular-nums text-ink-soft">
           {duration && <span>{duration}</span>}
           {price && <span className="text-base font-bold tabular-nums text-ink">{price}</span>}
           {capacity && (
@@ -78,13 +78,13 @@ export default function OfferingCard({
 
         <div className="mt-auto pt-4">
           {capacity && capacity.remaining <= 0 ? (
-            <span className="inline-flex cursor-not-allowed items-center justify-center rounded-lg bg-surface-muted px-5 py-2.5 text-sm font-semibold text-muted">
+            <span className="inline-flex w-full cursor-not-allowed items-center justify-center rounded-xl bg-surface-muted px-5 py-2.5 text-sm font-semibold text-muted">
               Full
             </span>
           ) : (
             <Link
               href={bookHref}
-              className="inline-flex items-center justify-center rounded-lg px-5 py-2.5 text-sm font-semibold text-white transition-all duration-150 hover:opacity-90"
+              className="inline-flex w-full items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:opacity-90 hover:shadow"
               style={{ backgroundColor: theme.primary }}
             >
               {ctaLabel}

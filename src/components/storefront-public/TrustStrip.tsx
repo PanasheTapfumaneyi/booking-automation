@@ -59,7 +59,7 @@ export default function TrustStrip({
   if (shown.length === 0) return null;
 
   return (
-    <div className="border-y border-line/70 bg-card/60">
+    <div className="border-y border-line bg-card">
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-8 gap-y-2 px-5 py-3.5 text-sm text-ink-soft">
         {shown.map((signal) => (
           <span key={signal.key}>{signal.node}</span>

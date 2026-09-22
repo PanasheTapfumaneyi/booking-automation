@@ -54,27 +54,26 @@ export default function BusinessHero({
         </div>
       )}
 
-      <div className="relative z-10 mx-auto max-w-[1200px] px-6 py-20 sm:py-28">
+      <div className="relative z-10 mx-auto max-w-6xl px-5 py-16 sm:py-20">
         <div className={hasCover ? "max-w-2xl text-white" : "max-w-2xl"}>
           {logoUrl && (
             <img
               src={logoUrl}
               alt={`${name} logo`}
               decoding="async"
-              className="mb-5 h-16 w-16 rounded-xl object-contain bg-white/90 p-1.5 shadow-sm"
+              className="mb-5 h-16 w-16 rounded-2xl bg-white object-contain p-1.5 shadow-sm ring-1 ring-black/10"
             />
           )}
 
-          <p
-            className="text-sm font-semibold uppercase tracking-[0.18em]"
-            style={hasCover ? { color: "rgba(255,255,255,0.85)" } : { color: theme.primary }}
+          <p className="inline-flex items-center rounded-full border px-3 py-1 text-[13px] font-semibold"
+            style={hasCover ? { color: "rgba(255,255,255,0.92)", borderColor: "rgba(255,255,255,0.35)", backgroundColor: "rgba(255,255,255,0.12)" } : { color: theme.primary, borderColor: "#E2E8F0", backgroundColor: "#FFFFFF" }}
           >
             {displayMode}
           </p>
 
           <h1
             className={[
-              "mt-4 text-[clamp(2rem,4.5vw,3.25rem)] font-bold leading-[1.05] tracking-tight",
+              "mt-4 text-[clamp(2rem,4.5vw,3.25rem)] font-bold leading-[1.05] tracking-tight text-balance",
               hasCover ? "text-white" : "text-ink",
             ].join(" ")}
           >
@@ -84,7 +83,7 @@ export default function BusinessHero({
           {tagline && (
             <p
               className={[
-                "mt-4 text-lg leading-relaxed",
+                "mt-4 max-w-xl text-[17px] leading-relaxed",
                 hasCover ? "text-white/85" : "text-ink-soft",
               ].join(" ")}
             >
@@ -95,7 +94,7 @@ export default function BusinessHero({
           <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
               href={bookHref}
-              className="inline-flex items-center justify-center gap-2 rounded-lg px-7 py-3.5 text-base font-semibold text-white transition-all duration-150 hover:opacity-90"
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-base font-semibold text-white shadow-sm transition-all duration-150 hover:opacity-90 hover:shadow"
               style={{ backgroundColor: theme.primary }}
             >
               Book now
@@ -108,12 +107,11 @@ export default function BusinessHero({
               <a
                 href={`tel:${phone.replace(/\s+/g, "")}`}
                 className={[
-                  "inline-flex items-center justify-center rounded-lg border px-7 py-3.5 text-base font-medium transition-all duration-150",
+                  "inline-flex items-center justify-center rounded-xl border px-7 py-3.5 text-base font-semibold shadow-sm transition-all duration-150 hover:shadow",
                   hasCover
-                    ? "border-white/40 text-white hover:border-white/70 hover:text-white"
-                    : "border-line text-ink-soft hover:border-line-strong hover:text-ink",
+                    ? "border-white/40 bg-white/10 text-white backdrop-blur-sm hover:border-white/70"
+                    : "border-line bg-card text-ink hover:border-line-strong",
                 ].join(" ")}
-                style={!hasCover ? { backgroundColor: theme.surface } : undefined}
               >
                 {phone}
               </a>

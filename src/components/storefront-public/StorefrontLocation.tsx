@@ -33,17 +33,17 @@ export default function StorefrontLocation({
 
   return (
     <section id="location" aria-labelledby="location-title" className="scroll-mt-20">
-      <div className="mx-auto w-full max-w-6xl px-5 py-14 sm:py-20">
+      <div className="mx-auto w-full max-w-6xl px-5 py-12 sm:py-16">
         <h2
           id="location-title"
-          className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink"
+          className="text-2xl font-bold tracking-tight text-ink sm:text-[1.75rem]"
         >
           Visit us
         </h2>
-        <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_1.4fr] lg:items-start">
+        <div className="mt-8 grid gap-6 overflow-hidden rounded-2xl border border-line bg-card p-6 shadow-sm sm:p-8 lg:grid-cols-[1fr_1.4fr] lg:items-start">
           <div className="min-w-0">
             {address && (
-              <p className="max-w-md text-lg leading-relaxed text-ink-soft">{address}</p>
+              <p className="max-w-md text-[16px] leading-relaxed text-ink">{address}</p>
             )}
             <div className="mt-5 flex flex-col items-start gap-2.5">
               {mapLinkUrl && (
@@ -63,7 +63,7 @@ export default function StorefrontLocation({
               {phone && (
                 <a
                   href={`tel:${phone.replace(/[^+\d]/g, "")}`}
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-line bg-card px-5 py-2 text-sm font-semibold text-ink transition-colors hover:border-line-strong"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-line bg-card px-5 py-2 text-sm font-semibold text-ink shadow-sm transition-all hover:border-line-strong hover:shadow"
                 >
                   <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                     <path d="M3 2h3l1.5 4-2 1.5c.8 1.7 2 2.9 3.7 3.7L10.5 9l4 1.5v3c0 .6-.4 1-1 1C7.6 14.5 1.5 8.4 1.5 2.5c0-.3.7-.5 1.5-.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
@@ -74,7 +74,7 @@ export default function StorefrontLocation({
               {email && (
                 <a
                   href={`mailto:${email}`}
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-line bg-card px-5 py-2 text-sm font-semibold text-ink transition-colors hover:border-line-strong"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-line bg-card px-5 py-2 text-sm font-semibold text-ink shadow-sm transition-all hover:border-line-strong hover:shadow"
                 >
                   <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                     <rect x="1.5" y="3" width="13" height="10" rx="2" stroke="currentColor" strokeWidth="1.3" />
@@ -89,7 +89,7 @@ export default function StorefrontLocation({
             </div>
           </div>
           {mapEmbedUrl && (
-            <div className="overflow-hidden rounded-2xl border border-line">
+            <div className="overflow-hidden rounded-xl border border-line shadow-sm">
               <iframe
                 title={`Map of ${businessName}`}
                 src={mapEmbedUrl}

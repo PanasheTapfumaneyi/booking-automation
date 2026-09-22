@@ -238,7 +238,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-paper text-ink pb-16 sm:pb-0" style={cssVars}>
+    <div className="min-h-screen bg-paper text-ink antialiased pb-16 sm:pb-0" style={cssVars}>
       {localBusinessJsonLd && <JsonLdScript data={localBusinessJsonLd} />}
       <main className="flex-1">
         {preview && (
@@ -263,16 +263,18 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         />
 
         {business.description && (
-          <section className="mx-auto max-w-[1200px] px-6 py-14 sm:py-16">
-            <h2 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink">About</h2>
-            <p className="mt-4 max-w-2xl text-lg leading-relaxed text-ink-soft whitespace-pre-line">
-              {business.description}
-            </p>
+          <section className="mx-auto max-w-6xl px-5 py-12 sm:py-16">
+            <div className="rounded-2xl border border-line bg-card p-6 shadow-sm sm:p-8">
+              <h2 className="text-2xl font-bold tracking-tight text-ink">About</h2>
+              <p className="mt-4 max-w-3xl whitespace-pre-line text-[16px] leading-relaxed text-ink-soft">
+                {business.description}
+              </p>
+            </div>
           </section>
         )}
 
-        <section className="mx-auto max-w-[1200px] px-6 py-14 sm:py-20">
-          <h2 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink">
+        <section className="mx-auto max-w-6xl px-5 py-12 sm:py-16">
+          <h2 className="text-2xl font-bold tracking-tight text-ink sm:text-[1.75rem]">
             {mode === "appointment" && "Services"}
             {mode === "resource" && (isUnitRatedFleet(resources) ? "The fleet" : "Available to reserve")}
             {mode === "capacity" && "Upcoming sessions"}
@@ -322,9 +324,9 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
                     return (
                       <div
                         key={r.id}
-                        className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-card"
+                        className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-sm transition-all hover:border-line-strong hover:shadow"
                       >
-                        <div className="relative aspect-[16/10] w-full bg-ink/5">
+                        <div className="relative aspect-[16/10] w-full bg-surface-muted">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={r.image_url ?? undefined}
@@ -373,7 +375,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
                           </div>
                           <Link
                             href={`${bookHref}?vehicle=${encodeURIComponent(r.id)}`}
-                            className="mt-5 inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-all duration-150 hover:bg-brand-hover"
+                            className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-brand-hover hover:shadow"
                           >
                             Rent this car
                           </Link>
@@ -439,8 +441,8 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         {legacyVisible.team && <StorefrontTeam members={teamMembers} />}
 
         {hours && (
-          <section className="mx-auto max-w-[1200px] px-6 py-14 sm:py-16">
-            <h2 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink">Opening hours</h2>
+          <section className="mx-auto max-w-6xl px-5 py-12 sm:py-16">
+            <h2 className="text-2xl font-bold tracking-tight text-ink">Opening hours</h2>
             <div className="mt-6">
               <OpeningHours hours={hours} timezone={business.timezone} />
             </div>

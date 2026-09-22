@@ -1,6 +1,6 @@
 /**
- * Editorial about block: constrained reading width, never a full-width
- * wall of text. Renders nothing without a description (caller guarantees).
+ * About block: constrained reading width inside a bordered card.
+ * Renders nothing without a description (caller guarantees).
  */
 export default function StorefrontAbout({
   businessName,
@@ -11,16 +11,18 @@ export default function StorefrontAbout({
 }) {
   return (
     <section id="about" aria-labelledby="about-title" className="scroll-mt-20">
-      <div className="mx-auto w-full max-w-4xl px-5 py-14 sm:py-20">
-        <h2
-          id="about-title"
-          className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-ink"
-        >
-          About {businessName}
-        </h2>
-        <p className="mt-6 max-w-2xl whitespace-pre-line text-lg leading-relaxed text-ink-soft">
-          {description}
-        </p>
+      <div className="mx-auto w-full max-w-6xl px-5 py-12 sm:py-16">
+        <div className="rounded-2xl border border-line bg-card p-6 shadow-sm sm:p-8">
+          <h2
+            id="about-title"
+            className="text-2xl font-bold tracking-tight text-ink sm:text-[1.75rem]"
+          >
+            About {businessName}
+          </h2>
+          <p className="mt-4 max-w-3xl whitespace-pre-line text-[16px] leading-relaxed text-ink-soft">
+            {description}
+          </p>
+        </div>
       </div>
     </section>
   );
