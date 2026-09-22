@@ -9,9 +9,13 @@
 import { describe, it, expect } from "vitest";
 import {
   readUnitRate,
+  readWeeklyRate,
+  readMonthlyRate,
   hasUnitRate,
   rentalDays,
+  breakdownRentalTotal,
   computeResourceTotal,
+  formatBreakdown,
   formatMauritianRupees,
 } from "./resource-pricing";
 
@@ -82,6 +86,100 @@ describe("computeResourceTotal", () => {
 
   it("never produces fractional rupees", () => {
     expect(computeResourceTotal({ metadata: { rate: 999.99 }, startTime: OCT_14, endTime: OCT_15, fallbackPrice: 1 })).toBe(999.99);
+  });
+});
+
+describe("readWeeklyRate / readMonthlyRate", () => {
+  it("reads numeric period rates from metadata", () => {
+    expect(readWeeklyRate({ weekly_rate: 8000 })).toBe(8000);
+    expect(readWeeklyRate({ weekly_rate: 0 })).toBe(0);
+    expect(readMonthlyRate({ monthly_rate: 30000 })).toBe(30000);
+  });
+
+  it("returns null for missing, non-numeric and non-finite values", () => {
+    expect(readWeeklyRate({})).toBeNull();
+    expect(readWeeklyRate({ weekly_rate: "8000" })).toBeNull();
+    expect(readWeeklyRate({ weekly_rate: Infinity })).toBeNull();
+    expect(readWeeklyRate(null)).toBeNull();
+    expect(readMonthlyRate({ monthly_rate: null })).toBeNull();
+    expect(readMonthlyRate(undefined)).toBeNull();
+  });
+});
+
+describe("breakdownRentalTotal", () => {
+  it("bills short stays at the daily rate", () => {
+    expect(
+      breakdownRentalTotal(3, { daily: 1400, weekly: 8000, monthly: 30000 }),
+    ).toEqual({ months: 0, weeks: 0, days: 3, total: 4200 });
+  });
+
+  it("breaks 10 days into 1 week + 3 days", () => {
+    expect(
+      breakdownRentalTotal(10, { daily: 1400, weekly: 8000, monthly: 30000 }),
+    ).toEqual({ months: 0, weeks: 1, days: 3, total: 12200 });
+  });
+
+  it("breaks 37 days into 1 month + 1 week + 0 days", () => {
+    expect(
+      breakdownRentalTotal(37, { daily: 1400, weekly: 8000, monthly: 30000 }),
+    ).toEqual({ months: 1, weeks: 1, days: 0, total: 38000 });
+  });
+
+  it("skips unset tiers and bills the remainder daily", () => {
+    expect(breakdownRentalTotal(10, { daily: 1400, weekly: null, monthly: null })).toEqual({
+      months: 0,
+      weeks: 0,
+      days: 10,
+      total: 14000,
+    });
+    expect(breakdownRentalTotal(10, { daily: 1400, weekly: 8000, monthly: null })).toEqual({
+      months: 0,
+      weeks: 1,
+      days: 3,
+      total: 12200,
+    });
+  });
+
+  it("ignores tiers larger than the stay", () => {
+    expect(
+      breakdownRentalTotal(5, { daily: 1400, weekly: 8000, monthly: 30000 }),
+    ).toEqual({ months: 0, weeks: 0, days: 5, total: 7000 });
+  });
+});
+
+describe("computeResourceTotal with period tiers", () => {
+  const meta = { rate: 1400, weekly_rate: 8000, monthly_rate: 30000 };
+  const at = (start: string, days: number) =>
+    new Date(Date.parse(start) + days * 86_400_000).toISOString();
+
+  it("uses the weekly tier for a 10-day stay", () => {
+    expect(
+      computeResourceTotal({ metadata: meta, startTime: OCT_14, endTime: at(OCT_14, 10), fallbackPrice: 1000 }),
+    ).toBe(12200);
+  });
+
+  it("uses the monthly tier for a 35-day stay", () => {
+    expect(
+      computeResourceTotal({ metadata: meta, startTime: OCT_14, endTime: at(OCT_14, 35), fallbackPrice: 1000 }),
+    ).toBe(30000 + 7000);
+  });
+
+  it("behaves exactly as before with daily rate only", () => {
+    expect(
+      computeResourceTotal({ metadata: { rate: 1400 }, startTime: OCT_14, endTime: at(OCT_14, 10), fallbackPrice: 1000 }),
+    ).toBe(14000);
+  });
+});
+
+describe("formatBreakdown", () => {
+  it("formats months, weeks and days", () => {
+    expect(formatBreakdown({ months: 1, weeks: 1, days: 3, total: 0 })).toBe("1 mo + 1 wk + 3 days");
+    expect(formatBreakdown({ months: 0, weeks: 0, days: 1, total: 0 })).toBe("1 day");
+    expect(formatBreakdown({ months: 0, weeks: 2, days: 0, total: 0 })).toBe("2 wk");
+  });
+
+  it("returns an empty string for a flat stay", () => {
+    expect(formatBreakdown({ months: 0, weeks: 0, days: 0, total: 0 })).toBe("");
   });
 });
 

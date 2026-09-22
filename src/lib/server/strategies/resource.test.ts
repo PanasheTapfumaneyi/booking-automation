@@ -318,10 +318,10 @@ describe("resource availability — plain payload", () => {
 });
 
 describe("isUnitRatedCollection", () => {
-  it("is true only when every resource carries a per-day rate", () => {
+  it("is true when at least one resource carries a per-day rate", () => {
     expect(isUnitRatedCollection([resourceRow("a", "Vitz", 1400), resourceRow("b", "Swift", 1600)])).toBe(true);
     expect(isUnitRatedCollection([resourceRow("a", "Vitz")])).toBe(false);
-    expect(isUnitRatedCollection([resourceRow("a", "Vitz", 1400), resourceRow("b", "Swift")])).toBe(false);
+    expect(isUnitRatedCollection([resourceRow("a", "Vitz", 1400), resourceRow("b", "Swift")])).toBe(true);
     expect(isUnitRatedCollection([])).toBe(false);
   });
 });

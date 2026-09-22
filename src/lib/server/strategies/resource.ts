@@ -34,6 +34,8 @@ export interface ResourceSummary {
   active: boolean;
   /** Public photo shown on the item/vehicle card (null when unset). */
   imageUrl?: string | null;
+  /** Extra listing photos (cover stays in imageUrl). */
+  images?: string[];
   /** Generic per-resource metadata (vehicle specs, per-day rate, …). */
   metadata?: Record<string, unknown>;
   /**
@@ -101,7 +103,7 @@ export async function resourceAvailability(params: {
 
   const { data, error } = await getSupabase()
     .from("resources")
-    .select("id, business_id, name, description, resource_type, active, image_url, metadata")
+    .select("id, business_id, name, description, resource_type, active, image_url, images, metadata")
     .eq("business_id", business.id)
     .eq("active", true);
 
@@ -148,7 +150,7 @@ export async function resourceIntervalAvailability(params: {
   const [{ data, error }, blocks] = await Promise.all([
     getSupabase()
       .from("resources")
-      .select("id, business_id, name, description, resource_type, active, image_url, metadata")
+      .select("id, business_id, name, description, resource_type, active, image_url, images, metadata")
       .eq("business_id", business.id)
       .eq("active", true),
     fetchResourceBlocks({
@@ -192,9 +194,13 @@ function toResourceSummary(resource: {
   resource_type: unknown;
   active: unknown;
   image_url: unknown;
+  images?: unknown;
   metadata: unknown;
 }): ResourceSummary {
   const metadata = (resource.metadata ?? {}) as Record<string, unknown>;
+  const images = Array.isArray(resource.images)
+    ? (resource.images as unknown[]).filter((u): u is string => typeof u === "string")
+    : [];
   return {
     id: resource.id as string,
     name: resource.name as string,
@@ -202,6 +208,7 @@ function toResourceSummary(resource: {
     resourceType: resource.resource_type as string,
     active: resource.active as boolean,
     imageUrl: (resource.image_url as string | null) ?? null,
+    images,
     metadata,
   };
 }
@@ -209,11 +216,12 @@ function toResourceSummary(resource: {
 /**
  * Whether a business should present its resource flow as a rental (fleet grid
  * + interval search) rather than the plain "pick an item" flow. Driven by the
- * generic unit-rate metadata, never by slug or demo flag, so any business with
- * day-priced resources gets the rental experience.
+ * generic unit-rate metadata, never by slug or demo flag: any business with
+ * at least one day-priced resource gets the rental experience, and unpriced
+ * items render a per-car fallback instead of demoting the collection.
  */
 export function isUnitRatedCollection(resources: ResourceRow[]): boolean {
-  return resources.length > 0 && resources.every((r) => hasUnitRate(r.metadata));
+  return resources.length > 0 && resources.some((r) => hasUnitRate(r.metadata));
 }
 
 /** Convenience total for a resource booking (used by calendar/notification). */

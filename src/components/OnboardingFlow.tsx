@@ -110,6 +110,8 @@ export default function OnboardingFlow({
   const [duration, setDuration] = useState("45");
   const [price, setPrice] = useState("500");
   const [resourceName, setResourceName] = useState("");
+  const [weeklyPrice, setWeeklyPrice] = useState("");
+  const [monthlyPrice, setMonthlyPrice] = useState("");
   const [sessionDate, setSessionDate] = useState("");
   const [sessionTime, setSessionTime] = useState("09:00");
   const [capacity, setCapacity] = useState("10");
@@ -161,14 +163,16 @@ export default function OnboardingFlow({
           price: Number(price || 0),
         });
       } else if (mode === "resource") {
-        const service = (await postJson(`/api/businesses/${businessId}/services`, {
+        await postJson(`/api/businesses/${businessId}/services`, {
           name: `${serviceName || "Booking"} service`,
           duration_minutes: 60,
-          price: Number(price || 0),
-        })) as { service?: { id: string } } | null;
-        void service;
+          price: 0,
+        });
         await postJson(`/api/businesses/${businessId}/resources`, {
           name: resourceName,
+          daily_rate: price.trim() === "" ? null : Number(price),
+          weekly_rate: weeklyPrice.trim() === "" ? null : Number(weeklyPrice),
+          monthly_rate: monthlyPrice.trim() === "" ? null : Number(monthlyPrice),
         });
       } else {
         const created = (await postJson(`/api/businesses/${businessId}/services`, {
@@ -368,10 +372,22 @@ export default function OnboardingFlow({
               </>
             )}
             {mode === "resource" && (
-              <label className="flex flex-col gap-1.5 text-sm font-medium">
-                Booking price (Rs) <span className="text-xs font-normal text-ink-soft">Charged per rental.</span>
-                <input value={price} onChange={(e) => setPrice(e.target.value)} disabled={busy} inputMode="decimal" className={inputClass} />
-              </label>
+              <>
+                <label className="flex flex-col gap-1.5 text-sm font-medium">
+                  Daily rate (Rs) <span className="text-xs font-normal text-ink-soft">What one day costs. You can add weekly and monthly deals later.</span>
+                  <input value={price} onChange={(e) => setPrice(e.target.value)} disabled={busy} inputMode="decimal" className={inputClass} placeholder="1400" />
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="flex flex-col gap-1.5 text-sm font-medium">
+                    Weekly rate (Rs, optional)
+                    <input value={weeklyPrice} onChange={(e) => setWeeklyPrice(e.target.value)} disabled={busy} inputMode="decimal" className={inputClass} placeholder="8000" />
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-sm font-medium">
+                    Monthly rate (Rs, optional)
+                    <input value={monthlyPrice} onChange={(e) => setMonthlyPrice(e.target.value)} disabled={busy} inputMode="decimal" className={inputClass} placeholder="30000" />
+                  </label>
+                </div>
+              </>
             )}
             {mode === "capacity" && (
               <div className="grid grid-cols-2 gap-4">

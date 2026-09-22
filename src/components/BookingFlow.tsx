@@ -27,10 +27,15 @@ import {
 } from "@/lib/rental-flow";
 import {
   readUnitRate,
+  readWeeklyRate,
+  readMonthlyRate,
   rentalDays,
   computeResourceTotal,
+  breakdownRentalTotal,
+  formatBreakdown,
   formatMauritianRupees,
 } from "@/lib/resource-pricing";
+import GalleryLightbox from "@/components/storefront-public/GalleryLightbox";
 import ServiceCard from "@/components/ServiceCard";
 import { ServiceListSkeleton, SlowNotice } from "@/components/LoadingState";
 import BookingCalendar from "@/components/BookingCalendar";
@@ -191,6 +196,9 @@ export default function BookingFlow({
   const [rentalResults, setRentalResults] = useState<ResourceAvailability | null>(null);
   const [rentalLoading, setRentalLoading] = useState(false);
   const [preselectedUsed, setPreselectedUsed] = useState(false);
+  const [lightbox, setLightbox] = useState<{
+    images: Array<{ src: string; alt: string }>;
+  } | null>(null);
   // Service deep-link guard: a ref (not state) so consuming it never
   // retriggers the catalog fetch.
   const servicePreselectedRef = useRef(false);
@@ -270,6 +278,7 @@ export default function BookingFlow({
             description: string | null;
             resource_type: string;
             image_url: string | null;
+            images: string[] | null;
             metadata: Record<string, unknown> | null;
           }>;
           sessions: Array<{
@@ -310,6 +319,9 @@ export default function BookingFlow({
             resourceType: r.resource_type,
             active: true,
             imageUrl: r.image_url ?? null,
+            images: Array.isArray(r.images)
+              ? r.images.filter((u): u is string => typeof u === "string")
+              : [],
             metadata: (r.metadata ?? {}) as Record<string, unknown>,
           })),
           sessions: data.sessions.map((s) => ({
@@ -589,6 +601,7 @@ export default function BookingFlow({
               resourceType: matched.resourceType,
               active: true,
               imageUrl: matched.imageUrl,
+              images: matched.images ?? [],
               metadata: matched.metadata,
             });
             setPreselectedUsed(true);
@@ -970,11 +983,27 @@ export default function BookingFlow({
               <div className="mt-6 grid gap-4">
                 {rentalResults.resources.map((vehicle) => {
                   const rate = readUnitRate(vehicle.metadata);
+                  const weekly = readWeeklyRate(vehicle.metadata);
+                  const monthly = readMonthlyRate(vehicle.metadata);
                   const days = rentalDays(rentalRange.startIso, rentalRange.endIso);
-                  const total =
-                    rate && rate > 0
-                      ? formatMauritianRupees(rate * days)
-                      : formatMauritianRupees(service!.price);
+                  const priced = rate !== null;
+                  const total = formatMauritianRupees(
+                    computeResourceTotal({
+                      metadata: vehicle.metadata ?? {},
+                      startTime: rentalRange.startIso,
+                      endTime: rentalRange.endIso,
+                      fallbackPrice: service!.price,
+                    }),
+                  );
+                  const breakdown = priced
+                    ? formatBreakdown(
+                        breakdownRentalTotal(days, {
+                          daily: rate,
+                          weekly,
+                          monthly,
+                        }),
+                      )
+                    : "";
                   const available = vehicle.available !== false;
                   const specs = vehicle.metadata ?? {};
                   const seats = typeof specs.seats === "number" ? specs.seats : 5;
@@ -983,35 +1012,50 @@ export default function BookingFlow({
                     typeof specs.transmission === "string" ? specs.transmission : "Automatic";
                   const category =
                     typeof specs.category === "string" ? specs.category : "Car";
+                  const photos: string[] = [];
+                  if (vehicle.imageUrl) photos.push(vehicle.imageUrl);
+                  for (const url of vehicle.images ?? []) {
+                    if (typeof url === "string" && !photos.includes(url)) photos.push(url);
+                  }
+                  const selectVehicle = () => {
+                    if (!available) return;
+                    handleSelectRentalResource({
+                      id: vehicle.id,
+                      businessId: catalog!.business.id,
+                      name: vehicle.name,
+                      description: vehicle.description ?? "",
+                      resourceType: vehicle.resourceType,
+                      active: true,
+                      imageUrl: vehicle.imageUrl ?? null,
+                      images: vehicle.images ?? [],
+                      metadata: vehicle.metadata ?? {},
+                    });
+                  };
                   return (
-                    <button
+                    <div
                       key={vehicle.id}
-                      type="button"
-                      disabled={!available}
-                      onClick={() =>
-                        handleSelectRentalResource({
-                          id: vehicle.id,
-                          businessId: catalog!.business.id,
-                          name: vehicle.name,
-                          description: vehicle.description ?? "",
-                          resourceType: vehicle.resourceType,
-                          active: true,
-                          imageUrl: vehicle.imageUrl ?? null,
-                          metadata: vehicle.metadata ?? {},
-                        })
+                      role="button"
+                      tabIndex={available ? 0 : -1}
+                      aria-disabled={!available}
+                      onClick={selectVehicle}
+                      onKeyDown={(event) => {
+                        if (available && (event.key === "Enter" || event.key === " ")) {
+                          event.preventDefault();
+                          selectVehicle();
                         }
+                      }}
                       className={[
                         "w-full overflow-hidden rounded-xl border text-left transition-colors",
                         available
-                          ? "border-line bg-card hover:border-blue/60"
+                          ? "cursor-pointer border-line bg-card hover:border-blue/60"
                           : "border-line bg-card opacity-55",
                       ].join(" ")}
                     >
                       <div className="relative aspect-[16/8] w-full bg-ink/5">
-                        {vehicle.imageUrl ? (
+                        {photos.length > 0 ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={vehicle.imageUrl}
+                            src={photos[0]}
                             alt={vehicle.name}
                             className="h-full w-full object-cover"
                           />
@@ -1028,6 +1072,21 @@ export default function BookingFlow({
                         >
                           {available ? "Available" : "Unavailable"}
                         </span>
+                        {photos.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setLightbox({
+                                images: photos.map((src) => ({ src, alt: vehicle.name })),
+                              });
+                            }}
+                            aria-label={`View ${photos.length} photos of ${vehicle.name}`}
+                            className="absolute bottom-3 right-3 rounded-full bg-ink/70 px-2.5 py-1 text-xs font-medium text-white hover:bg-ink/85"
+                          >
+                            +{photos.length - 1} photo{photos.length - 1 === 1 ? "" : "s"}
+                          </button>
+                        )}
                       </div>
                       <div className="p-4">
                         <div className="flex items-start justify-between gap-3">
@@ -1042,28 +1101,48 @@ export default function BookingFlow({
                               </p>
                             )}
                           </div>
-                          <p className="text-right text-sm font-semibold">
-                            {rate && rate > 0 ? (
-                              <>
-                                Rs {rate}
-                                <span className="block text-xs font-normal text-ink-soft">
-                                  / day
+                          {priced ? (
+                            <p className="text-right text-sm font-semibold">
+                              Rs {rate}
+                              <span className="block text-xs font-normal text-ink-soft">
+                                / day
+                              </span>
+                              {weekly !== null && (
+                                <span className="mt-1 block text-xs font-normal text-ink-soft">
+                                  Rs {weekly.toLocaleString("en-MU")} / week
                                 </span>
-                              </>
-                            ) : null}
-                          </p>
+                              )}
+                              {monthly !== null && (
+                                <span className="mt-1 block text-xs font-normal text-ink-soft">
+                                  Rs {monthly.toLocaleString("en-MU")} / month
+                                </span>
+                              )}
+                            </p>
+                          ) : (
+                            <p className="text-right text-sm font-medium text-ink-soft">
+                              Contact for price
+                            </p>
+                          )}
                         </div>
                         {available && (
                           <p className="mt-3 border-t border-line pt-3 text-sm font-medium text-ink">
-                            {days} day{days === 1 ? "" : "s"} · {total}
+                            {breakdown ? `${breakdown} · ` : ""}
+                            {breakdown ? "" : `${days} day${days === 1 ? "" : "s"} · `}{total}
                           </p>
                         )}
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
             )}
+          {lightbox && (
+            <GalleryLightbox
+              images={lightbox.images}
+              startIndex={0}
+              onClose={() => setLightbox(null)}
+            />
+          )}
         </section>
       )}
 
@@ -1107,15 +1186,28 @@ export default function BookingFlow({
                       : "border-line bg-card hover:border-blue/50",
                   ].join(" ")}
                 >
-                  <span className="font-medium">{resource.name}</span>
-                  <span className="ml-2 text-sm text-ink-soft">
-                    {resource.resourceType}
-                  </span>
-                  {resource.description.length > 0 && (
-                    <span className="mt-1 block text-sm font-normal text-ink-soft">
-                      {resource.description}
+                  <span className="flex items-start gap-3">
+                    {resource.imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={resource.imageUrl}
+                        alt=""
+                        aria-hidden="true"
+                        className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                      />
+                    )}
+                    <span className="min-w-0">
+                      <span className="font-medium">{resource.name}</span>
+                      <span className="ml-2 text-sm text-ink-soft">
+                        {resource.resourceType}
+                      </span>
+                      {resource.description.length > 0 && (
+                        <span className="mt-1 block text-sm font-normal text-ink-soft">
+                          {resource.description}
+                        </span>
+                      )}
                     </span>
-                  )}
+                  </span>
                 </button>
               ))}
             </div>

@@ -33,6 +33,7 @@ import {
   updateService,
   createResource,
   updateResource,
+  deleteResource,
   createSession,
   updateSession,
   setSessionActive,
@@ -435,13 +436,87 @@ describe("settings mutations", () => {
     );
   });
 
+  it("creates resources with rates, specs and photos", async () => {
+    const db = seeded();
+    const created = await createResource(
+      "biz-1",
+      {
+        name: "Corolla",
+        resource_type: "vehicle",
+        description: "Reliable sedan.",
+        image_url: "https://example.com/corolla.jpg",
+        images: ["https://example.com/corolla-2.jpg", "not-a-url"],
+        daily_rate: 1400,
+        weekly_rate: 8000,
+        monthly_rate: 30000,
+        seats: 5,
+        transmission: "Automatic",
+        fuel: "Petrol",
+        category: "Compact",
+      },
+      asDb(db),
+    );
+    expect(created.id).toBeDefined();
+    const row = db.tables.resources[0];
+    expect(row.metadata).toMatchObject({
+      rate: 1400,
+      weekly_rate: 8000,
+      monthly_rate: 30000,
+      seats: 5,
+      transmission: "Automatic",
+      fuel: "Petrol",
+      category: "Compact",
+    });
+    // Invalid URLs are dropped, not stored.
+    expect(row.images).toEqual(["https://example.com/corolla-2.jpg"]);
+  });
+
+  it("rejects bad resource rates and specs", async () => {
+    const db = seeded();
+    db.tables.resources = [];
+    await expectValidation(() =>
+      createResource("biz-1", { name: "Corolla", daily_rate: -5 }, asDb(db)),
+    );
+    await expectValidation(() =>
+      createResource("biz-1", { name: "Corolla", weekly_rate: "lots" }, asDb(db)),
+    );
+    await expectValidation(() =>
+      createResource("biz-1", { name: "Corolla", seats: 0 }, asDb(db)),
+    );
+    await expectValidation(() =>
+      createResource("biz-1", { name: "Corolla", image_url: "ftp://example.com/c.jpg" }, asDb(db)),
+    );
+    expect(db.tables.resources).toHaveLength(0);
+  });
+
+  it("updates resource rates/specs and clears tiers with null", async () => {
+    const db = seeded();
+    db.tables.resources = [
+      { id: "res-1", business_id: "biz-1", name: "Corolla", active: true, metadata: { rate: 1400, weekly_rate: 8000 } },
+    ];
+    await updateResource("biz-1", "res-1", { weekly_rate: null, monthly_rate: 30000 }, asDb(db));
+    expect(db.tables.resources[0].metadata).toMatchObject({ rate: 1400, monthly_rate: 30000 });
+    expect(db.tables.resources[0].metadata).not.toHaveProperty("weekly_rate");
+  });
+
+  it("deletes resources scoped to the owning business", async () => {
+    const db = seeded();
+    db.tables.resources = [
+      { id: "res-1", business_id: "biz-1", name: "Corolla", active: true },
+      { id: "res-9", business_id: "biz-other", name: "Civic", active: true },
+    ];
+    await expect(deleteResource("biz-1", "res-9", asDb(db))).rejects.toMatchObject({ status: 404 });
+    await deleteResource("biz-1", "res-1", asDb(db));
+    expect(db.tables.resources.map((r) => r.id)).toEqual(["res-9"]);
+  });
+
   it("lists resources with safe columns including description", async () => {
     const db = seeded();
     db.tables.resources = [
       { id: "res-1", business_id: "biz-1", name: "Corolla", description: "Reliable sedan.", resource_type: "vehicle", image_url: null, active: true, metadata: {} },
     ];
     expect(await listResources("biz-1", asDb(db))).toEqual([
-      { id: "res-1", name: "Corolla", description: "Reliable sedan.", resource_type: "vehicle", image_url: null, active: true, metadata: {} },
+      { id: "res-1", name: "Corolla", description: "Reliable sedan.", resource_type: "vehicle", image_url: null, images: [], active: true, metadata: {} },
     ]);
   });
 

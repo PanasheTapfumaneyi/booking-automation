@@ -45,9 +45,13 @@ const MODE_TAGLINE: Record<string, string> = {
   capacity: "Join a session — spots are limited.",
 };
 
-/** A unit-rated collection (per-day price on every resource) is a fleet/rental. */
+/**
+ * A fleet/rental collection: at least one resource carries a per-day price.
+ * Unpriced items render a "Contact for price" fallback instead of demoting
+ * the whole fleet to priceless listings.
+ */
 function isUnitRatedFleet(resources: Array<{ metadata: Record<string, unknown> }>): boolean {
-  return resources.length > 0 && resources.every((r) => typeof r.metadata?.rate === "number");
+  return resources.length > 0 && resources.some((r) => typeof r.metadata?.rate === "number");
 }
 
 function getDemoReviews(slug: string): Array<{ name: string; text: string; rating: number }> {
@@ -306,10 +310,15 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
                 <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {resources.map((r) => {
                     const rate = typeof r.metadata.rate === "number" ? r.metadata.rate : null;
+                    const weekly = typeof r.metadata.weekly_rate === "number" ? r.metadata.weekly_rate : null;
+                    const monthly = typeof r.metadata.monthly_rate === "number" ? r.metadata.monthly_rate : null;
                     const seats = typeof r.metadata.seats === "number" ? r.metadata.seats : null;
                     const specs = [r.metadata.transmission, seats ? `${seats} seats` : null, r.metadata.fuel]
                       .filter(Boolean)
                       .join(" · ");
+                    const extraPhotos = Array.isArray(r.images)
+                      ? (r.images as unknown[]).filter((u): u is string => typeof u === "string").length
+                      : 0;
                     return (
                       <div
                         key={r.id}
@@ -322,6 +331,11 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
                             alt={r.name}
                             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                           />
+                          {extraPhotos > 0 && (
+                            <span className="absolute bottom-3 right-3 rounded-full bg-ink/70 px-2.5 py-1 text-xs font-medium text-white">
+                              +{extraPhotos} photo{extraPhotos === 1 ? "" : "s"}
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-1 flex-col p-5">
                           <div className="flex items-start justify-between gap-3">
@@ -336,10 +350,24 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
                                 </p>
                               )}
                             </div>
-                            {rate !== null && (
+                            {rate !== null ? (
                               <p className="text-right font-bold text-ink">
                                 Rs {rate.toLocaleString("en-MU")}
                                 <span className="block text-xs font-normal text-ink-soft">/ day</span>
+                                {weekly !== null && (
+                                  <span className="mt-1 block text-xs font-normal text-ink-soft">
+                                    Rs {weekly.toLocaleString("en-MU")} / week
+                                  </span>
+                                )}
+                                {monthly !== null && (
+                                  <span className="mt-1 block text-xs font-normal text-ink-soft">
+                                    Rs {monthly.toLocaleString("en-MU")} / month
+                                  </span>
+                                )}
+                              </p>
+                            ) : (
+                              <p className="text-right text-sm font-medium text-ink-soft">
+                                Contact for price
                               </p>
                             )}
                           </div>

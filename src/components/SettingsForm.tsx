@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import HoursEditor from "@/components/HoursEditor";
 import MediaField from "@/components/storefront/MediaField";
+import ResourcePhotos from "@/components/ResourcePhotos";
 import { storefrontApi } from "@/components/storefront/api";
 import type { BusinessHours } from "@/lib/availability";
 import type { BookingMode } from "@/types/booking";
@@ -73,6 +74,22 @@ function isValidHttpUrl(value: string): boolean {
   }
 }
 
+/** One-line price recap for a rental row, e.g. "Rs 1,400/day · Rs 8,000/week". */
+function resourcePriceSummary(metadata: Record<string, unknown> | null | undefined): string {
+  const num = (value: unknown): number | null =>
+    typeof value === "number" && Number.isFinite(value) ? value : null;
+  const daily = num(metadata?.rate);
+  if (daily === null) return "No daily rate set";
+  const parts = [`Rs ${daily.toLocaleString("en-MU")}/day`];
+  const weekly = num(metadata?.weekly_rate);
+  if (weekly !== null) parts.push(`Rs ${weekly.toLocaleString("en-MU")}/week`);
+  const monthly = num(metadata?.monthly_rate);
+  if (monthly !== null) parts.push(`Rs ${monthly.toLocaleString("en-MU")}/month`);
+  return parts.join(" · ");
+}
+
+const RESOURCE_TYPES = ["vehicle", "equipment", "room", "boat", "generic"];
+
 export interface SettingsBundle {
   business: {
     id: string;
@@ -92,7 +109,7 @@ export interface SettingsBundle {
     is_active: boolean;
   };
   services: Array<{ id: string; name: string; duration_minutes: number; price: number; active: boolean; description: string | null; image_url: string | null }>;
-  resources: Array<{ id: string; name: string; resource_type: string; active: boolean; description: string | null }>;
+  resources: Array<{ id: string; name: string; resource_type: string; active: boolean; description: string | null; image_url: string | null; images: string[]; metadata: Record<string, unknown> }>;
   sessions: Array<{
     id: string;
     service_id: string;
@@ -195,8 +212,30 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
   const [editImageUrl, setEditImageUrl] = useState("");
   const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
   const [editResourceName, setEditResourceName] = useState("");
+  const [editResourceType, setEditResourceType] = useState("generic");
   const [editResourceDescription, setEditResourceDescription] = useState("");
+  const [editResourceCover, setEditResourceCover] = useState<string | null>(null);
+  const [editResourceExtras, setEditResourceExtras] = useState<string[]>([]);
+  const [editDaily, setEditDaily] = useState("");
+  const [editWeekly, setEditWeekly] = useState("");
+  const [editMonthly, setEditMonthly] = useState("");
+  const [editSeats, setEditSeats] = useState("");
+  const [editTransmission, setEditTransmission] = useState("");
+  const [editFuel, setEditFuel] = useState("");
+  const [editCategory, setEditCategory] = useState("");
   const [newResourceName, setNewResourceName] = useState("");
+  const [newResourceType, setNewResourceType] = useState("vehicle");
+  const [newResourceDescription, setNewResourceDescription] = useState("");
+  const [newResourceCover, setNewResourceCover] = useState<string | null>(null);
+  const [newResourceExtras, setNewResourceExtras] = useState<string[]>([]);
+  const [newDaily, setNewDaily] = useState("");
+  const [newWeekly, setNewWeekly] = useState("");
+  const [newMonthly, setNewMonthly] = useState("");
+  const [newSeats, setNewSeats] = useState("5");
+  const [newTransmission, setNewTransmission] = useState("Automatic");
+  const [newFuel, setNewFuel] = useState("Petrol");
+  const [newCategory, setNewCategory] = useState("");
+  const [confirmDeleteResourceId, setConfirmDeleteResourceId] = useState<string | null>(null);
   const [newSessionService, setNewSessionService] = useState(bundle.services[0]?.id ?? "");
   const [newSessionDate, setNewSessionDate] = useState("");
   const [newSessionTime, setNewSessionTime] = useState("09:00");
@@ -288,7 +327,14 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
     businessAlerts !== live.notifications.business_notifications_enabled;
   const addServiceDirty =
     newServiceName.trim() !== "" || newDuration !== "45" || newPrice !== "500";
-  const addResourceDirty = newResourceName.trim() !== "";
+  const addResourceDirty =
+    newResourceName.trim() !== "" ||
+    newResourceDescription.trim() !== "" ||
+    newResourceCover !== null ||
+    newResourceExtras.length > 0 ||
+    newDaily.trim() !== "" ||
+    newWeekly.trim() !== "" ||
+    newMonthly.trim() !== "";
   const addSessionDirty =
     newSessionService !== "" || newSessionDate !== "" || newSessionTime !== "09:00" || newCapacity !== "10";
 
@@ -398,24 +444,102 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
       });
     });
 
-  const saveResourceEdit = (resourceId: string) =>
-    run(`resource-${resourceId}`, () =>
-      requestJson(`/api/businesses/${business.id}/resources/${resourceId}`, {
-        name: editResourceName,
-        description: editResourceDescription || null,
-      }, "PATCH").then(() => setEditingResourceId(null)),
+  /** Best-effort removal of storage images no longer referenced. */
+  const cleanupResourceImages = (previous: string[], next: string[]) => {
+    for (const url of previous) {
+      if (!next.includes(url)) {
+        void storefrontApi.deleteMediaUrl(business.id, url).catch(() => undefined);
+      }
+    }
+  };
+
+  const previousResourceUrls = (resourceId: string): string[] => {
+    const current = live.resources.find((r) => r.id === resourceId);
+    if (!current) return [];
+    return [current.image_url, ...current.images].filter(
+      (u): u is string => typeof u === "string" && u.length > 0,
     );
+  };
+
+  const saveResourceEdit = (resourceId: string) =>
+    run(`resource-${resourceId}`, () => {
+      if (editResourceCover && !isValidHttpUrl(editResourceCover)) {
+        throw new Error("Please enter a valid cover image URL starting with http:// or https://.");
+      }
+      const extras = editResourceExtras.filter((u) => u !== editResourceCover);
+      return requestJson(`/api/businesses/${business.id}/resources/${resourceId}`, {
+        name: editResourceName,
+        resource_type: editResourceType || null,
+        description: editResourceDescription || null,
+        image_url: editResourceCover,
+        images: extras,
+        daily_rate: editDaily.trim() === "" ? null : Number(editDaily),
+        weekly_rate: editWeekly.trim() === "" ? null : Number(editWeekly),
+        monthly_rate: editMonthly.trim() === "" ? null : Number(editMonthly),
+        seats: editSeats.trim() === "" ? null : Number(editSeats),
+        transmission: editTransmission || null,
+        fuel: editFuel || null,
+        category: editCategory || null,
+      }, "PATCH").then(() => {
+        cleanupResourceImages(previousResourceUrls(resourceId), [
+          ...(editResourceCover ? [editResourceCover] : []),
+          ...extras,
+        ]);
+        setEditingResourceId(null);
+      });
+    });
+
+  const resetNewResourceForm = () => {
+    setNewResourceName("");
+    setNewResourceType("vehicle");
+    setNewResourceDescription("");
+    setNewResourceCover(null);
+    setNewResourceExtras([]);
+    setNewDaily("");
+    setNewWeekly("");
+    setNewMonthly("");
+    setNewSeats("5");
+    setNewTransmission("Automatic");
+    setNewFuel("Petrol");
+    setNewCategory("");
+  };
 
   const addResource = () =>
-    run("resource-add", () =>
-      requestJson(`/api/businesses/${business.id}/resources`, { name: newResourceName }).then(() => {
-        setNewResourceName("");
-      }),
-    );
+    run("resource-add", () => {
+      if (newResourceCover && !isValidHttpUrl(newResourceCover)) {
+        throw new Error("Please enter a valid cover image URL starting with http:// or https://.");
+      }
+      const extras = newResourceExtras.filter((u) => u !== newResourceCover);
+      return requestJson(`/api/businesses/${business.id}/resources`, {
+        name: newResourceName,
+        resource_type: newResourceType || null,
+        description: newResourceDescription || null,
+        image_url: newResourceCover,
+        images: extras,
+        daily_rate: newDaily.trim() === "" ? null : Number(newDaily),
+        weekly_rate: newWeekly.trim() === "" ? null : Number(newWeekly),
+        monthly_rate: newMonthly.trim() === "" ? null : Number(newMonthly),
+        seats: newSeats.trim() === "" ? null : Number(newSeats),
+        transmission: newTransmission || null,
+        fuel: newFuel || null,
+        category: newCategory || null,
+      }).then(() => {
+        resetNewResourceForm();
+      });
+    });
 
   const toggleResource = (resourceId: string, active: boolean) =>
     run(`resource-${resourceId}`, () =>
       requestJson(`/api/businesses/${business.id}/resources/${resourceId}`, { active }, "PATCH"),
+    );
+
+  const deleteResourceItem = (resourceId: string) =>
+    run(`resource-${resourceId}`, () =>
+      requestJson(`/api/businesses/${business.id}/resources/${resourceId}`, undefined, "DELETE").then(() => {
+        cleanupResourceImages(previousResourceUrls(resourceId), []);
+        setConfirmDeleteResourceId(null);
+        setEditingResourceId(null);
+      }),
     );
 
   const addSession = () =>
@@ -724,6 +848,14 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
         </Section>
 
         <Section title={mode === "resource" ? "Rental items" : mode === "capacity" ? "Services & sessions" : "Services"}>
+          {mode === "resource" && (
+            <p className="mb-3 text-sm text-ink-soft">
+              Bookings run on your default rental service — manage everything your
+              customers see right here, per vehicle.
+            </p>
+          )}
+          {mode !== "resource" && (
+          <>
           <div className="flex flex-col gap-2">
             {live.services.map((service) => (
               <div key={service.id} className="rounded-xl border border-line px-4 py-2.5 text-sm">
@@ -820,7 +952,7 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
           <form onSubmit={submitHandler(addService)} className="mt-4 flex flex-col gap-2 sm:flex-row">
             <DirtyHint dirty={addServiceDirty} />
             <input
-              aria-label={mode === "resource" ? "New service name" : "New service name"}
+                aria-label="New service name"
               placeholder="Service name"
               value={newServiceName}
               onChange={(e) => setNewServiceName(e.target.value)}
@@ -855,50 +987,95 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
               {busy === "service-add" ? "…" : "Add"}
             </button>
           </form>
+          </>
+          )}
 
 
           {mode === "resource" && (
             <>
               <div className="mt-5 flex flex-col gap-2">
                 {live.resources.map((resource) => (
-                  <div key={resource.id} className="rounded-xl border border-line px-4 py-2.5 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className={resource.active ? "" : "text-ink-soft line-through"}>{resource.name}</span>
-                      <span className="flex gap-3">
-                        <button
-                          type="button"
-                          disabled={busy !== null}
-                          onClick={() => {
-                            if (editingResourceId === resource.id) {
-                              setEditingResourceId(null);
-                              return;
-                            }
-                            setEditingResourceId(resource.id);
-                            setEditResourceName(resource.name);
-                            setEditResourceDescription(resource.description ?? "");
-                          }}
-                          className="font-medium text-ink-soft hover:text-ink"
-                        >
-                          {editingResourceId === resource.id ? "Close" : "Edit"}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy !== null}
-                          onClick={() => toggleResource(resource.id, !resource.active)}
-                          className="font-medium text-ink-soft hover:text-ink"
-                        >
-                          {busy === `resource-${resource.id}` ? "…" : resource.active ? "Deactivate" : "Activate"}
-                        </button>
+              <div key={resource.id} className="rounded-xl border border-line px-4 py-2.5 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex min-w-0 items-center gap-3">
+                    {resource.image_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={resource.image_url}
+                        alt=""
+                        aria-hidden="true"
+                        className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                      />
+                    )}
+                    <span className="min-w-0">
+                      <span className={`block truncate ${resource.active ? "" : "text-ink-soft line-through"}`}>
+                        {resource.name}
                       </span>
-                    </div>
+                      <span className="block text-xs text-ink-soft">
+                        {resourcePriceSummary(resource.metadata)}
+                      </span>
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 gap-3">
+                    <button
+                      type="button"
+                      disabled={busy !== null}
+                      onClick={() => {
+                        if (editingResourceId === resource.id) {
+                          setEditingResourceId(null);
+                          return;
+                        }
+                        const meta = resource.metadata ?? {};
+                        setEditingResourceId(resource.id);
+                        setEditResourceName(resource.name);
+                        setEditResourceType(resource.resource_type);
+                        setEditResourceDescription(resource.description ?? "");
+                        setEditResourceCover(resource.image_url);
+                        setEditResourceExtras(resource.images ?? []);
+                        setEditDaily(meta.rate !== undefined && meta.rate !== null ? String(meta.rate) : "");
+                        setEditWeekly(meta.weekly_rate !== undefined && meta.weekly_rate !== null ? String(meta.weekly_rate) : "");
+                        setEditMonthly(meta.monthly_rate !== undefined && meta.monthly_rate !== null ? String(meta.monthly_rate) : "");
+                        setEditSeats(meta.seats !== undefined && meta.seats !== null ? String(meta.seats) : "");
+                        setEditTransmission(typeof meta.transmission === "string" ? meta.transmission : "");
+                        setEditFuel(typeof meta.fuel === "string" ? meta.fuel : "");
+                        setEditCategory(typeof meta.category === "string" ? meta.category : "");
+                        setConfirmDeleteResourceId(null);
+                      }}
+                      className="font-medium text-ink-soft hover:text-ink"
+                    >
+                      {editingResourceId === resource.id ? "Close" : "Edit"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy !== null}
+                      onClick={() => toggleResource(resource.id, !resource.active)}
+                      className="font-medium text-ink-soft hover:text-ink"
+                    >
+                      {busy === `resource-${resource.id}` ? "…" : resource.active ? "Deactivate" : "Activate"}
+                    </button>
+                  </span>
+                </div>
                     {editingResourceId === resource.id && (
                       <form
                         onSubmit={submitHandler(() => saveResourceEdit(resource.id))}
                         className="mt-2.5 flex flex-col gap-2"
                       >
-                        <input aria-label="Resource name" value={editResourceName} onChange={(e) => setEditResourceName(e.target.value)} disabled={busy !== null} className={inputClass} />
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <input aria-label="Rental item name" value={editResourceName} onChange={(e) => setEditResourceName(e.target.value)} disabled={busy !== null} className={`${inputClass} flex-1`} />
+                          <select
+                            aria-label="Rental item type"
+                            value={RESOURCE_TYPES.includes(editResourceType) ? editResourceType : "generic"}
+                            onChange={(e) => setEditResourceType(e.target.value)}
+                            disabled={busy !== null}
+                            className={`${inputClass} sm:w-36`}
+                          >
+                            {RESOURCE_TYPES.map((t) => (
+                              <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                            ))}
+                          </select>
+                        </div>
                         <textarea
-                          aria-label="Resource description"
+                          aria-label="Rental item description"
                           value={editResourceDescription}
                           onChange={(e) => setEditResourceDescription(e.target.value)}
                           placeholder="Short description shown on your booking page..."
@@ -906,35 +1083,179 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                           disabled={busy !== null}
                           className={`${inputClass} resize-y`}
                         />
-                        <button type="submit" disabled={busy !== null} className={buttonClass}>
-                          {busy === `resource-${resource.id}` ? "Saving…" : "Save"}
-                        </button>
-                        <button
-                          type="button"
+                        <fieldset className="rounded-xl border border-line p-3">
+                          <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-soft">
+                            Rental rates (Rs)
+                          </legend>
+                          <div className="grid grid-cols-3 gap-2">
+                            <label className="flex flex-col gap-1 text-xs font-medium">
+                              Per day *
+                              <input aria-label="Daily rate in rupees" type="number" min={0} max={10000000} step="any" value={editDaily} onChange={(e) => setEditDaily(e.target.value)} disabled={busy !== null} placeholder="1400" className={inputClass} />
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs font-medium">
+                              Per week
+                              <input aria-label="Weekly rate in rupees" type="number" min={0} max={10000000} step="any" value={editWeekly} onChange={(e) => setEditWeekly(e.target.value)} disabled={busy !== null} placeholder="8000" className={inputClass} />
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs font-medium">
+                              Per month
+                              <input aria-label="Monthly rate in rupees" type="number" min={0} max={10000000} step="any" value={editMonthly} onChange={(e) => setEditMonthly(e.target.value)} disabled={busy !== null} placeholder="30000" className={inputClass} />
+                            </label>
+                          </div>
+                          <p className="mt-1.5 text-xs text-ink-soft">
+                            A 10-day stay at Rs 1,400/day + Rs 8,000/week bills as 1 week + 3 days.
+                          </p>
+                        </fieldset>
+                        <fieldset className="rounded-xl border border-line p-3">
+                          <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-soft">
+                            Details
+                          </legend>
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            <label className="flex flex-col gap-1 text-xs font-medium">
+                              Seats
+                              <input aria-label="Seats" type="number" min={1} max={100} step={1} value={editSeats} onChange={(e) => setEditSeats(e.target.value)} disabled={busy !== null} placeholder="5" className={inputClass} />
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs font-medium">
+                              Transmission
+                              <input aria-label="Transmission" value={editTransmission} onChange={(e) => setEditTransmission(e.target.value)} disabled={busy !== null} placeholder="Automatic" className={inputClass} />
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs font-medium">
+                              Fuel
+                              <input aria-label="Fuel" value={editFuel} onChange={(e) => setEditFuel(e.target.value)} disabled={busy !== null} placeholder="Petrol" className={inputClass} />
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs font-medium">
+                              Category
+                              <input aria-label="Category" value={editCategory} onChange={(e) => setEditCategory(e.target.value)} disabled={busy !== null} placeholder="Compact" className={inputClass} />
+                            </label>
+                          </div>
+                        </fieldset>
+                        <ResourcePhotos
+                          businessId={business.id}
+                          cover={editResourceCover}
+                          extras={editResourceExtras}
                           disabled={busy !== null}
-                          onClick={() => setEditingResourceId(null)}
-                          className="rounded-full border border-line px-5 py-2.5 text-sm font-medium text-ink-soft hover:text-ink"
-                        >
-                          Cancel
-                        </button>
+                          onCoverChange={setEditResourceCover}
+                          onExtrasChange={setEditResourceExtras}
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <button type="submit" disabled={busy !== null} className={buttonClass}>
+                            {busy === `resource-${resource.id}` ? "Saving…" : "Save"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy !== null}
+                            onClick={() => setEditingResourceId(null)}
+                            className="rounded-full border border-line px-5 py-2.5 text-sm font-medium text-ink-soft hover:text-ink"
+                          >
+                            Cancel
+                          </button>
+                          {confirmDeleteResourceId === resource.id ? (
+                            <button
+                              type="button"
+                              disabled={busy !== null}
+                              onClick={() => deleteResourceItem(resource.id)}
+                              className="rounded-full border border-red-300 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-40"
+                            >
+                              {busy === `resource-${resource.id}` ? "Deleting…" : "Confirm delete"}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={busy !== null}
+                              onClick={() => setConfirmDeleteResourceId(resource.id)}
+                              className="rounded-full border border-line px-5 py-2.5 text-sm font-medium text-ink-soft hover:text-red-700"
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                        {confirmDeleteResourceId === resource.id && (
+                          <p className="text-xs text-ink-soft">
+                            Past bookings keep working, but lose this item&apos;s name. Prefer deactivation when in doubt.
+                          </p>
+                        )}
                       </form>
                     )}
                   </div>
                 ))}
               </div>
-              <form onSubmit={submitHandler(addResource)} className="mt-3 flex gap-2">
+              <form onSubmit={submitHandler(addResource)} className="mt-3 flex flex-col gap-2 rounded-xl border border-dashed border-line p-4">
                 <DirtyHint dirty={addResourceDirty} />
-                <input
-                  aria-label="New rental item name"
-                  placeholder="New rental item"
-                  value={newResourceName}
-                  onChange={(e) => setNewResourceName(e.target.value)}
+                <p className="text-sm font-semibold">Add a rental item</p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    aria-label="New rental item name"
+                    placeholder="e.g. Toyota Corolla"
+                    value={newResourceName}
+                    onChange={(e) => setNewResourceName(e.target.value)}
+                    disabled={busy !== null}
+                    className={`${inputClass} flex-1`}
+                  />
+                  <select
+                    aria-label="New rental item type"
+                    value={newResourceType}
+                    onChange={(e) => setNewResourceType(e.target.value)}
+                    disabled={busy !== null}
+                    className={`${inputClass} sm:w-36`}
+                  >
+                    {RESOURCE_TYPES.map((t) => (
+                      <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                    ))}
+                  </select>
+                </div>
+                <textarea
+                  aria-label="New rental item description"
+                  value={newResourceDescription}
+                  onChange={(e) => setNewResourceDescription(e.target.value)}
+                  placeholder="Short description shown on your booking page..."
+                  rows={2}
                   disabled={busy !== null}
-                  className={`${inputClass} flex-1`}
+                  className={`${inputClass} resize-y`}
                 />
-                <button type="submit" disabled={busy !== null} className={buttonClass}>
-                  {busy === "resource-add" ? "…" : "Add"}
-                </button>
+                <div className="grid grid-cols-3 gap-2">
+                  <label className="flex flex-col gap-1 text-xs font-medium">
+                    Per day (Rs) *
+                    <input aria-label="New daily rate in rupees" type="number" min={0} max={10000000} step="any" value={newDaily} onChange={(e) => setNewDaily(e.target.value)} disabled={busy !== null} placeholder="1400" className={inputClass} />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium">
+                    Per week (Rs)
+                    <input aria-label="New weekly rate in rupees" type="number" min={0} max={10000000} step="any" value={newWeekly} onChange={(e) => setNewWeekly(e.target.value)} disabled={busy !== null} placeholder="8000" className={inputClass} />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium">
+                    Per month (Rs)
+                    <input aria-label="New monthly rate in rupees" type="number" min={0} max={10000000} step="any" value={newMonthly} onChange={(e) => setNewMonthly(e.target.value)} disabled={busy !== null} placeholder="30000" className={inputClass} />
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <label className="flex flex-col gap-1 text-xs font-medium">
+                    Seats
+                    <input aria-label="New seats" type="number" min={1} max={100} step={1} value={newSeats} onChange={(e) => setNewSeats(e.target.value)} disabled={busy !== null} placeholder="5" className={inputClass} />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium">
+                    Transmission
+                    <input aria-label="New transmission" value={newTransmission} onChange={(e) => setNewTransmission(e.target.value)} disabled={busy !== null} placeholder="Automatic" className={inputClass} />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium">
+                    Fuel
+                    <input aria-label="New fuel" value={newFuel} onChange={(e) => setNewFuel(e.target.value)} disabled={busy !== null} placeholder="Petrol" className={inputClass} />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium">
+                    Category
+                    <input aria-label="New category" value={newCategory} onChange={(e) => setNewCategory(e.target.value)} disabled={busy !== null} placeholder="Compact" className={inputClass} />
+                  </label>
+                </div>
+                <ResourcePhotos
+                  businessId={business.id}
+                  cover={newResourceCover}
+                  extras={newResourceExtras}
+                  disabled={busy !== null}
+                  onCoverChange={setNewResourceCover}
+                  onExtrasChange={setNewResourceExtras}
+                />
+                <div>
+                  <button type="submit" disabled={busy !== null} className={buttonClass}>
+                    {busy === "resource-add" ? "Adding…" : "Add rental item"}
+                  </button>
+                </div>
               </form>
             </>
           )}

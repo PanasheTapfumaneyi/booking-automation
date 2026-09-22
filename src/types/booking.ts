@@ -43,6 +43,8 @@ export interface Resource {
   active: boolean;
   /** Public photo shown on the item/vehicle card. */
   imageUrl: string | null;
+  /** Extra listing photos (cover stays in imageUrl). */
+  images: string[];
   /**
    * Generic per-resource metadata (schema JSONB). Carried through the public
    * API so the UI can render vehicle specs; `metadata.rate` is the per-day

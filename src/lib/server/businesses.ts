@@ -484,16 +484,131 @@ export interface ResourceSummary {
   description: string | null;
   resource_type: string;
   image_url: string | null;
+  /** Extra listing photos (cover stays in image_url). */
+  images: string[];
   active: boolean;
-  /** Generic per-resource metadata (vehicle specs, per-day rate, …). */
+  /** Generic per-resource metadata (specs + period rates, see below). */
   metadata: Record<string, unknown>;
+}
+
+/**
+ * Resource pricing + spec schema (stored in `metadata`, validated here —
+ * the single place that writes it).
+ *
+ * - `rate`: per-day Rs (required for rental pricing)
+ * - `weekly_rate`: per-7-days Rs (optional)
+ * - `monthly_rate`: per-30-days Rs (optional)
+ * - `seats`: integer ≥ 1 (optional)
+ * - `transmission`, `fuel`, `category`: short text (optional)
+ */
+export const RESOURCE_METADATA_KEYS = [
+  "rate",
+  "weekly_rate",
+  "monthly_rate",
+  "seats",
+  "transmission",
+  "fuel",
+  "category",
+] as const;
+
+/** Validated rate (Rs) or null to clear. Rejects negatives/non-numbers. */
+function parseRate(value: unknown, label: string): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new ApiError(400, "VALIDATION", `${label} must be Rs 0 or more.`);
+  }
+  return n;
+}
+
+function parseSeats(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n) || n < 1 || n > 100) {
+    throw new ApiError(400, "VALIDATION", "Seats must be between 1 and 100.");
+  }
+  return n;
+}
+
+function parseSpecText(value: unknown, label: string): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") {
+    throw new ApiError(400, "VALIDATION", `Invalid ${label}.`);
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > 40) {
+    throw new ApiError(400, "VALIDATION", `${label} must be 40 characters or fewer.`);
+  }
+  return trimmed;
+}
+
+export interface ResourcePricingInput {
+  daily_rate?: unknown;
+  weekly_rate?: unknown;
+  monthly_rate?: unknown;
+}
+
+export interface ResourceSpecsInput {
+  seats?: unknown;
+  transmission?: unknown;
+  fuel?: unknown;
+  category?: unknown;
+}
+
+/** Validated image-URL list (max 10). Empty/invalid entries are dropped. */
+export function parseImageList(value: unknown): string[] {
+  if (value === null || value === undefined) return [];
+  if (!Array.isArray(value)) {
+    throw new ApiError(400, "VALIDATION", "Photos must be a list of image URLs.");
+  }
+  if (value.length > 10) {
+    throw new ApiError(400, "VALIDATION", "At most 10 photos per listing.");
+  }
+  const out: string[] = [];
+  for (const item of value) {
+    try {
+      const url = sanitizeImageUrl(item);
+      if (url && !out.includes(url)) out.push(url);
+    } catch {
+      // Drop unusable entries rather than failing the whole save.
+    }
+  }
+  return out;
+}
+
+/** Display photo set: cover first, then extras, deduplicated. */
+export function resourceImages(row: {
+  image_url: string | null;
+  images: string[];
+}): string[] {
+  const out: string[] = [];
+  if (row.image_url) out.push(row.image_url);
+  for (const url of row.images) {
+    if (!out.includes(url)) out.push(url);
+  }
+  return out;
+}
+
+function parseImages(value: unknown): string[] {
+  if (value === null || value === undefined) return [];
+  if (typeof value === "string") {
+    try {
+      return parseImageList(JSON.parse(value) as unknown);
+    } catch {
+      return [];
+    }
+  }
+  return parseImageList(value);
 }
 
 export async function listResources(businessId: string, db: DbLike): Promise<ResourceSummary[]> {
   const client = db as SupabaseClient;
   const { data, error } = await client
     .from("resources")
-    .select("id, name, description, resource_type, image_url, active, metadata")
+    .select("id, name, description, resource_type, image_url, images, active, metadata")
     .eq("business_id", businessId);
   if (error) throw error;
   return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
@@ -502,6 +617,7 @@ export async function listResources(businessId: string, db: DbLike): Promise<Res
     description: (r.description as string | null) ?? null,
     resource_type: (r.resource_type as string) ?? "generic",
     image_url: (r.image_url as string | null) ?? null,
+    images: parseImages(r.images),
     active: Boolean(r.active),
     metadata: ((r.metadata ?? {}) as Record<string, unknown>) ?? {},
   }));
@@ -640,19 +756,92 @@ export async function updateService(
   }
 }
 
-export async function createResource(
-  businessId: string,
-  input: { name: string },
-  db: DbLike,
-): Promise<{ id: string }> {
-  const name = (input.name ?? "").trim();
-  if (name.length < 2 || name.length > 80) {
+export interface CreateResourceInput {
+  name: string;
+  resource_type?: string | null;
+  description?: string | null;
+  image_url?: string | null;
+  images?: unknown;
+  daily_rate?: unknown;
+  weekly_rate?: unknown;
+  monthly_rate?: unknown;
+  seats?: unknown;
+  transmission?: unknown;
+  fuel?: unknown;
+  category?: unknown;
+}
+
+/** Builds validated metadata from pricing + spec inputs (null clears a key). */
+function buildResourceMetadata(
+  current: Record<string, unknown>,
+  pricing: ResourcePricingInput,
+  specs: ResourceSpecsInput,
+): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...current };
+  const rates: Array<[string, unknown, string]> = [
+    ["rate", pricing.daily_rate, "Daily rate"],
+    ["weekly_rate", pricing.weekly_rate, "Weekly rate"],
+    ["monthly_rate", pricing.monthly_rate, "Monthly rate"],
+  ];
+  for (const [key, value, label] of rates) {
+    if (value !== undefined) {
+      const parsed = parseRate(value, label);
+      if (parsed === null) delete next[key];
+      else next[key] = parsed;
+    }
+  }
+  if (specs.seats !== undefined) {
+    const parsed = parseSeats(specs.seats);
+    if (parsed === null) delete next.seats;
+    else next.seats = parsed;
+  }
+  const texts: Array<[string, unknown, string]> = [
+    ["transmission", specs.transmission, "Transmission"],
+    ["fuel", specs.fuel, "Fuel"],
+    ["category", specs.category, "Category"],
+  ];
+  for (const [key, value, label] of texts) {
+    if (value !== undefined) {
+      const parsed = parseSpecText(value, label);
+      if (parsed === null) delete next[key];
+      else next[key] = parsed;
+    }
+  }
+  return next;
+}
+
+function validateResourceName(name: unknown): string {
+  const clean = typeof name === "string" ? name.trim() : "";
+  if (clean.length < 2 || clean.length > 80) {
     throw new ApiError(400, "VALIDATION", "Please name the resource (2–80 characters).");
   }
+  return clean;
+}
+
+export async function createResource(
+  businessId: string,
+  input: CreateResourceInput,
+  db: DbLike,
+): Promise<{ id: string }> {
+  const name = validateResourceName(input.name);
+  const metadata = buildResourceMetadata(
+    {},
+    { daily_rate: input.daily_rate, weekly_rate: input.weekly_rate, monthly_rate: input.monthly_rate },
+    { seats: input.seats, transmission: input.transmission, fuel: input.fuel, category: input.category },
+  );
   const client = db as SupabaseClient;
   const { data, error } = await client
     .from("resources")
-    .insert({ business_id: businessId, name, active: true })
+    .insert({
+      business_id: businessId,
+      name,
+      resource_type: parseSpecText(input.resource_type ?? "generic", "Type") ?? "generic",
+      description: sanitizeText(input.description ?? null, 500),
+      image_url: sanitizeImageUrl(input.image_url ?? null),
+      images: parseImageList(input.images ?? []),
+      active: true,
+      metadata,
+    })
     .select("id")
     .single();
   if (error || !data) {
@@ -661,27 +850,85 @@ export async function createResource(
   return { id: (data as { id: string }).id };
 }
 
+export interface UpdateResourceInput {
+  name?: string;
+  active?: boolean;
+  resource_type?: string | null;
+  description?: string | null;
+  image_url?: string | null;
+  images?: unknown;
+  daily_rate?: unknown;
+  weekly_rate?: unknown;
+  monthly_rate?: unknown;
+  seats?: unknown;
+  transmission?: unknown;
+  fuel?: unknown;
+  category?: unknown;
+}
+
 export async function updateResource(
   businessId: string,
   resourceId: string,
-  input: { name?: string; active?: boolean; description?: string | null; image_url?: string | null },
+  input: UpdateResourceInput,
   db: DbLike,
 ): Promise<void> {
+  const client = db as SupabaseClient;
+  const { data: current, error: fetchError } = await client
+    .from("resources")
+    .select("id, metadata")
+    .eq("id", resourceId)
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (fetchError || !current) {
+    throw new ApiError(404, "RESOURCE_NOT_FOUND", "That resource wasn't found.");
+  }
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (input.name !== undefined) {
-    const name = input.name.trim();
-    if (name.length < 2 || name.length > 80) {
-      throw new ApiError(400, "VALIDATION", "Please name the resource (2–80 characters).");
-    }
-    patch.name = name;
+  if (input.name !== undefined) patch.name = validateResourceName(input.name);
+  if (input.resource_type !== undefined) {
+    patch.resource_type = parseSpecText(input.resource_type, "Type") ?? "generic";
   }
   if (input.active !== undefined) patch.active = Boolean(input.active);
   if (input.description !== undefined) patch.description = sanitizeText(input.description, 500);
   if (input.image_url !== undefined) patch.image_url = sanitizeImageUrl(input.image_url);
+  if (input.images !== undefined) patch.images = parseImageList(input.images);
+  const wantsMeta =
+    input.daily_rate !== undefined ||
+    input.weekly_rate !== undefined ||
+    input.monthly_rate !== undefined ||
+    input.seats !== undefined ||
+    input.transmission !== undefined ||
+    input.fuel !== undefined ||
+    input.category !== undefined;
+  if (wantsMeta) {
+    patch.metadata = buildResourceMetadata(
+      ((current as Record<string, unknown>).metadata ?? {}) as Record<string, unknown>,
+      { daily_rate: input.daily_rate, weekly_rate: input.weekly_rate, monthly_rate: input.monthly_rate },
+      { seats: input.seats, transmission: input.transmission, fuel: input.fuel, category: input.category },
+    );
+  }
+  const { error } = await client
+    .from("resources")
+    .update(patch)
+    .eq("id", resourceId)
+    .eq("business_id", businessId);
+  if (error) {
+    throw new ApiError(500, "INTERNAL", "We couldn't save that resource. Please try again.");
+  }
+}
+
+/**
+ * Deletes a rental item. Past bookings survive (their resource link nulls
+ * via the FK) but lose the item name — prefer deactivation for history.
+ */
+export async function deleteResource(
+  businessId: string,
+  resourceId: string,
+  db: DbLike,
+): Promise<void> {
   const client = db as SupabaseClient;
   const { data, error } = await client
     .from("resources")
-    .update(patch)
+    .delete()
     .eq("id", resourceId)
     .eq("business_id", businessId)
     .select("id")

@@ -106,10 +106,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
         image_url: ((s as Record<string, unknown>).image_url as string | null) ?? null,
         active: true,
       })),
-      resources: (resources.data ?? []).map((r) => ({
-        ...(r as Record<string, unknown>),
-        description: ((r as Record<string, unknown>).description as string | null) ?? null,
-      })),
+      resources: (resources.data ?? []).map((r) => {
+        const row = r as Record<string, unknown>;
+        const images = Array.isArray(row.images)
+          ? (row.images as unknown[]).filter((u): u is string => typeof u === "string")
+          : [];
+        return { ...row, description: (row.description as string | null) ?? null, images };
+      }),
       sessions: sessionsWithBooked,
     });
   } catch (error) {

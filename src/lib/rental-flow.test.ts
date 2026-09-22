@@ -97,6 +97,7 @@ describe("pickPreselectedVehicle", () => {
       description: "",
       resourceType: "car",
       imageUrl: "https://example.test/creta.jpg",
+      images: [],
       metadata: { seats: 5 },
     });
   });

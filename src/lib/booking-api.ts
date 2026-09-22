@@ -165,6 +165,7 @@ export interface ResourceAvailability extends AvailabilityBase {
     resourceType: string;
     active: boolean;
     imageUrl?: string | null;
+    images?: string[];
     metadata?: Record<string, unknown>;
     available?: boolean;
   }>;

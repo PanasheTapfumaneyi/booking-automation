@@ -82,7 +82,7 @@ export const storefrontApi = {
   },
   async uploadMedia(
     businessId: string,
-    kind: "logo" | "cover" | "gallery" | "team" | "service",
+    kind: "logo" | "cover" | "gallery" | "team" | "service" | "resource",
     file: File,
   ): Promise<UploadedMedia> {
     const form = new FormData();

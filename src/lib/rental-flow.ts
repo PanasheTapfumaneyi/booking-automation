@@ -42,6 +42,7 @@ export interface RentalSearchResultVehicle {
   resourceType: string;
   active: boolean;
   imageUrl?: string | null;
+  images?: string[];
   metadata?: Record<string, unknown>;
   available?: boolean;
 }
@@ -52,6 +53,7 @@ export interface RentalPreselectCandidate {
   description: string;
   resourceType: string;
   imageUrl: string | null;
+  images: string[];
   metadata: Record<string, unknown>;
 }
 
@@ -75,6 +77,7 @@ export function pickPreselectedVehicle(
     description: match.description ?? "",
     resourceType: match.resourceType,
     imageUrl: match.imageUrl ?? null,
+    images: match.images ?? [],
     metadata: match.metadata ?? {},
   };
 }
