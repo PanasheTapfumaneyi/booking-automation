@@ -8,6 +8,8 @@ export interface ServiceMenuItem {
   description: string | null;
   durationMinutes: number;
   price: number;
+  /** Optional thumbnail shown left of the text. Null = text-only row. */
+  imageUrl?: string | null;
 }
 
 /**
@@ -40,7 +42,16 @@ export default function ServiceMenu({
               key={service.id}
               className="flex items-start justify-between gap-4 border-b border-line/80 py-5 first:border-t md:first:border-t-0 md:[&:nth-child(2)]:border-t"
             >
-              <div className="min-w-0">
+              {service.imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={service.imageUrl}
+                  alt=""
+                  aria-hidden="true"
+                  className="h-16 w-16 shrink-0 rounded-xl object-cover"
+                />
+              )}
+              <div className="min-w-0 flex-1">
                 <h3 className="text-lg font-semibold leading-snug text-ink">
                   {service.name}
                 </h3>

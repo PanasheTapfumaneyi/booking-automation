@@ -37,6 +37,7 @@ import {
   updateSession,
   setSessionActive,
   listServices,
+  listResources,
   listSessions,
 } from "./businesses";
 import { ApiError } from "./errors";
@@ -411,6 +412,37 @@ describe("settings mutations", () => {
     await expect(updateResource("biz-1", "nope", { active: false }, asDb(db))).rejects.toMatchObject({
       status: 404,
     });
+  });
+
+  it("updates resource description and image", async () => {
+    const db = seeded();
+    db.tables.resources = [{ id: "res-1", business_id: "biz-1", name: "Corolla", active: true }];
+    await updateResource(
+      "biz-1",
+      "res-1",
+      { description: "Reliable sedan.", image_url: "https://example.com/corolla.jpg" },
+      asDb(db),
+    );
+    expect(db.tables.resources[0].description).toBe("Reliable sedan.");
+    expect(db.tables.resources[0].image_url).toBe("https://example.com/corolla.jpg");
+    // Empty clears to null.
+    await updateResource("biz-1", "res-1", { description: "", image_url: "" }, asDb(db));
+    expect(db.tables.resources[0].description).toBeNull();
+    expect(db.tables.resources[0].image_url).toBeNull();
+    // Non-http image URLs are rejected.
+    await expectValidation(() =>
+      updateResource("biz-1", "res-1", { image_url: "ftp://example.com/car.jpg" }, asDb(db)),
+    );
+  });
+
+  it("lists resources with safe columns including description", async () => {
+    const db = seeded();
+    db.tables.resources = [
+      { id: "res-1", business_id: "biz-1", name: "Corolla", description: "Reliable sedan.", resource_type: "vehicle", image_url: null, active: true, metadata: {} },
+    ];
+    expect(await listResources("biz-1", asDb(db))).toEqual([
+      { id: "res-1", name: "Corolla", description: "Reliable sedan.", resource_type: "vehicle", image_url: null, active: true, metadata: {} },
+    ]);
   });
 
   it("validates sessions against the owning business", async () => {

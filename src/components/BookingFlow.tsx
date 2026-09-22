@@ -259,12 +259,15 @@ export default function BookingFlow({
             id: string;
             businessId: string;
             name: string;
+            description: string | null;
             durationMinutes: number;
             price: number;
+            image_url: string | null;
           }>;
           resources: Array<{
             id: string;
             name: string;
+            description: string | null;
             resource_type: string;
             image_url: string | null;
             metadata: Record<string, unknown> | null;
@@ -295,13 +298,15 @@ export default function BookingFlow({
           },
           services: data.services.map((s) => ({
             ...s,
-            description: "",
+            description: s.description ?? "",
+            imageUrl: s.image_url ?? null,
             active: true,
           })),
           resources: data.resources.map((r) => ({
             id: r.id,
             businessId: data.business.id,
             name: r.name,
+            description: r.description ?? "",
             resourceType: r.resource_type,
             active: true,
             imageUrl: r.image_url ?? null,
@@ -341,7 +346,8 @@ export default function BookingFlow({
             name: rentalService.name,
             durationMinutes: rentalService.durationMinutes,
             price: rentalService.price,
-            description: "",
+            description: rentalService.description ?? "",
+            imageUrl: rentalService.image_url ?? null,
             active: true,
           });
           setStep("dates");
@@ -363,7 +369,8 @@ export default function BookingFlow({
               name: preselected.name,
               durationMinutes: preselected.durationMinutes,
               price: preselected.price,
-              description: "",
+              description: preselected.description ?? "",
+              imageUrl: preselected.image_url ?? null,
               active: true,
             });
             servicePreselectedRef.current = true;
@@ -578,6 +585,7 @@ export default function BookingFlow({
               id: matched.id,
               businessId: catalog!.business.id,
               name: matched.name,
+              description: matched.description ?? "",
               resourceType: matched.resourceType,
               active: true,
               imageUrl: matched.imageUrl,
@@ -985,6 +993,7 @@ export default function BookingFlow({
                           id: vehicle.id,
                           businessId: catalog!.business.id,
                           name: vehicle.name,
+                          description: vehicle.description ?? "",
                           resourceType: vehicle.resourceType,
                           active: true,
                           imageUrl: vehicle.imageUrl ?? null,
@@ -1027,6 +1036,11 @@ export default function BookingFlow({
                             <p className="mt-0.5 text-sm text-ink-soft">
                               {category} · {transmission} · {seats} seats · {fuel}
                             </p>
+                            {vehicle.description && (
+                              <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
+                                {vehicle.description}
+                              </p>
+                            )}
                           </div>
                           <p className="text-right text-sm font-semibold">
                             {rate && rate > 0 ? (
@@ -1097,6 +1111,11 @@ export default function BookingFlow({
                   <span className="ml-2 text-sm text-ink-soft">
                     {resource.resourceType}
                   </span>
+                  {resource.description.length > 0 && (
+                    <span className="mt-1 block text-sm font-normal text-ink-soft">
+                      {resource.description}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -1209,6 +1228,25 @@ export default function BookingFlow({
           <p className="mt-1.5 text-ink-soft">
             Select a session to book your spots.
           </p>
+          {service && (service.description.length > 0 || service.imageUrl) && (
+            <div className="mt-4 flex items-start gap-3 rounded-xl border border-line bg-card p-4">
+              {service.imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={service.imageUrl}
+                  alt=""
+                  aria-hidden="true"
+                  className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                />
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">{service.name}</p>
+                {service.description.length > 0 && (
+                  <p className="mt-0.5 text-sm text-ink-soft">{service.description}</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {catalog && catalog.sessions.length === 0 ? (
             <div className="mt-6 rounded-xl border border-line bg-card p-8 text-center">

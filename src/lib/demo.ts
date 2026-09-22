@@ -27,6 +27,7 @@ export const DEMO_SERVICES: Service[] = [
     durationMinutes: 45,
     price: 500,
     active: true,
+    imageUrl: null,
   },
   {
     id: "00000000-0000-4000-8000-000000000102",
@@ -36,6 +37,7 @@ export const DEMO_SERVICES: Service[] = [
     durationMinutes: 60,
     price: 700,
     active: true,
+    imageUrl: null,
   },
   {
     id: "00000000-0000-4000-8000-000000000103",
@@ -45,6 +47,7 @@ export const DEMO_SERVICES: Service[] = [
     durationMinutes: 30,
     price: 300,
     active: true,
+    imageUrl: null,
   },
 ];
 

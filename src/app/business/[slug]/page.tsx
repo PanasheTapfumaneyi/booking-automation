@@ -279,6 +279,11 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
                               <p className="mt-1 text-sm text-ink-soft">
                                 {[r.metadata.category, specs].filter(Boolean).join(" · ")}
                               </p>
+                              {r.description && (
+                                <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
+                                  {r.description}
+                                </p>
+                              )}
                             </div>
                             {rate !== null && (
                               <p className="text-right font-bold text-ink">
@@ -304,7 +309,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
                     <OfferingCard
                       key={r.id}
                       name={r.name}
-                      description={null}
+                      description={r.description ?? null}
                       imageUrl={r.image_url ?? null}
                       bookHref={bookHref}
                       ctaLabel="Check availability"
@@ -327,12 +332,13 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
                     const date = start.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: business.timezone });
                     const time = start.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: business.timezone });
                     const full = s.remaining <= 0;
+                    const parent = services.find((svc) => svc.id === s.service_id) ?? null;
                     return (
                       <OfferingCard
                         key={s.id}
                         name={s.service_name ?? "Session"}
-                        description={null}
-                        imageUrl={null}
+                        description={parent?.description ?? null}
+                        imageUrl={parent?.image_url ?? null}
                         capacity={full ? { remaining: 0, total: s.capacity } : { remaining: s.remaining, total: s.capacity }}
                         sessionTime={`${date} · ${time}`}
                         bookHref={bookHref}

@@ -31,12 +31,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     const [services, resources, sessions] = await Promise.all([
       db
         .from("services")
-        .select("id, name, duration_minutes, price")
+        .select("id, name, description, duration_minutes, price, image_url")
         .eq("business_id", business.id)
         .eq("active", true),
       db
         .from("resources")
-        .select("id, name, resource_type, image_url, metadata")
+        .select("id, name, description, resource_type, image_url, metadata")
         .eq("business_id", business.id)
         .eq("active", true),
       // Plain columns only: no `service:services(name)` embed, so the
@@ -100,11 +100,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
         id: (s as Record<string, unknown>).id,
         businessId: business.id,
         name: (s as Record<string, unknown>).name,
+        description: ((s as Record<string, unknown>).description as string | null) ?? "",
         durationMinutes: (s as Record<string, unknown>).duration_minutes,
         price: Number((s as Record<string, unknown>).price ?? 0),
+        image_url: ((s as Record<string, unknown>).image_url as string | null) ?? null,
         active: true,
       })),
-      resources: resources.data ?? [],
+      resources: (resources.data ?? []).map((r) => ({
+        ...(r as Record<string, unknown>),
+        description: ((r as Record<string, unknown>).description as string | null) ?? null,
+      })),
       sessions: sessionsWithBooked,
     });
   } catch (error) {

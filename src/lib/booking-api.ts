@@ -161,6 +161,7 @@ export interface ResourceAvailability extends AvailabilityBase {
   resources: Array<{
     id: string;
     name: string;
+    description?: string | null;
     resourceType: string;
     active: boolean;
     imageUrl?: string | null;

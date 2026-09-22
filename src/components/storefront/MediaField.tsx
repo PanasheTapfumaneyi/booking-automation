@@ -22,7 +22,7 @@ export default function MediaField({
   label: string;
   hint?: string;
   value: string | null;
-  kind: "logo" | "cover" | "gallery" | "team";
+  kind: "logo" | "cover" | "gallery" | "team" | "service";
   aspect: "square" | "wide";
   businessId: string;
   disabled?: boolean;

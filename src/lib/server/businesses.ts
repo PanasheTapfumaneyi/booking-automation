@@ -481,6 +481,7 @@ export async function listServices(businessId: string, db: DbLike): Promise<Serv
 export interface ResourceSummary {
   id: string;
   name: string;
+  description: string | null;
   resource_type: string;
   image_url: string | null;
   active: boolean;
@@ -492,12 +493,13 @@ export async function listResources(businessId: string, db: DbLike): Promise<Res
   const client = db as SupabaseClient;
   const { data, error } = await client
     .from("resources")
-    .select("id, name, resource_type, image_url, active, metadata")
+    .select("id, name, description, resource_type, image_url, active, metadata")
     .eq("business_id", businessId);
   if (error) throw error;
   return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
     id: r.id as string,
     name: r.name as string,
+    description: (r.description as string | null) ?? null,
     resource_type: (r.resource_type as string) ?? "generic",
     image_url: (r.image_url as string | null) ?? null,
     active: Boolean(r.active),
@@ -662,7 +664,7 @@ export async function createResource(
 export async function updateResource(
   businessId: string,
   resourceId: string,
-  input: { name?: string; active?: boolean },
+  input: { name?: string; active?: boolean; description?: string | null; image_url?: string | null },
   db: DbLike,
 ): Promise<void> {
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -674,6 +676,8 @@ export async function updateResource(
     patch.name = name;
   }
   if (input.active !== undefined) patch.active = Boolean(input.active);
+  if (input.description !== undefined) patch.description = sanitizeText(input.description, 500);
+  if (input.image_url !== undefined) patch.image_url = sanitizeImageUrl(input.image_url);
   const client = db as SupabaseClient;
   const { data, error } = await client
     .from("resources")

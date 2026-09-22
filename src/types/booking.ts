@@ -28,6 +28,8 @@ export interface Service {
   durationMinutes: number;
   price: number;
   active: boolean;
+  /** Public photo shown on the service card. Null = text-only card. */
+  imageUrl: string | null;
 }
 
 /** A generic reservable thing (car, boat, room, stylist, instructor…). */
@@ -35,6 +37,8 @@ export interface Resource {
   id: string;
   businessId: string;
   name: string;
+  /** Optional customer-facing description shown on booking cards. */
+  description: string;
   resourceType: string;
   active: boolean;
   /** Public photo shown on the item/vehicle card. */

@@ -38,6 +38,7 @@ export function rentalEnablementReasons(values: RentalFormValues): string[] {
 export interface RentalSearchResultVehicle {
   id: string;
   name: string;
+  description?: string | null;
   resourceType: string;
   active: boolean;
   imageUrl?: string | null;
@@ -48,6 +49,7 @@ export interface RentalSearchResultVehicle {
 export interface RentalPreselectCandidate {
   id: string;
   name: string;
+  description: string;
   resourceType: string;
   imageUrl: string | null;
   metadata: Record<string, unknown>;
@@ -70,6 +72,7 @@ export function pickPreselectedVehicle(
   return {
     id: match.id,
     name: match.name,
+    description: match.description ?? "",
     resourceType: match.resourceType,
     imageUrl: match.imageUrl ?? null,
     metadata: match.metadata ?? {},

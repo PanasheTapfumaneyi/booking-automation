@@ -143,6 +143,7 @@ export default function AppointmentStorefront({ data }: { data: AppointmentStore
           description: service.description,
           durationMinutes: service.duration_minutes,
           price: service.price,
+          imageUrl: service.image_url ?? null,
         }))}
         bookHref={bookHref}
         accent={accent}

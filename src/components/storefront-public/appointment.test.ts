@@ -95,6 +95,27 @@ describe("minimal business (name + services only)", () => {
     expect(page).not.toContain("undefined");
   });
 
+  it("renders a service thumbnail only when image_url is set", () => {
+    const plain = html(data());
+    expect(plain).not.toContain('src="https://example.com/cut.jpg"');
+    const withImage = html(
+      data({
+        services: [
+          {
+            id: "svc-1",
+            name: "Haircut",
+            description: "Classic cut and finish",
+            duration_minutes: 30,
+            price: 300,
+            image_url: "https://example.com/cut.jpg",
+            active: true,
+          },
+        ],
+      }),
+    );
+    expect(withImage).toContain('src="https://example.com/cut.jpg"');
+  });
+
   it("uses a typography-led hero without imagery", () => {
     const page = html(data());
     // No hero <img> for the business itself (no cover, no logo).

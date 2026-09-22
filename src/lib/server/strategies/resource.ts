@@ -28,6 +28,8 @@ import { hasUnitRate, computeResourceTotal } from "@/lib/resource-pricing";
 export interface ResourceSummary {
   id: string;
   name: string;
+  /** Optional customer-facing description shown on the item card. */
+  description?: string | null;
   resourceType: string;
   active: boolean;
   /** Public photo shown on the item/vehicle card (null when unset). */
@@ -99,7 +101,7 @@ export async function resourceAvailability(params: {
 
   const { data, error } = await getSupabase()
     .from("resources")
-    .select("id, business_id, name, resource_type, active, image_url, metadata")
+    .select("id, business_id, name, description, resource_type, active, image_url, metadata")
     .eq("business_id", business.id)
     .eq("active", true);
 
@@ -146,7 +148,7 @@ export async function resourceIntervalAvailability(params: {
   const [{ data, error }, blocks] = await Promise.all([
     getSupabase()
       .from("resources")
-      .select("id, business_id, name, resource_type, active, image_url, metadata")
+      .select("id, business_id, name, description, resource_type, active, image_url, metadata")
       .eq("business_id", business.id)
       .eq("active", true),
     fetchResourceBlocks({
@@ -186,6 +188,7 @@ export async function resourceIntervalAvailability(params: {
 function toResourceSummary(resource: {
   id: unknown;
   name: unknown;
+  description?: unknown;
   resource_type: unknown;
   active: unknown;
   image_url: unknown;
@@ -195,6 +198,7 @@ function toResourceSummary(resource: {
   return {
     id: resource.id as string,
     name: resource.name as string,
+    description: (resource.description as string | null) ?? null,
     resourceType: resource.resource_type as string,
     active: resource.active as boolean,
     imageUrl: (resource.image_url as string | null) ?? null,

@@ -81,7 +81,7 @@ function seed(): void {
       },
     ],
     services: [
-      { id: "svc-1", business_id: "biz-1", name: "Cut", duration_minutes: 45, price: 500, active: true },
+      { id: "svc-1", business_id: "biz-1", name: "Cut", description: "Sharp fade, finished to your style.", duration_minutes: 45, price: 500, image_url: "https://example.com/cut.jpg", active: true },
       { id: "svc-2", business_id: "biz-1", name: "Retired", duration_minutes: 30, price: 1, active: false },
     ],
     resources: [],
@@ -124,8 +124,10 @@ describe("GET /api/public/businesses/[slug]", () => {
         id: "svc-1",
         businessId: "biz-1",
         name: "Cut",
+        description: "Sharp fade, finished to your style.",
         durationMinutes: 45,
         price: 500,
+        image_url: "https://example.com/cut.jpg",
         active: true,
       },
     ]);
@@ -158,7 +160,7 @@ describe("catalog — resource mode", () => {
         { id: "svc-res", business_id: "biz-res", name: "Daily Rental", duration_minutes: 1440, price: 2000, active: true },
       ],
       resources: [
-        { id: "res-1", business_id: "biz-res", name: "Corolla", resource_type: "vehicle", active: true },
+        { id: "res-1", business_id: "biz-res", name: "Corolla", description: "Reliable sedan, great on fuel.", resource_type: "vehicle", active: true },
         { id: "res-2", business_id: "biz-res", name: "Civic", resource_type: "vehicle", active: true },
         { id: "res-inactive", business_id: "biz-res", name: "Old Van", resource_type: "vehicle", active: false },
       ],
@@ -191,6 +193,17 @@ describe("catalog — resource mode", () => {
     expect(resources).toHaveLength(2);
     expect(resources.map((r) => r.id)).toEqual(["res-1", "res-2"]);
     expect(JSON.stringify(resources)).not.toContain("Stolen Car");
+  });
+
+  it("passes resource descriptions through (null when unset)", async () => {
+    seedResource();
+    const response = await GET({} as Request, paramsFor("car-rental"));
+    const body = (await response.json()) as Record<string, unknown>;
+    const resources = body.resources as Array<Record<string, unknown>>;
+    expect(resources.find((r) => r.id === "res-1")?.description).toBe(
+      "Reliable sedan, great on fuel.",
+    );
+    expect(resources.find((r) => r.id === "res-2")?.description).toBeNull();
   });
 
   it("inactive resources are excluded", async () => {

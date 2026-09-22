@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import HoursEditor from "@/components/HoursEditor";
+import MediaField from "@/components/storefront/MediaField";
+import { storefrontApi } from "@/components/storefront/api";
 import type { BusinessHours } from "@/lib/availability";
 import type { BookingMode } from "@/types/booking";
 
@@ -89,8 +91,8 @@ export interface SettingsBundle {
     longitude: number | null;
     is_active: boolean;
   };
-  services: Array<{ id: string; name: string; duration_minutes: number; price: number; active: boolean; description: string | null }>;
-  resources: Array<{ id: string; name: string; resource_type: string; active: boolean }>;
+  services: Array<{ id: string; name: string; duration_minutes: number; price: number; active: boolean; description: string | null; image_url: string | null }>;
+  resources: Array<{ id: string; name: string; resource_type: string; active: boolean; description: string | null }>;
   sessions: Array<{
     id: string;
     service_id: string;
@@ -190,8 +192,10 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
   const [editDuration, setEditDuration] = useState("");
   const [editPrice, setEditPrice] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editImageUrl, setEditImageUrl] = useState("");
   const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
   const [editResourceName, setEditResourceName] = useState("");
+  const [editResourceDescription, setEditResourceDescription] = useState("");
   const [newResourceName, setNewResourceName] = useState("");
   const [newSessionService, setNewSessionService] = useState(bundle.services[0]?.id ?? "");
   const [newSessionDate, setNewSessionDate] = useState("");
@@ -371,19 +375,34 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
     );
 
   const saveServiceEdit = (serviceId: string) =>
-    run(`service-${serviceId}`, () =>
-      requestJson(`/api/businesses/${business.id}/services/${serviceId}`, {
+    run(`service-${serviceId}`, () => {
+      const imageUrl = editImageUrl.trim();
+      if (imageUrl && !isValidHttpUrl(imageUrl)) {
+        throw new Error("Please enter a valid image URL starting with http:// or https://.");
+      }
+      const previous = live.services.find((s) => s.id === serviceId)?.image_url ?? null;
+      const next = imageUrl || null;
+      return requestJson(`/api/businesses/${business.id}/services/${serviceId}`, {
         name: editName,
         duration_minutes: Number(editDuration),
         price: Number(editPrice || 0),
         description: editDescription || null,
-      }, "PATCH").then(() => setEditingServiceId(null)),
-    );
+        image_url: next,
+      }, "PATCH").then(() => {
+        // Best-effort cleanup of a replaced/removed storage image.
+        // External hotlinks are skipped server-side.
+        if (previous && previous !== next) {
+          void storefrontApi.deleteMediaUrl(business.id, previous).catch(() => undefined);
+        }
+        setEditingServiceId(null);
+      });
+    });
 
   const saveResourceEdit = (resourceId: string) =>
     run(`resource-${resourceId}`, () =>
       requestJson(`/api/businesses/${business.id}/resources/${resourceId}`, {
         name: editResourceName,
+        description: editResourceDescription || null,
       }, "PATCH").then(() => setEditingResourceId(null)),
     );
 
@@ -726,6 +745,7 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                         setEditDuration(String(service.duration_minutes));
                         setEditPrice(String(service.price));
                         setEditDescription(service.description ?? "");
+                        setEditImageUrl(service.image_url ?? "");
                       }}
                       className="font-medium text-ink-soft hover:text-ink"
                     >
@@ -759,6 +779,25 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                       rows={2}
                       disabled={busy !== null}
                       className={`${inputClass} resize-y`}
+                    />
+                    <MediaField
+                      label="Service photo"
+                      hint="Shown on your booking page. Upload an image or paste a URL below."
+                      value={editImageUrl.trim() || null}
+                      kind="service"
+                      aspect="wide"
+                      businessId={business.id}
+                      disabled={busy !== null}
+                      onChange={(url) => setEditImageUrl(url ?? "")}
+                    />
+                    <input
+                      aria-label="Service image URL"
+                      value={editImageUrl}
+                      onChange={(e) => setEditImageUrl(e.target.value)}
+                      placeholder="...or paste an image URL (https://...)"
+                      disabled={busy !== null}
+                      inputMode="url"
+                      className={inputClass}
                     />
                     <div className="flex gap-2">
                       <button type="submit" disabled={busy !== null} className={buttonClass}>
@@ -836,6 +875,7 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                             }
                             setEditingResourceId(resource.id);
                             setEditResourceName(resource.name);
+                            setEditResourceDescription(resource.description ?? "");
                           }}
                           className="font-medium text-ink-soft hover:text-ink"
                         >
@@ -854,9 +894,18 @@ export default function SettingsForm({ bundle }: { bundle: SettingsBundle }) {
                     {editingResourceId === resource.id && (
                       <form
                         onSubmit={submitHandler(() => saveResourceEdit(resource.id))}
-                        className="mt-2.5 flex gap-2"
+                        className="mt-2.5 flex flex-col gap-2"
                       >
-                        <input aria-label="Resource name" value={editResourceName} onChange={(e) => setEditResourceName(e.target.value)} disabled={busy !== null} className={`${inputClass} flex-1`} />
+                        <input aria-label="Resource name" value={editResourceName} onChange={(e) => setEditResourceName(e.target.value)} disabled={busy !== null} className={inputClass} />
+                        <textarea
+                          aria-label="Resource description"
+                          value={editResourceDescription}
+                          onChange={(e) => setEditResourceDescription(e.target.value)}
+                          placeholder="Short description shown on your booking page..."
+                          rows={2}
+                          disabled={busy !== null}
+                          className={`${inputClass} resize-y`}
+                        />
                         <button type="submit" disabled={busy !== null} className={buttonClass}>
                           {busy === `resource-${resource.id}` ? "Saving…" : "Save"}
                         </button>

@@ -771,7 +771,7 @@ export async function deleteReview(
 export const STOREFRONT_MEDIA_BUCKET = "storefront-media";
 
 /** Upload slots. The path segment is allowlisted — never client-built. */
-export const MEDIA_KINDS = ["logo", "cover", "gallery", "team"] as const;
+export const MEDIA_KINDS = ["logo", "cover", "gallery", "team", "service"] as const;
 
 export type MediaKind = (typeof MEDIA_KINDS)[number];
 

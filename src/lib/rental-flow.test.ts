@@ -94,10 +94,28 @@ describe("pickPreselectedVehicle", () => {
     expect(picked).toEqual({
       id: "v-creta",
       name: "Hyundai Creta",
+      description: "",
       resourceType: "car",
       imageUrl: "https://example.test/creta.jpg",
       metadata: { seats: 5 },
     });
+  });
+
+  it("carries the vehicle description through when present", () => {
+    const picked = pickPreselectedVehicle(
+      [
+        {
+          id: "v-creta",
+          name: "Hyundai Creta",
+          description: "Spacious SUV, great for the coast road.",
+          resourceType: "car",
+          active: true,
+          available: true,
+        },
+      ],
+      "v-creta",
+    );
+    expect(picked?.description).toBe("Spacious SUV, great for the coast road.");
   });
 
   it("returns null for an unknown id", () => {
